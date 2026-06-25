@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Sellora — Transfer</title>
+
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+
+<style>
+:root {
+  --bg: #f7f8fc;
+  --card: #ffffff;
+  --primary: #4f46e5;
+  --primary-hover: #4338ca;
+  --text-main: #111827;
+  --text-muted: #6b7280;
+  --border: #e5e7eb;
+  --input-bg: #f9fafb;
+  --error: #ef4444;
+  --success: #16a34a;
+  --radius: 12px;
+  --shadow: 0 4px 24px rgba(0,0,0,0.07);
+}
+
+* { box-sizing: border-box; margin:0; padding:0; }
+
+body {
+  font-family: 'Inter', sans-serif;
+  background: var(--bg);
+  min-height: 100vh;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  padding: 24px;
+}
+
+/* BRAND */
+.brand {
+  display:flex;
+  align-items:center;
+  gap:10px;
+  margin-bottom: 26px;
+}
+.brand-icon {
+  width:36px;height:36px;
+  background:var(--primary);
+  border-radius:10px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  color:#fff;
+  font-weight:700;
+}
+.brand-name {
+  font-size:1.2rem;
+  font-weight:700;
+}
+
+/* CARD */
+.card {
+  width:100%;
+  max-width:460px;
+  background:var(--card);
+  border-radius:16px;
+  box-shadow:var(--shadow);
+  padding:36px;
+}
+
+h1 {
+  font-size:1.6rem;
+  text-align:center;
+  margin-bottom:6px;
+}
+
+p.sub {
+  text-align:center;
+  font-size:0.85rem;
+  color:var(--text-muted);
+  margin-bottom:24px;
+}
+
+/* FORM */
+.form-group { margin-bottom:16px; }
+
+label {
+  font-size:0.8rem;
+  font-weight:500;
+  margin-bottom:6px;
+  display:block;
+}
+
+input {
+  width:100%;
+  padding:11px 12px;
+  border:1.5px solid var(--border);
+  border-radius:10px;
+  background:var(--input-bg);
+  outline:none;
+  font-size:0.9rem;
+}
+
+input:focus {
+  border-color:var(--primary);
+  background:#fff;
+  box-shadow:0 0 0 3px rgba(79,70,229,0.1);
+}
+
+/* AMOUNT INPUT WITH $ */
+.amount-wrapper {
+  position:relative;
+}
+
+.amount-wrapper span {
+  position:absolute;
+  left:12px;
+  top:50%;
+  transform:translateY(-50%);
+  color:var(--text-muted);
+  font-weight:600;
+}
+
+.amount-wrapper input {
+  padding-left:28px;
+}
+
+/* BUTTON */
+button {
+  width:100%;
+  padding:12px;
+  border:none;
+  border-radius:10px;
+  background:var(--primary);
+  color:#fff;
+  font-weight:600;
+  cursor:pointer;
+  margin-top:10px;
+}
+
+button:hover {
+  background:var(--primary-hover);
+}
+
+/* MESSAGE */
+.message {
+  margin-top:14px;
+  text-align:center;
+  font-size:0.85rem;
+  min-height:18px;
+}
+
+.error { color:var(--error); }
+.success { color:var(--success); }
+
+/* small helper */
+.row {
+  display:flex;
+  gap:10px;
+}
+
+@media (max-width:480px){
+  .card { padding:26px; }
+}
+</style>
+</head>
+
+<body>
+
+<div class="brand">
+  <div class="brand-icon">S</div>
+  <div class="brand-name">Sellora</div>
+</div>
+
+<div class="card">
+
+  <h1>Transfer Money</h1>
+  <p class="sub">Send funds securely using your account</p>
+
+  <form id="transferForm">
+
+    <div class="form-group">
+      <label>From Account ID</label>
+      <input type="number" id="fromAccount" placeholder="e.g. 1" />
+    </div>
+
+    <div class="form-group">
+      <label>To Account ID</label>
+      <input type="number" id="toAccount" placeholder="e.g. 2" />
+    </div>
+
+    <div class="form-group">
+      <label>Amount</label>
+      <div class="amount-wrapper">
+        <span>$</span>
+        <input type="number" id="amount" placeholder="0.00" />
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label>Idempotency Key</label>
+      <input type="text" id="key" placeholder="auto-generated if empty" />
+    </div>
+
+    <button type="submit">Send Transfer</button>
+
+    <div id="msg" class="message"></div>
+
+  </form>
+</div>
+
+<script>
+
+function uuid() {
+  return crypto.randomUUID();
+}
+
+const form = document.getElementById('transferForm');
+const msg = document.getElementById('msg');
+
+form.addEventListener('submit', async (e) => {
+  e.preventDefault();
+
+  const fromAccountId = document.getElementById('fromAccount').value;
+  const toAccountId = document.getElementById('toAccount').value;
+  const amount = Number(document.getElementById('amount').value);
+  let idempotencyKey = document.getElementById('key').value;
+
+  // ---------------- VALIDATION ----------------
+  if (!fromAccountId || !toAccountId || !amount) {
+    msg.textContent = "All fields are required";
+    msg.className = "message error";
+    return;
+  }
+
+  if (fromAccountId === toAccountId) {
+    msg.textContent = "Cannot transfer to same account";
+    msg.className = "message error";
+    return;
+  }
+
+  if (amount <= 0) {
+    msg.textContent = "Invalid amount";
+    msg.className = "message error";
+    return;
+  }
+
+  if (!idempotencyKey) {
+    idempotencyKey = uuid();
+  }
+
+  msg.textContent = "Processing...";
+  msg.className = "message";
+
+  try {
+    const res = await fetch('/api/transfer', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${localStorage.getItem('token')}`
+      },
+      body: JSON.stringify({
+        fromAccountId,
+        toAccountId,
+        amount,
+        idempotencyKey
+      })
+    });
+
+    const data = await res.json();
+
+    if (!data.success) {
+      msg.textContent = data.message;
+      msg.className = "message error";
+      return;
+    }
+
+    msg.textContent = "Transfer successful!";
+    msg.className = "message success";
+
+  } catch (err) {
+    msg.textContent = "Server error";
+    msg.className = "message error";
+  }
+});
+</script>
+
+</body>
+</html>

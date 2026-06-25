@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Sellora — Verify Email</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+  <style>
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    :root {
+      --bg: #f7f8fc;
+      --card: #ffffff;
+      --primary: #4f46e5;
+      --primary-hover: #4338ca;
+      --text-main: #111827;
+      --text-muted: #6b7280;
+      --border: #e5e7eb;
+      --input-bg: #f9fafb;
+      --input-focus-border: #4f46e5;
+      --error: #ef4444;
+      --success: #16a34a;
+      --radius: 10px;
+      --shadow: 0 4px 24px rgba(0, 0, 0, 0.07);
+    }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background-color: var(--bg);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 24px 16px;
+      color: var(--text-main);
+    }
+
+    /* Logo / Brand */
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 28px;
+    }
+
+    .brand-icon {
+      width: 36px;
+      height: 36px;
+      background: var(--primary);
+      border-radius: 9px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .brand-icon svg {
+      width: 20px;
+      height: 20px;
+      fill: #fff;
+    }
+
+    .brand-name {
+      font-size: 1.2rem;
+      font-weight: 700;
+      letter-spacing: -0.3px;
+      color: var(--text-main);
+    }
+
+    /* Card */
+    .card {
+      background: var(--card);
+      border-radius: 16px;
+      box-shadow: var(--shadow);
+      padding: 40px 36px;
+      width: 100%;
+      max-width: 440px;
+    }
+
+    .card-header {
+      margin-bottom: 28px;
+      text-align: center;
+    }
+
+    .card-header h1 {
+      font-size: 1.65rem;
+      font-weight: 700;
+      letter-spacing: -0.5px;
+      color: var(--text-main);
+    }
+
+    .card-header p {
+      margin-top: 6px;
+      font-size: 0.875rem;
+      color: var(--text-muted);
+      line-height: 1.5;
+    }
+
+    /* Form */
+    .form-group {
+      margin-bottom: 18px;
+    }
+
+    label {
+      display: block;
+      font-size: 0.8125rem;
+      font-weight: 500;
+      color: var(--text-main);
+      margin-bottom: 6px;
+    }
+
+    .input-wrapper {
+      position: relative;
+    }
+
+    input[type="email"] {
+      width: 100%;
+      padding: 11px 14px;
+      font-size: 0.9rem;
+      font-family: inherit;
+      color: var(--text-main);
+      background: var(--input-bg);
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius);
+      outline: none;
+      appearance: none;
+      -webkit-appearance: none;
+    }
+
+    input::placeholder {
+      color: #b0b7c3;
+    }
+
+    input:focus {
+      border-color: var(--input-focus-border);
+      background: #fff;
+      box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
+    }
+
+    /* Code boxes — the signature element of this page */
+    .code-row {
+      display: flex;
+      gap: 10px;
+      justify-content: space-between;
+    }
+
+    .code-box {
+      width: 100%;
+      height: 54px;
+      text-align: center;
+      font-size: 1.4rem;
+      font-weight: 600;
+      font-family: inherit;
+      color: var(--text-main);
+      background: var(--input-bg);
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius);
+      outline: none;
+      appearance: none;
+      -webkit-appearance: none;
+      transition: border-color 0.15s, box-shadow 0.15s;
+    }
+
+    .code-box:focus {
+      border-color: var(--input-focus-border);
+      background: #fff;
+      box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
+    }
+
+    .code-hint {
+      margin-top: 8px;
+      font-size: 0.75rem;
+      color: var(--text-muted);
+    }
+
+    /* Verify button */
+    .btn-primary {
+      width: 100%;
+      padding: 12px;
+      background: var(--primary);
+      color: #fff;
+      font-size: 0.9375rem;
+      font-weight: 600;
+      font-family: inherit;
+      border: none;
+      border-radius: var(--radius);
+      cursor: pointer;
+      margin-top: 22px;
+    }
+
+    .btn-primary:hover {
+      background: var(--primary-hover);
+    }
+
+    .btn-primary:active {
+      transform: scale(0.99);
+    }
+
+    /* Status message */
+    .message {
+      text-align: center;
+      font-size: 0.8125rem;
+      font-weight: 500;
+      min-height: 18px;
+      margin-top: 16px;
+    }
+
+    .message.success { color: var(--success); }
+    .message.error { color: var(--error); }
+
+    /* Footer */
+    .card-footer {
+      text-align: center;
+      margin-top: 24px;
+      font-size: 0.8125rem;
+      color: var(--text-muted);
+    }
+
+    .card-footer a {
+      color: var(--primary);
+      font-weight: 600;
+      text-decoration: none;
+    }
+
+    .card-footer a:hover {
+      text-decoration: underline;
+    }
+
+    /* Responsive */
+    @media (max-width: 480px) {
+      .card {
+        padding: 30px 20px;
+      }
+
+      .card-header h1 {
+        font-size: 1.4rem;
+      }
+
+      .code-box {
+        height: 48px;
+        font-size: 1.2rem;
+      }
+
+      .code-row {
+        gap: 6px;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Brand -->
+  <div class="brand">
+    <div class="brand-icon">
+      <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+      </svg>
+    </div>
+    <span class="brand-name">Sellora</span>
+  </div>
+
+  <!-- Card -->
+  <div class="card">
+    <div class="card-header">
+      <h1>Verify your email</h1>
+      <p>Enter the 6-digit code we sent to your inbox. It expires in 10 minutes.</p>
+    </div>
+
+    <form id="verifyForm" novalidate>
+
+      <div class="form-group">
+        <label for="email">Email</label>
+        <div class="input-wrapper">
+          <input type="email" id="email" name="email" placeholder="sellostars@company.com" autocomplete="email" required />
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label for="code-0">Verification code</label>
+        <div class="code-row">
+          <input type="text" inputmode="numeric" pattern="[0-9]*" maxlength="1" class="code-box" id="code-0" autofocus />
+          <input type="text" inputmode="numeric" pattern="[0-9]*" maxlength="1" class="code-box" />
+          <input type="text" inputmode="numeric" pattern="[0-9]*" maxlength="1" class="code-box" />
+          <input type="text" inputmode="numeric" pattern="[0-9]*" maxlength="1" class="code-box" />
+          <input type="text" inputmode="numeric" pattern="[0-9]*" maxlength="1" class="code-box" />
+          <input type="text" inputmode="numeric" pattern="[0-9]*" maxlength="1" class="code-box" />
+        </div>
+        <p class="code-hint">You can paste the full code into any box.</p>
+      </div>
+
+      <button type="submit" class="btn-primary">Verify account</button>
+    </form>
+
+    <p id="message" class="message"></p>
+
+    <div class="card-footer">
+      Wrong email? <a href="/register">Go back</a>
+    </div>
+  </div>
+
+  <script>
+    document.getElementById('email').value = new URLSearchParams(location.search).get('email') || '';
+
+    const codeBoxes = Array.from(document.querySelectorAll('.code-box'));
+
+    codeBoxes.forEach((box, idx) => {
+      box.addEventListener('input', () => {
+        box.value = box.value.replace(/[^0-9]/g, '').slice(0, 1);
+        if (box.value && idx < codeBoxes.length - 1) codeBoxes[idx + 1].focus();
+      });
+
+      box.addEventListener('keydown', (e) => {
+        if (e.key === 'Backspace' && !box.value && idx > 0) codeBoxes[idx - 1].focus();
+      });
+
+      box.addEventListener('paste', (e) => {
+        e.preventDefault();
+        const digits = (e.clipboardData || window.clipboardData).getData('text').replace(/[^0-9]/g, '').slice(0, 6);
+        digits.split('').forEach((digit, i) => { if (codeBoxes[i]) codeBoxes[i].value = digit; });
+        const last = codeBoxes[Math.min(digits.length, codeBoxes.length) - 1];
+        if (last) last.focus();
+      });
+    });
+
+    const messageEl = document.getElementById('message');
+
+    document.getElementById('verifyForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      const email = document.getElementById('email').value.trim();
+      const code = codeBoxes.map(box => box.value).join('');
+
+      if (code.length < 6) {
+        messageEl.textContent = 'Enter all 6 digits';
+        messageEl.className = 'message error';
+        return;
+      }
+
+      const body = new URLSearchParams({ email, code });
+      const res = await fetch('/verify-email', { method: 'POST', body });
+      const data = await res.json();
+
+      messageEl.textContent = data.message;
+      messageEl.className = 'message ' + (data.success ? 'success' : 'error');
+
+
+      if (data.success) {
+        showToast('Login successful! Redirecting…', 'success');
+
+        setTimeout(() => {
+            window.location.href = data.data.redirectTo;
+        }, 1200);
+      }
+
+    });
+  </script>
+
+</body>
+</html>
