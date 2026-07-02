@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Room — CryptoTrade Chat</title>
+<style>
+  *,*::before,*::after{margin:0;padding:0;box-sizing:border-box;}
+  :root{
+    --bg:#000000; --surface:#0a0a0a; --surface2:#111111; --surface3:#161616;
+    --border:#1a1a1a; --border2:#222222; --text:#ffffff; --text-2:#888888; --text-3:#444444;
+    --blue:#3b82f6; --blue-dim:rgba(59,130,246,.12); --green:#22c55e; --red:#ef4444;
+  }
+  html,body{height:100%;}
+  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:var(--bg);color:var(--text);display:flex;flex-direction:column;}
+  .topnav{height:60px;flex-shrink:0;background:rgba(0,0,0,.9);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 20px;gap:14px;backdrop-filter:blur(12px);}
+  .topnav-logo{font-size:1.05rem;font-weight:800;letter-spacing:-.5px;background:linear-gradient(90deg,#fff 0%,#93c5fd 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;text-decoration:none;flex-shrink:0;}
+  .room-title-wrap{display:flex;flex-direction:column;overflow:hidden;}
+  .room-title{font-size:.9rem;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .room-sub{font-size:.7rem;color:var(--text-3);}
+  .topnav-right{margin-left:auto;display:flex;align-items:center;gap:8px;flex-shrink:0;}
+  .nav-pill{display:inline-flex;align-items:center;gap:6px;padding:7px 14px;border-radius:7px;font-size:.8rem;font-weight:600;text-decoration:none;border:1px solid var(--border2);color:var(--text-2);background:transparent;cursor:pointer;transition:all .18s;}
+  .nav-pill:hover{color:#fff;border-color:#444;background:var(--surface2);}
+  .nav-pill.danger{border-color:rgba(239,68,68,.3);color:var(--red);}
+  .nav-pill.danger:hover{background:rgba(239,68,68,.1);}
+  .conn-dot{width:7px;height:7px;border-radius:50%;background:var(--text-3);flex-shrink:0;}
+  .conn-dot.live{background:var(--green);animation:pdot 1.5s infinite;}
+  .conn-dot.bad{background:var(--red);}
+  @keyframes pdot{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.4;transform:scale(.7)}}
+
+  .layout{flex:1;display:flex;overflow:hidden;}
+  .chat-col{flex:1;display:flex;flex-direction:column;min-width:0;}
+  .msgs{flex:1;overflow-y:auto;padding:20px 24px;display:flex;flex-direction:column;gap:10px;}
+
+  .msg-row{display:flex;flex-direction:column;max-width:65%;}
+  .msg-row.mine{align-self:flex-end;align-items:flex-end;}
+  .msg-row.theirs{align-self:flex-start;align-items:flex-start;}
+  .msg-meta{font-size:.7rem;color:var(--text-3);margin-bottom:3px;padding:0 3px;}
+  .msg-bubble{padding:9px 13px;border-radius:12px;font-size:.86rem;line-height:1.5;word-wrap:break-word;}
+  .msg-row.mine .msg-bubble{background:var(--blue);color:#fff;border-bottom-right-radius:3px;}
+  .msg-row.theirs .msg-bubble{background:var(--surface2);border:1px solid var(--border2);color:var(--text);border-bottom-left-radius:3px;}
+
+  .sys-row{align-self:center;font-size:.74rem;color:var(--text-3);background:var(--surface2);padding:5px 12px;border-radius:100px;margin:4px 0;}
+
+  .input-row{display:flex;gap:10px;padding:14px 20px;border-top:1px solid var(--border);background:var(--surface);flex-shrink:0;}
+  .chat-input{flex:1;background:var(--surface2);border:1px solid var(--border2);border-radius:8px;color:#fff;font-size:.87rem;padding:11px 14px;outline:none;}
+  .chat-input:focus{border-color:#444;}
+  .chat-send{background:var(--blue);border:none;border-radius:8px;padding:0 20px;color:#fff;font-size:.86rem;font-weight:600;cursor:pointer;}
+  .chat-send:disabled{opacity:.4;cursor:not-allowed;}
+
+  .sidebar{width:220px;flex-shrink:0;border-left:1px solid var(--border);background:var(--surface);display:flex;flex-direction:column;padding:18px 16px;}
+  .sidebar h4{font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text-3);margin-bottom:12px;}
+  .user-item{display:flex;align-items:center;gap:8px;padding:6px 0;font-size:.83rem;}
+  .user-dot{width:6px;height:6px;border-radius:50%;background:var(--green);flex-shrink:0;}
+
+  .center-state{flex:1;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:10px;color:var(--text-2);font-size:.9rem;text-align:center;padding:40px;}
+  .spinner{width:22px;height:22px;border:2.5px solid var(--border2);border-top-color:var(--blue);border-radius:50%;animation:spin .7s linear infinite;}
+  @keyframes spin{to{transform:rotate(360deg)}}
+
+  ::-webkit-scrollbar{width:5px;} ::-webkit-scrollbar-track{background:transparent;} ::-webkit-scrollbar-thumb{background:var(--border2);border-radius:99px;}
+
+  @media(max-width:700px){ .sidebar{display:none;} .msg-row{max-width:82%;} }
+</style>
+</head>
+<body>
+
+<header class="topnav">
+  <a href="/dashboard" class="topnav-logo">CryptoTrade</a>
+  <div class="room-title-wrap">
+    <span class="room-title" id="roomTitle">Loading room…</span>
+    <span class="room-sub" id="roomSub"><span class="conn-dot" id="connDot"></span> Connecting…</span>
+  </div>
+  <div class="topnav-right">
+    <button class="nav-pill danger" id="deleteBtn" style="display:none;" onclick="confirmDelete()">Delete Room</button>
+    <button class="nav-pill" onclick="leaveRoom()">Leave</button>
+  </div>
+</header>
+
+<div class="layout" id="layout" style="display:none;">
+  <div class="chat-col">
+    <div class="msgs" id="msgs"></div>
+    <div class="input-row">
+      <input class="chat-input" id="msgInput" type="text" placeholder="Type a message…" maxlength="2000" disabled/>
+      <button class="chat-send" id="sendBtn" onclick="sendMessage()" disabled>Send</button>
+    </div>
+  </div>
+  <aside class="sidebar">
+    <h4 id="usersHeading">Online — 0</h4>
+    <div id="usersList"></div>
+  </aside>
+</div>
+
+<div class="center-state" id="loadingState">
+  <div class="spinner"></div>
+  <div>Connecting to the room…</div>
+</div>
+
+<script>
+const roomId = window.location.pathname.split('/').pop();
+let ws = null;
+let currentUser = null;
+let isOwner = false;
+let manualLeave = false;
+
+function $(id) { return document.getElementById(id); }
+
+function setConn(state, label) {
+  const dot = $('connDot');
+  dot.className = 'conn-dot ' + (state === 'live' ? 'live' : state === 'bad' ? 'bad' : '');
+  $('roomSub').lastChild.textContent = ' ' + label;
+}
+
+function showChatUI() {
+  $('loadingState').style.display = 'none';
+  $('layout').style.display = 'flex';
+}
+
+function showCenterMessage(text, isError) {
+  $('layout').style.display = 'none';
+  const el = $('loadingState');
+  el.style.display = 'flex';
+  el.innerHTML = isError
+    ? `<div style="font-size:1.6rem;">⚠</div><div>${escapeHtml(text)}</div><a href="/chat" class="nav-pill" style="margin-top:6px;">← Back to Rooms</a>`
+    : `<div class="spinner"></div><div>${escapeHtml(text)}</div>`;
+}
+
+function escapeHtml(s) {
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+function scrollToBottom() {
+  const m = $('msgs');
+  m.scrollTop = m.scrollHeight;
+}
+
+function appendSystem(text) {
+  const div = document.createElement('div');
+  div.className = 'sys-row';
+  div.textContent = text;
+  $('msgs').appendChild(div);
+  scrollToBottom();
+}
+
+function appendMessage(from, fromId, text, timestamp) {
+  const mine = currentUser && fromId === currentUser.id;
+  const row = document.createElement('div');
+  row.className = 'msg-row ' + (mine ? 'mine' : 'theirs');
+
+  const meta = document.createElement('div');
+  meta.className = 'msg-meta';
+  const time = timestamp ? new Date(timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+  meta.textContent = (mine ? 'You' : from) + (time ? ' · ' + time : '');
+
+  const bubble = document.createElement('div');
+  bubble.className = 'msg-bubble';
+  bubble.textContent = text;
+
+  row.appendChild(meta);
+  row.appendChild(bubble);
+  $('msgs').appendChild(row);
+  scrollToBottom();
+}
+
+function updateUsersList(users) {
+  $('usersHeading').textContent = `Online — ${users.length}`;
+  $('usersList').innerHTML = users.map(u =>
+    `<div class="user-item"><span class="user-dot"></span>${escapeHtml(u)}</div>`
+  ).join('');
+}
+
+async function init() {
+  try {
+    const meRes = await fetch('/api/chat/me');
+    if (meRes.status === 401) { window.location.href = '/login'; return; }
+    const meData = await meRes.json();
+    currentUser = meData.data;
+  } catch (e) {
+    showCenterMessage('Could not verify your session. Please log in again.', true);
+    return;
+  }
+
+  connect();
+}
+
+function connect() {
+  const proto = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
+  ws = new WebSocket(proto + window.location.host + '/ws/chat');
+
+  ws.onopen = () => {
+    setConn('live', 'Connected');
+    const password = sessionStorage.getItem('chat_room_password_' + roomId) || undefined;
+    sessionStorage.removeItem('chat_room_password_' + roomId);
+    ws.send(JSON.stringify({ type: 'join', roomId, password }));
+  };
+
+  ws.onmessage = (evt) => {
+    let msg;
+    try { msg = JSON.parse(evt.data); } catch (e) { return; }
+
+    switch (msg.type) {
+      case 'joined':
+        isOwner = !!msg.room.is_owner;
+        $('roomTitle').textContent = msg.room.room_name;
+        $('deleteBtn').style.display = isOwner ? 'inline-flex' : 'none';
+        $('msgInput').disabled = false;
+        $('sendBtn').disabled = false;
+        updateUsersList(msg.users || []);
+        showChatUI();
+        $('msgInput').focus();
+        break;
+      case 'system':
+        appendSystem(msg.text);
+        break;
+      case 'user_list':
+        updateUsersList(msg.users || []);
+        break;
+      case 'message':
+        appendMessage(msg.from, msg.fromId, msg.text, msg.timestamp);
+        break;
+      case 'room_deleted':
+        manualLeave = true;
+        showCenterMessage(msg.message || 'This room was closed.', false);
+        setTimeout(() => { window.location.href = '/chat'; }, 1800);
+        break;
+      case 'error':
+        if (!$('layout') || $('layout').style.display === 'none') {
+          showCenterMessage(msg.message || 'Unable to join this room.', true);
+        } else {
+          appendSystem('⚠ ' + msg.message);
+        }
+        break;
+    }
+  };
+
+  ws.onclose = () => {
+    setConn('bad', 'Disconnected');
+    $('msgInput').disabled = true;
+    $('sendBtn').disabled = true;
+    if (!manualLeave) {
+      appendSystem('Connection lost. Returning to the room list…');
+      setTimeout(() => { window.location.href = '/chat'; }, 2000);
+    }
+  };
+
+  ws.onerror = () => setConn('bad', 'Connection error');
+}
+
+function sendMessage() {
+  const input = $('msgInput');
+  const text = input.value.trim();
+  if (!text || !ws || ws.readyState !== WebSocket.OPEN) return;
+  ws.send(JSON.stringify({ type: 'message', text }));
+  input.value = '';
+}
+
+$('msgInput')?.addEventListener?.('keydown', () => {}); // no-op safeguard before layout exists
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('msgInput').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') sendMessage();
+  });
+  init();
+});
+
+function leaveRoom() {
+  manualLeave = true;
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ type: 'leave' }));
+    ws.close();
+  }
+  window.location.href = '/chat';
+}
+
+function confirmDelete() {
+  if (!confirm('Permanently delete this room for everyone? This cannot be undone.')) return;
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    manualLeave = true;
+    ws.send(JSON.stringify({ type: 'delete_room' }));
+  }
+}
+
+window.addEventListener('beforeunload', () => {
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    manualLeave = true;
+    ws.close();
+  }
+});
+</script>
+</body>
+</html>

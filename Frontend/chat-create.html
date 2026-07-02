@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Create New Server — CryptoTrade</title>
+<style>
+  *,*::before,*::after{margin:0;padding:0;box-sizing:border-box;}
+  :root{
+    --bg:#000000; --surface:#0a0a0a; --surface2:#111111; --surface3:#161616;
+    --border:#1a1a1a; --border2:#222222; --text:#ffffff; --text-2:#888888; --text-3:#444444;
+    --blue:#3b82f6; --blue-dim:rgba(59,130,246,.12); --green:#22c55e; --red:#ef4444;
+  }
+  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;}
+  .topnav{height:60px;background:rgba(0,0,0,.9);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 24px;gap:16px;position:sticky;top:0;z-index:200;backdrop-filter:blur(12px);}
+  .topnav-logo{font-size:1.15rem;font-weight:800;letter-spacing:-.5px;background:linear-gradient(90deg,#fff 0%,#93c5fd 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;text-decoration:none;display:flex;align-items:center;gap:7px;}
+  .topnav-logo-dot{width:7px;height:7px;background:var(--blue);border-radius:50%;-webkit-text-fill-color:initial;animation:pdot 2s infinite;}
+  @keyframes pdot{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.4;transform:scale(.7)}}
+  .topnav-right{margin-left:auto;}
+  .nav-pill{display:inline-flex;align-items:center;gap:6px;padding:7px 15px;border-radius:7px;font-size:.82rem;font-weight:600;text-decoration:none;border:1px solid var(--border2);color:var(--text-2);background:transparent;cursor:pointer;transition:all .18s;}
+  .nav-pill:hover{color:#fff;border-color:#444;background:var(--surface2);}
+
+  .wrap{max-width:520px;margin:0 auto;padding:40px 24px 60px;}
+  .page-title{font-size:1.4rem;font-weight:700;letter-spacing:-.5px;margin-bottom:4px;}
+  .page-sub{font-size:.83rem;color:var(--text-2);margin-bottom:28px;}
+
+  .form-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:28px;}
+  .form-group{margin-bottom:18px;}
+  .form-group label{display:block;font-size:.78rem;color:var(--text-2);margin-bottom:6px;font-weight:500;}
+  .form-input,.form-textarea,.form-select{width:100%;background:var(--surface2);border:1px solid var(--border2);border-radius:7px;color:var(--text);font-size:.88rem;padding:10px 13px;outline:none;transition:border-color .2s;font-family:inherit;}
+  .form-input:focus,.form-textarea:focus,.form-select:focus{border-color:#444;}
+  .form-input::placeholder,.form-textarea::placeholder{color:var(--text-3);}
+  .form-note{font-size:.73rem;color:var(--text-3);margin-top:5px;}
+
+  .vis-toggle{display:flex;gap:10px;}
+  .vis-option{flex:1;border:1px solid var(--border2);background:var(--surface2);border-radius:8px;padding:12px;text-align:center;cursor:pointer;transition:.15s;}
+  .vis-option.selected{border-color:var(--blue);background:var(--blue-dim);}
+  .vis-option .vo-icon{font-size:1.1rem;margin-bottom:4px;}
+  .vis-option .vo-label{font-size:.82rem;font-weight:600;}
+  .vis-option .vo-sub{font-size:.7rem;color:var(--text-3);margin-top:2px;}
+
+  #passwordGroup{display:none;}
+
+  .form-submit{width:100%;padding:11px;background:var(--blue);color:#fff;border:none;border-radius:7px;font-size:.9rem;font-weight:600;cursor:pointer;transition:.15s;margin-top:6px;}
+  .form-submit:hover{opacity:.88;}
+  .form-submit:disabled{opacity:.4;cursor:not-allowed;}
+  .msg-box{padding:10px 13px;border-radius:7px;font-size:.82rem;margin-top:14px;}
+  .msg-box.error{background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.2);color:var(--red);}
+</style>
+</head>
+<body>
+
+<header class="topnav">
+  <a href="/dashboard" class="topnav-logo"><span class="topnav-logo-dot"></span>CryptoTrade</a>
+  <div class="topnav-right">
+    <a href="/chat" class="nav-pill">← Back to Rooms</a>
+  </div>
+</header>
+
+<div class="wrap">
+  <div class="page-title">Create New Server</div>
+  <div class="page-sub">Set up a chat room and invite other traders in.</div>
+
+  <div class="form-card">
+    <div class="form-group">
+      <label>Room Name</label>
+      <input class="form-input" id="roomName" type="text" placeholder="e.g. Altcoin Signals" maxlength="60"/>
+    </div>
+
+    <div class="form-group">
+      <label>Description <span style="color:var(--text-3);font-weight:400;">(optional)</span></label>
+      <textarea class="form-textarea" id="roomDesc" rows="2" maxlength="200" placeholder="What's this room about?"></textarea>
+    </div>
+
+    <div class="form-group">
+      <label>Visibility</label>
+      <div class="vis-toggle">
+        <div class="vis-option selected" id="voPublic" onclick="setVisibility('public')">
+          <div class="vo-icon">🌐</div>
+          <div class="vo-label">Public</div>
+          <div class="vo-sub">Anyone can join</div>
+        </div>
+        <div class="vis-option" id="voPrivate" onclick="setVisibility('private')">
+          <div class="vo-icon">🔒</div>
+          <div class="vo-label">Private</div>
+          <div class="vo-sub">Password required</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="form-group" id="passwordGroup">
+      <label>Room Password</label>
+      <input class="form-input" id="roomPassword" type="password" placeholder="At least 4 characters" autocomplete="new-password"/>
+    </div>
+
+    <div class="form-group">
+      <label>Max Capacity</label>
+      <input class="form-input" id="maxUsers" type="number" min="2" max="100" value="100"/>
+      <div class="form-note">Up to 100 concurrent users per room.</div>
+    </div>
+
+    <button class="form-submit" id="createBtn" onclick="createRoom()">Create Server</button>
+    <div id="createMsg" class="msg-box error" style="display:none;"></div>
+  </div>
+</div>
+
+<script>
+let visibility = 'public';
+
+function setVisibility(v) {
+  visibility = v;
+  document.getElementById('voPublic').classList.toggle('selected', v === 'public');
+  document.getElementById('voPrivate').classList.toggle('selected', v === 'private');
+  document.getElementById('passwordGroup').style.display = v === 'private' ? 'block' : 'none';
+}
+
+function showErr(msg) {
+  const box = document.getElementById('createMsg');
+  box.textContent = msg;
+  box.style.display = 'block';
+}
+
+async function createRoom() {
+  const roomName = document.getElementById('roomName').value.trim();
+  const description = document.getElementById('roomDesc').value.trim();
+  const password = document.getElementById('roomPassword').value;
+  const maxUsers = parseInt(document.getElementById('maxUsers').value, 10) || 100;
+  const btn = document.getElementById('createBtn');
+  const msgBox = document.getElementById('createMsg');
+  msgBox.style.display = 'none';
+
+  if (!roomName) return showErr('Please enter a room name.');
+  if (roomName.length > 60) return showErr('Room name must be 60 characters or fewer.');
+  if (visibility === 'private' && password.length < 4) {
+    return showErr('Private rooms need a password of at least 4 characters.');
+  }
+  if (maxUsers < 2 || maxUsers > 100) return showErr('Max capacity must be between 2 and 100.');
+
+  btn.disabled = true;
+  btn.textContent = 'Creating…';
+
+  try {
+    const r = await fetch('/api/chat/rooms', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ roomName, description, visibility, password, maxUsers }),
+    });
+    const d = await r.json();
+
+    if (r.status === 401) { window.location.href = '/login'; return; }
+
+    if (!d.success) {
+      showErr(d.message || 'Failed to create room.');
+      btn.disabled = false;
+      btn.textContent = 'Create Server';
+      return;
+    }
+
+    // Owner joins automatically — no password re-entry needed, RoomManager
+    // grants the owner access to their own private room without a check.
+    window.location.href = '/chat/room/' + d.data.room_id;
+  } catch (e) {
+    showErr('Network error. Please try again.');
+    btn.disabled = false;
+    btn.textContent = 'Create Server';
+  }
+}
+</script>
+</body>
+</html>

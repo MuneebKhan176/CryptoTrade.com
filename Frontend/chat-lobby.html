@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Live Chat — CryptoTrade</title>
+<style>
+  *,*::before,*::after{margin:0;padding:0;box-sizing:border-box;}
+  :root{
+    --bg:#000000; --surface:#0a0a0a; --surface2:#111111; --surface3:#161616;
+    --border:#1a1a1a; --border2:#222222; --text:#ffffff; --text-2:#888888; --text-3:#444444;
+    --blue:#3b82f6; --blue-dim:rgba(59,130,246,.12); --green:#22c55e; --red:#ef4444;
+  }
+  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;}
+  .topnav{height:60px;background:rgba(0,0,0,.9);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 24px;gap:16px;position:sticky;top:0;z-index:200;backdrop-filter:blur(12px);}
+  .topnav-logo{font-size:1.15rem;font-weight:800;letter-spacing:-.5px;background:linear-gradient(90deg,#fff 0%,#93c5fd 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;text-decoration:none;display:flex;align-items:center;gap:7px;}
+  .topnav-logo-dot{width:7px;height:7px;background:var(--blue);border-radius:50%;-webkit-text-fill-color:initial;animation:pdot 2s infinite;}
+  @keyframes pdot{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.4;transform:scale(.7)}}
+  .topnav-right{margin-left:auto;display:flex;align-items:center;gap:10px;}
+  .nav-pill{display:inline-flex;align-items:center;gap:6px;padding:7px 15px;border-radius:7px;font-size:.82rem;font-weight:600;text-decoration:none;border:1px solid var(--border2);color:var(--text-2);background:transparent;cursor:pointer;transition:all .18s;}
+  .nav-pill:hover{color:#fff;border-color:#444;background:var(--surface2);}
+  .nav-pill.blue{background:var(--blue);border-color:var(--blue);color:#fff;}
+  .nav-pill.blue:hover{opacity:.88;}
+
+  .wrap{max-width:1100px;margin:0 auto;padding:32px 24px 60px;}
+  .page-head{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;margin-bottom:24px;flex-wrap:wrap;}
+  .page-title{font-size:1.4rem;font-weight:700;letter-spacing:-.5px;}
+  .page-sub{font-size:.83rem;color:var(--text-2);margin-top:4px;}
+  .live-dot{width:6px;height:6px;background:var(--green);border-radius:50%;animation:pdot 1.5s infinite;display:inline-block;margin-right:6px;}
+
+  .rooms-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px;}
+  .room-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:20px;display:flex;flex-direction:column;gap:12px;transition:border-color .2s;}
+  .room-card:hover{border-color:var(--border2);}
+  .room-card-top{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;}
+  .room-name{font-size:1rem;font-weight:700;display:flex;align-items:center;gap:6px;}
+  .lock-badge{font-size:.7rem;color:var(--text-3);}
+  .room-owner{font-size:.74rem;color:var(--text-3);margin-top:2px;}
+  .room-desc{font-size:.8rem;color:var(--text-2);line-height:1.5;min-height:1.2em;}
+  .room-meta{display:flex;align-items:center;justify-content:space-between;gap:10px;}
+  .capacity-track{flex:1;height:6px;border-radius:99px;background:var(--surface3);overflow:hidden;}
+  .capacity-fill{height:100%;background:var(--blue);border-radius:99px;}
+  .capacity-label{font-size:.72rem;color:var(--text-2);white-space:nowrap;}
+  .vis-chip{font-size:.68rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;padding:3px 8px;border-radius:100px;}
+  .vis-chip.public{background:rgba(34,197,94,.12);color:var(--green);border:1px solid rgba(34,197,94,.2);}
+  .vis-chip.private{background:rgba(59,130,246,.12);color:var(--blue);border:1px solid rgba(59,130,246,.25);}
+  .join-btn{width:100%;padding:9px;border-radius:7px;background:var(--blue);color:#fff;border:none;font-size:.85rem;font-weight:600;cursor:pointer;transition:.15s;}
+  .join-btn:hover{opacity:.88;}
+
+  .empty-state{grid-column:1/-1;text-align:center;padding:60px 20px;color:var(--text-3);}
+  .empty-state .icon{font-size:2rem;margin-bottom:10px;}
+
+  /* Password modal */
+  .modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:500;align-items:center;justify-content:center;}
+  .modal-overlay.open{display:flex;}
+  .modal-box{background:var(--surface2);border:1px solid var(--border2);border-radius:12px;padding:24px;width:320px;}
+  .modal-box h3{font-size:.95rem;margin-bottom:14px;}
+  .form-input{width:100%;background:var(--surface3);border:1px solid var(--border2);border-radius:7px;color:var(--text);font-size:.86rem;padding:9px 12px;outline:none;margin-bottom:10px;}
+  .form-input:focus{border-color:#444;}
+  .modal-actions{display:flex;gap:8px;margin-top:6px;}
+  .modal-actions button{flex:1;padding:9px;border-radius:7px;font-size:.82rem;font-weight:600;cursor:pointer;border:none;}
+  .modal-cancel{background:var(--surface3);color:var(--text-2);border:1px solid var(--border2)!important;}
+  .modal-confirm{background:var(--blue);color:#fff;}
+  .modal-error{font-size:.76rem;color:var(--red);margin-top:8px;display:none;}
+
+  ::-webkit-scrollbar{width:5px;} ::-webkit-scrollbar-track{background:transparent;} ::-webkit-scrollbar-thumb{background:var(--border2);border-radius:99px;}
+</style>
+</head>
+<body>
+
+<header class="topnav">
+  <a href="/dashboard" class="topnav-logo"><span class="topnav-logo-dot"></span>CryptoTrade</a>
+  <div class="topnav-right">
+    <a href="/dashboard" class="nav-pill">← Dashboard</a>
+    <a href="/chat/create" class="nav-pill blue">+ Create New Server</a>
+  </div>
+</header>
+
+<div class="wrap">
+  <div class="page-head">
+    <div>
+      <div class="page-title">Live Chat Rooms</div>
+      <div class="page-sub"><span class="live-dot"></span><span id="roomCount">Loading rooms…</span></div>
+    </div>
+  </div>
+
+  <div class="rooms-grid" id="roomsGrid">
+    <div class="empty-state"><div class="icon">💬</div>Loading rooms…</div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="pwModal">
+  <div class="modal-box">
+    <h3 id="pwModalTitle">Enter Room Password</h3>
+    <input class="form-input" id="pwInput" type="password" placeholder="Password" autocomplete="off"/>
+    <div class="modal-actions">
+      <button class="modal-cancel" onclick="closePwModal()">Cancel</button>
+      <button class="modal-confirm" onclick="confirmPwJoin()">Join</button>
+    </div>
+    <div class="modal-error" id="pwModalError"></div>
+  </div>
+</div>
+
+<script>
+let rooms = [];
+let pendingRoomId = null;
+
+function fmtWhen(iso) {
+  try { return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }); }
+  catch (e) { return ''; }
+}
+
+function renderRooms() {
+  const grid = document.getElementById('roomCount');
+  grid.textContent = rooms.length
+    ? `${rooms.length} room${rooms.length === 1 ? '' : 's'} open right now`
+    : 'No open rooms right now';
+
+  const container = document.getElementById('roomsGrid');
+  if (!rooms.length) {
+    container.innerHTML = `<div class="empty-state"><div class="icon">💬</div>No rooms are open yet. Be the first to create one!</div>`;
+    return;
+  }
+
+  container.innerHTML = rooms.map(r => {
+    const pct = Math.min(100, Math.round((r.current_users / r.max_users) * 100));
+    return `
+      <div class="room-card">
+        <div class="room-card-top">
+          <div>
+            <div class="room-name">${escapeHtml(r.room_name)} ${r.has_password ? '<span class="lock-badge" title="Password required">🔒</span>' : ''}</div>
+            <div class="room-owner">Hosted by ${escapeHtml(r.owner_username)}</div>
+          </div>
+          <span class="vis-chip ${r.visibility}">${r.visibility}</span>
+        </div>
+        <div class="room-desc">${r.description ? escapeHtml(r.description) : '&nbsp;'}</div>
+        <div class="room-meta">
+          <div class="capacity-track"><div class="capacity-fill" style="width:${pct}%"></div></div>
+          <div class="capacity-label">${r.current_users} / ${r.max_users}</div>
+        </div>
+        <button class="join-btn" onclick="handleJoinClick('${r.room_id}', ${r.has_password})">
+          ${r.has_password ? 'Enter Password' : 'Join Room'}
+        </button>
+      </div>`;
+  }).join('');
+}
+
+function escapeHtml(s) {
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+async function loadRooms() {
+  try {
+    const r = await fetch('/api/chat/rooms');
+    const d = await r.json();
+    if (!d.success) {
+      if (r.status === 401) { window.location.href = '/login'; return; }
+      throw new Error(d.message);
+    }
+    rooms = d.data;
+    renderRooms();
+  } catch (e) {
+    document.getElementById('roomsGrid').innerHTML =
+      `<div class="empty-state"><div class="icon">⚠</div>Couldn't load rooms. Retrying…</div>`;
+  }
+}
+
+function handleJoinClick(roomId, hasPassword) {
+  if (!hasPassword) {
+    goToRoom(roomId);
+    return;
+  }
+  pendingRoomId = roomId;
+  document.getElementById('pwInput').value = '';
+  document.getElementById('pwModalError').style.display = 'none';
+  document.getElementById('pwModal').classList.add('open');
+  document.getElementById('pwInput').focus();
+}
+
+function closePwModal() {
+  document.getElementById('pwModal').classList.remove('open');
+  pendingRoomId = null;
+}
+
+async function confirmPwJoin() {
+  const password = document.getElementById('pwInput').value;
+  const errBox = document.getElementById('pwModalError');
+  if (!password) {
+    errBox.textContent = 'Please enter a password.';
+    errBox.style.display = 'block';
+    return;
+  }
+  try {
+    const r = await fetch(`/api/chat/rooms/${pendingRoomId}/join`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password }),
+    });
+    const d = await r.json();
+    if (!d.success) {
+      errBox.textContent = d.message || 'Unable to join room.';
+      errBox.style.display = 'block';
+      return;
+    }
+    sessionStorage.setItem('chat_room_password_' + pendingRoomId, password);
+    goToRoom(pendingRoomId);
+  } catch (e) {
+    errBox.textContent = 'Network error. Please try again.';
+    errBox.style.display = 'block';
+  }
+}
+
+function goToRoom(roomId) {
+  window.location.href = '/chat/room/' + roomId;
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  loadRooms();
+  setInterval(loadRooms, 4000);
+});
+</script>
+</body>
+</html>
