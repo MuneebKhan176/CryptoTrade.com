@@ -4,8 +4,8 @@
   "description": "Node JS project",
   "main": "web.js",
   "scripts": {
-    "start": "nodemon web.js",
-    ".": "nodemon web.js"
+    "app": "nodemon web.js",
+    "start": "nodemon web.js"
   },
   "author": "Muneeb Khan",
   "license": "ISC",
