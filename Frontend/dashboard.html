@@ -820,6 +820,7 @@ let chartDays   = 1;
 let tradeDays   = 1;
 let chartInstance      = null;
 let tradeChartInstance = null;
+let chatHistory = []; // [{role:'user'|'bot', text:string}] — sent to /api/ai-chatbot/message for context
 
 const COINS = [
   { id:'bitcoin',     sym:'BTC',  name:'Bitcoin',  cls:'btc',  icon:'₿' },
@@ -1313,41 +1314,65 @@ function postInsight() {
 
 /* ═══════════════════════════════════════════════════════
    AI CHATBOT
+   ═══════════════════════════════════════════════════════
+   Backend: POST /api/ai-chatbot/message (see AI_chatbot/
+   chatbotController.js). Sends current message + a short
+   rolling history; backend grounds replies using faq.json
+   plus Gemini for open-ended questions.
    ═══════════════════════════════════════════════════════ */
 function toggleChat() {
   document.getElementById('chatWindow').classList.toggle('open');
 }
 
-function sendChat() {
+async function sendChat() {
   const inp  = document.getElementById('chatInput');
   const msgs = document.getElementById('chatMsgs');
   const txt  = inp.value.trim();
   if (!txt) return;
+
+  // Render the user's message immediately
   const userDiv = document.createElement('div');
   userDiv.className = 'chat-msg user';
   userDiv.textContent = txt;
   msgs.appendChild(userDiv);
-  msgs.scrollTop = msgs.scrollHeight;
+  chatHistory.push({ role: 'user', text: txt });
+
   inp.value = '';
-  setTimeout(() => {
+  msgs.scrollTop = msgs.scrollHeight;
+
+  // Typing indicator while we wait on the backend
+  const typingDiv = document.createElement('div');
+  typingDiv.className = 'chat-msg bot';
+  typingDiv.id = 'chat-typing';
+  typingDiv.innerHTML = '<span class="spinner-inline"></span>Typing…';
+  msgs.appendChild(typingDiv);
+  msgs.scrollTop = msgs.scrollHeight;
+
+  try {
+    const r = await fetch('/api/ai-chatbot/message', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: txt, history: chatHistory.slice(-6) }),
+    });
+    const d = await r.json();
+
+    document.getElementById('chat-typing')?.remove();
+
     const botDiv = document.createElement('div');
     botDiv.className = 'chat-msg bot';
-    const lower = txt.toLowerCase();
-    if (lower.includes('balance'))
-      botDiv.textContent = 'Your balance is shown on the Overview panel. Request demo funds if it\'s $0.';
-    else if (lower.includes('transfer'))
-      botDiv.textContent = 'Head to the Transfer panel to send demo funds. You\'ll need the recipient\'s account number.';
-    else if (lower.includes('trade'))
-      botDiv.textContent = 'The Trade panel shows live prices and charts. The trade button is coming soon!';
-    else if (lower.includes('btc') || lower.includes('bitcoin'))
-      botDiv.textContent = 'Bitcoin (BTC) prices update every 30s via CoinGecko. Check the Markets panel!';
-    else if (lower.includes('demo'))
-      botDiv.textContent = 'Request $50,000 in free demo funds from the Demo Funds panel. One-time only!';
-    else
-      botDiv.textContent = 'I\'m here to help with trading, transfers, and account questions. What would you like to know?';
+    botDiv.textContent = d.reply || "Sorry, I couldn't process that — please try again.";
     msgs.appendChild(botDiv);
-    msgs.scrollTop = msgs.scrollHeight;
-  }, 700);
+    chatHistory.push({ role: 'bot', text: botDiv.textContent });
+
+  } catch (e) {
+    document.getElementById('chat-typing')?.remove();
+    const errDiv = document.createElement('div');
+    errDiv.className = 'chat-msg bot';
+    errDiv.textContent = 'Network error — please check your connection and try again.';
+    msgs.appendChild(errDiv);
+  }
+
+  msgs.scrollTop = msgs.scrollHeight;
 }
 
 /* ═══════════════════════════════════════════════════════

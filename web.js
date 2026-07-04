@@ -6,6 +6,7 @@ const authRoutes = require('./routes/authRoutes');
 const homeRoutes = require('./routes/homeRoutes');
 const transferRoutes = require('./routes/bankingAuth');
 const chatRoutes = require('./routes/chatRoutes');
+const aiChatbotRoutes = require('./AI_chatbot/chatbotController'); // 🆕 AI chatbot
 
 const RoomManager = require('./chat/managers/RoomManager');
 const { attachChatWebSocketServer } = require('./chat/Wsserver');
@@ -28,6 +29,7 @@ app.use(homeRoutes);
 app.use(authRoutes);
 app.use(transferRoutes);
 app.use(chatRoutes);
+app.use(aiChatbotRoutes); // 🆕 mounts POST /api/ai-chatbot/message
 
 // ---------------- 404 ----------------
 app.use((req, res) => res.status(404).send("Route not found"));
@@ -37,9 +39,7 @@ attachChatWebSocketServer(server);
 
 RoomManager.init()
   .then(() => {
-    server.listen(port_num, () => {
-      console.log(`Server (HTTP + WebSocket chat) running on port ${port_num}`);
-    });
+    server.listen(port_num);
   })
   .catch((err) => {
     console.error('Failed to initialize chat system:', err);

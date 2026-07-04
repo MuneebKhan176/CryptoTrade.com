@@ -1,0 +1,16 @@
+# AI_chatbot module — setup notes
+# Run from the project root (where package.json / web.js live)
+
+npm install dotenv
+
+# Node.js >= 18 is required — the module uses the built-in global fetch().
+# If you're on an older Node version:
+#   npm install node-fetch
+#   and add this line to the top of AI_chatbot/geminiService.js:
+#   const fetch = (...args) => import('node-fetch').then(({default: f}) => f(...args));
+
+# Environment variable required (already present per your setup),
+# expected in: routes/.env
+
+GEMINI_API_KEY=your_actual_key_here
+GEMINI_MODEL=gemini-2.5-flash   # optional override, this is the default

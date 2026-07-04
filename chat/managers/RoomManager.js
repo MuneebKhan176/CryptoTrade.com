@@ -25,7 +25,6 @@ const rooms = new Map();
 async function init() {
   await chatDb.initChatTable();
   await chatDb.clearAllRooms();
-  console.log('[chat] RoomManager initialized');
 }
 
 function roomNameTaken(name) {

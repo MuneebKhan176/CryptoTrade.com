@@ -65,8 +65,7 @@ function attachChatWebSocketServer(httpServer) {
       console.error('[chat] socket error:', err.message);
     });
   });
-
-  console.log(`[chat] WebSocket server listening on path ${CHAT_WS_PATH}`);
+  
   return wss;
 }
 

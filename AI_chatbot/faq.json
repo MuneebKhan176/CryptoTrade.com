@@ -1,0 +1,92 @@
+[
+  {
+    "question": "What is CryptoTrade?",
+    "answer": "CryptoTrade is a demo cryptocurrency trading platform for educational purposes. All funds are virtual — no real money is ever used.",
+    "keywords": ["what is", "cryptotrade", "platform", "about", "demo platform"]
+  },
+  {
+    "question": "How do I get demo funds?",
+    "answer": "Go to the Demo Funds panel and click 'Request $50,000 Demo Funds'. This is a one-time grant, only available while your balance is $0.00.",
+    "keywords": ["demo funds", "free money", "get funds", "starting balance", "50000", "$50,000"]
+  },
+  {
+    "question": "Why can't I request demo funds again?",
+    "answer": "Demo funds are a one-time grant per account. Once your balance is above $0, the request button is disabled. You can still receive funds via transfer from another user.",
+    "keywords": ["already funded", "cant request", "demo funds again", "one time"]
+  },
+  {
+    "question": "How do I check my balance?",
+    "answer": "Your current balance is shown on the Overview panel (top balance card) and in the Account panel. It updates automatically after any transfer or demo funds request.",
+    "keywords": ["balance", "how much money", "check balance", "my funds"]
+  },
+  {
+    "question": "How do I transfer funds to another user?",
+    "answer": "Open the Transfer panel, enter the recipient's account number (shown in their Account panel, format like ACC000000012), enter an amount, and click Send Funds.",
+    "keywords": ["transfer", "send funds", "send money", "recipient", "account number"]
+  },
+  {
+    "question": "Why did my transfer fail?",
+    "answer": "Common causes: insufficient balance, an incorrect/nonexistent recipient account number, trying to send to your own account, or the recipient's account being inactive. Double-check the account number and your available balance.",
+    "keywords": ["transfer failed", "transfer error", "insufficient balance", "account not found", "transfer not working"]
+  },
+  {
+    "question": "Where do I find my account number?",
+    "answer": "Your account number is on the Account panel under 'Account', and also shown at the top of the Overview panel and in the Transfer panel's 'Sending From' strip.",
+    "keywords": ["account number", "my account number", "find account number"]
+  },
+  {
+    "question": "Can I trade cryptocurrencies right now?",
+    "answer": "You can view live prices and charts on the Trade and Markets panels, but the actual buy/sell execution ('Trade' button) is coming soon — it's not live yet.",
+    "keywords": ["trade", "buy crypto", "sell crypto", "trading", "execute trade"]
+  },
+  {
+    "question": "Where do prices come from and how often do they update?",
+    "answer": "Live prices, 24h change, and market cap come from the CoinGecko API and refresh automatically every 30 seconds on the Overview, Trade, and Markets panels.",
+    "keywords": ["price update", "coingecko", "live prices", "how often", "refresh rate"]
+  },
+  {
+    "question": "Which coins are supported?",
+    "answer": "CryptoTrade currently tracks Bitcoin (BTC), Ethereum (ETH), Solana (SOL), XRP, BNB, Tether (USDT), and USD Coin (USDC).",
+    "keywords": ["which coins", "supported coins", "btc", "eth", "sol", "xrp", "bnb", "usdt", "usdc"]
+  },
+  {
+    "question": "How do I change the chart timeframe?",
+    "answer": "Use the 1D / 7D / 30D buttons above the price chart on the Overview or Trade panel, and pick a coin from the dropdown next to them.",
+    "keywords": ["chart", "timeframe", "1d", "7d", "30d", "price chart"]
+  },
+  {
+    "question": "Is my password secure / can I enable 2FA?",
+    "answer": "Your password is stored securely and shown masked in the Account panel. Two-factor authentication (2FA) isn't enabled yet on this account.",
+    "keywords": ["password", "2fa", "two factor", "security", "secure"]
+  },
+  {
+    "question": "How do I update my profile info?",
+    "answer": "Your username, email, and member-since date are shown on the Account panel. Profile editing isn't available yet — reach out to Support if you need a change.",
+    "keywords": ["profile", "update email", "change username", "edit account"]
+  },
+  {
+    "question": "What is the Insights feed?",
+    "answer": "The Insights panel is a community feed where you can post and read short market analysis or trade ideas from other demo traders.",
+    "keywords": ["insights", "post insight", "market analysis", "community feed"]
+  },
+  {
+    "question": "How do I join the live chat?",
+    "answer": "Click 'Live Chat' in the top navigation or sidebar to open the real-time chat rooms, where you can join public rooms or private ones with other traders.",
+    "keywords": ["live chat", "chat room", "group chat", "private room", "join chat"]
+  },
+  {
+    "question": "How do I contact support?",
+    "answer": "Visit the Support panel for options: this AI chatbot, email at support@cryptotrade.app (replies within 2 hours), the Help Center, or the community Live Chat.",
+    "keywords": ["support", "contact", "help", "email support", "customer service"]
+  },
+  {
+    "question": "Is this real money?",
+    "answer": "No — CryptoTrade is strictly a demo/educational platform. All balances, transfers, and trades use virtual funds only.",
+    "keywords": ["real money", "is this real", "actual money", "educational"]
+  },
+  {
+    "question": "How do I log out?",
+    "answer": "Click 'Log out' at the bottom of the sidebar to end your session.",
+    "keywords": ["log out", "logout", "sign out", "end session"]
+  }
+]
