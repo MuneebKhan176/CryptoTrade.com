@@ -23,7 +23,6 @@ const HARD_CAPACITY_LIMIT = 100;
 const rooms = new Map();
 
 async function init() {
-  await chatDb.initChatTable();
   await chatDb.clearAllRooms();
 }
 

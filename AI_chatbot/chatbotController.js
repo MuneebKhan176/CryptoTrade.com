@@ -20,6 +20,8 @@ catch (err) {
  * to hand to Gemini as grounding context. No embeddings needed for
  * a knowledge base this size.
  */
+
+
 function findRelevantFaqs(message, limit = 4) {
   const lower = message.toLowerCase();
 

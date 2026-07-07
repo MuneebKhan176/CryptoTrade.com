@@ -1,12 +1,17 @@
 const express = require('express');
 const path = require('path');
 const http = require('http');
+const mongoConnection = require('./Social_Platform/mongo_connection');
+
+// Connect to MongoDB 
+
+mongoConnection();
 
 const authRoutes = require('./routes/authRoutes');
 const homeRoutes = require('./routes/homeRoutes');
 const transferRoutes = require('./routes/bankingAuth');
 const chatRoutes = require('./routes/chatRoutes');
-const aiChatbotRoutes = require('./AI_chatbot/chatbotController'); // 🆕 AI chatbot
+const aiChatbotRoutes = require('./AI_chatbot/chatbotController');
 
 const RoomManager = require('./chat/managers/RoomManager');
 const { attachChatWebSocketServer } = require('./chat/Wsserver');
@@ -29,7 +34,7 @@ app.use(homeRoutes);
 app.use(authRoutes);
 app.use(transferRoutes);
 app.use(chatRoutes);
-app.use(aiChatbotRoutes); // 🆕 mounts POST /api/ai-chatbot/message
+app.use(aiChatbotRoutes); 
 
 // ---------------- 404 ----------------
 app.use((req, res) => res.status(404).send("Route not found"));

@@ -4,10 +4,12 @@ const path = require('path');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 
-
 const { conn, jwtSecret } = require('../db_connection');
 const sendVerificationEmail = require('../mailer');
 const verifyToken = require('../middle/middleware');
+
+// 🔗 Mongo side — adjust this path if social_models.js lives somewhere else
+const { SocialProfile } = require('../Social_Platform/social_models');
 
 
 function isValidEmail(email) {
@@ -30,6 +32,38 @@ function setAuthCookie(res, token) {
         sameSite: 'Lax',  // 🛠️ 'Lax' plays much friendlier with local development redirects
         maxAge: 24 * 60 * 60 * 1000
     });
+}
+
+// ================= SOCIAL PROFILE HELPER =================
+
+async function ensureSocialProfile(userId, username, email) {
+    console.log({ userId, username, email });
+
+    const profile = await SocialProfile.findOneAndUpdate(
+        { userId },
+        {
+            $setOnInsert: {
+                userId,
+                username,
+                email,
+                displayName: username,
+                bio: '',
+                avatarUrl: '',
+                coverUrl: '',
+                isVerified: false,
+                followersCount: 0,
+                followingCount: 0,
+                postsCount: 0,
+            },
+        },
+        {
+            upsert: true,
+            returnDocument: 'after',
+            setDefaultsOnInsert: true,
+        }
+    );
+
+    return profile;
 }
 
 const CODE_EXPIRY_MS = 10 * 60 * 1000;
@@ -98,6 +132,10 @@ router.get('/verify-email', (req, res) => {
 });
 
 // ================= VERIFY EMAIL =================
+// Note the flow: 1) users row created  2) accounts row created (ledger-style
+// defaults on the SQL side)  3) transaction committed  4) ONLY THEN, once the
+// SQL account is guaranteed to exist, do we create the Mongo SocialProfile.
+// Nothing on the Mongo side ever runs before the SQL commit succeeds.
 router.post('/verify-email', (req, res) => {
 
     const email = req.body.email?.trim();
@@ -146,9 +184,22 @@ router.post('/verify-email', (req, res) => {
 
                                 if (deleteErr) return conn.rollback(() => sendResponse(res, 500, false, 'Cleanup failed'));
 
-                                conn.commit((commitErr) => {
+                                conn.commit(async (commitErr) => {
 
                                     if (commitErr) return conn.rollback(() => sendResponse(res, 500, false, 'Commit failed'));
+
+                                    // ---- SQL side is fully committed at this point ----
+                                    // MySQL and MongoDB can't share one atomic transaction,
+                                    // so this can't be rolled back together with the SQL insert.
+                                    // If it fails, we log it and let /api/dashboard's
+                                    // self-healing check (see below) create it on next visit —
+                                    // we do NOT fail the registration over a Mongo hiccup, since
+                                    // the user's actual account already exists in SQL.
+                                    try {
+                                        await ensureSocialProfile(userId, pending.username, pending.email);
+                                    } catch (profileErr) {
+                                        console.error('⚠️ Social profile creation failed for', pending.username, profileErr);
+                                    }
 
                                     const token = jwt.sign(
                                         { id: userId, email: pending.email, username: pending.username },
@@ -219,7 +270,7 @@ router.get('/dashboard', verifyToken, (req, res) => {
     res.sendFile(path.join(__dirname, '../Frontend/dashboard.html'));
 });
 
-// ================= DASHBOARD API (includes account data) =================
+// ================= DASHBOARD API (includes account data + social profile) =================
 router.get('/api/dashboard', verifyToken, (req, res) => {
 
     const userId = req.user.id;
@@ -231,12 +282,23 @@ router.get('/api/dashboard', verifyToken, (req, res) => {
          LEFT JOIN accounts a ON a.user_id = u.id
          WHERE u.id = ?`,
         [userId],
-        (err, result) => {
+        async (err, result) => {
 
             if (err)            return sendResponse(res, 500, false, 'Database error');
             if (!result.length) return sendResponse(res, 404, false, 'User not found');
 
             const row = result[0];
+
+            // Self-healing: covers accounts created before the SocialProfile
+            // hook existed, or the rare case where the upsert in verify-email
+            // failed. This keeps SQL and Mongo eventually consistent without
+            // needing a distributed transaction between the two databases.
+            let socialProfile = null;
+            try {
+                socialProfile = await ensureSocialProfile(row.id, row.username, row.email);
+            } catch (profileErr) {
+                console.error('⚠️ Social profile fetch/create failed for', row.username, profileErr);
+            }
 
             return sendResponse(res, 200, true, 'Welcome', {
                 user: {
@@ -250,7 +312,8 @@ router.get('/api/dashboard', verifyToken, (req, res) => {
                     account_number: row.account_number,
                     balance:        parseFloat(row.balance || 0),
                     status:         row.status
-                }
+                },
+                socialProfile
             });
         }
     );

@@ -7,6 +7,6 @@ router.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, '../Frontend/index.html'))
 });
 
-// .css files are now handled by express.static in web.js, no manual route needed here
+// .css files are now handled by express.static
 
 module.exports = router;

@@ -1,40 +1,6 @@
-/**
- * chatDb.js
- * -----------------------------------------------------------------------
- * MySQL persistence for chat rooms. RoomManager is the actual runtime
- * authority (in-memory Map of live rooms + connected sockets); this file
- * just keeps the `chat_rooms` table mirroring that state so it survives
- * for inspection/reporting even though live membership only ever lives
- * in server memory.
- *
- * Your db_connection.js exports `{ conn, jwtSecret }`, where `conn` is a
- * plain callback-style mysql2 Connection. mysql2 connections expose a
- * `.promise()` wrapper that gives the same connection async/await query
- * methods without changing anything in db_connection.js itself.
- * -----------------------------------------------------------------------
- */
 
 const { conn } = require('../../db_connection');
 const pool = conn.promise();
-
-async function initChatTable() {
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS chat_rooms (
-      room_id VARCHAR(36) PRIMARY KEY,
-      room_name VARCHAR(100) NOT NULL,
-      description VARCHAR(255) DEFAULT NULL,
-      owner_id INT NOT NULL,
-      owner_username VARCHAR(100) NOT NULL,
-      visibility ENUM('public','private') NOT NULL DEFAULT 'public',
-      password_hash VARCHAR(255) DEFAULT NULL,
-      max_users INT NOT NULL DEFAULT 100,
-      current_users INT NOT NULL DEFAULT 0,
-      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      INDEX idx_visibility (visibility),
-      INDEX idx_owner (owner_id)
-    )
-  `);
-}
 
 /**
  * Live rooms only ever exist in server memory (they need an active
@@ -82,7 +48,6 @@ async function deleteRoomById(roomId) {
 }
 
 module.exports = {
-  initChatTable,
   clearAllRooms,
   insertRoom,
   getAllRooms,
