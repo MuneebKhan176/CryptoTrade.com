@@ -12,6 +12,9 @@ const homeRoutes = require('./routes/homeRoutes');
 const transferRoutes = require('./routes/bankingAuth');
 const chatRoutes = require('./routes/chatRoutes');
 const aiChatbotRoutes = require('./AI_chatbot/chatbotController');
+const socialProfile = require('../NodeJS/Social_Platform/profile');
+const follow_Unfollow=require('./Social_Platform/follow_unfollow');
+
 
 const RoomManager = require('./chat/managers/RoomManager');
 const { attachChatWebSocketServer } = require('./chat/Wsserver');
@@ -35,7 +38,8 @@ app.use(authRoutes);
 app.use(transferRoutes);
 app.use(chatRoutes);
 app.use(aiChatbotRoutes);
-app.use(require('../NodeJS/Social_Platform/profile'));
+app.use(socialProfile);
+app.use(follow_Unfollow)
 
 // ---------------- 404 ----------------
 app.use((req, res) => res.status(404).send("Route not found"));

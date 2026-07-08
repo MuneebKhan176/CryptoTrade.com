@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Top Creators — CryptoTrade</title>
+  <style>
+    *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+
+    :root {
+      --bg:        #000000;
+      --surface:   #0a0a0a;
+      --surface2:  #111111;
+      --surface3:  #161616;
+      --border:    #1a1a1a;
+      --border2:   #222222;
+      --text:      #ffffff;
+      --text-2:    #888888;
+      --text-3:    #444444;
+      --blue:      #3b82f6;
+      --blue-dim:  rgba(59,130,246,0.12);
+      --green:     #22c55e;
+      --red:       #ef4444;
+      --gold:      #f0b90b;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    /* ── Topnav ── */
+    .topnav {
+      height: 60px;
+      background: rgba(0,0,0,0.9);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      padding: 0 24px;
+      gap: 16px;
+      position: sticky;
+      top: 0;
+      z-index: 200;
+      backdrop-filter: blur(12px);
+    }
+    .topnav-logo {
+      font-size: 1.15rem;
+      font-weight: 800;
+      letter-spacing: -0.5px;
+      background: linear-gradient(90deg,#fff 0%,#93c5fd 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      text-decoration: none;
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      flex-shrink: 0;
+    }
+    .topnav-logo-dot {
+      width: 7px; height: 7px;
+      background: var(--blue);
+      border-radius: 50%;
+      -webkit-text-fill-color: initial;
+      flex-shrink: 0;
+    }
+    .topnav-right { margin-left: auto; display:flex; align-items:center; gap:10px; }
+    .nav-pill {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 6px 14px; border-radius: 7px;
+      font-size: .82rem; font-weight: 600; text-decoration: none;
+      border: 1px solid var(--border2); color: var(--text-2);
+      background: transparent; cursor: pointer; transition: all .18s;
+    }
+    .nav-pill:hover { color:#fff; border-color:#444; background: var(--surface2); }
+
+    /* ── Page ── */
+    .page {
+      max-width: 860px;
+      margin: 0 auto;
+      padding: 32px 24px 64px;
+    }
+    .page-title { font-size: 1.4rem; font-weight: 700; letter-spacing: -.5px; margin-bottom: 4px; }
+    .page-sub { font-size: .83rem; color: var(--text-2); margin-bottom: 26px; }
+    .page-sub code {
+      background: var(--surface2); border: 1px solid var(--border2);
+      border-radius: 4px; padding: 1px 6px; font-size: .78rem; color: var(--blue);
+    }
+
+    .loading-state { text-align:center; padding:40px; color:var(--text-3); font-size:.85rem; }
+    .empty-state {
+      background: var(--surface); border: 1px dashed var(--border2);
+      border-radius: 10px; padding: 36px 20px; text-align:center;
+      color: var(--text-3); font-size:.86rem;
+    }
+    .spinner-inline {
+      display:inline-block; width:14px; height:14px;
+      border:2px solid var(--border2); border-top-color: var(--blue);
+      border-radius:50%; animation: spin .7s linear infinite;
+      vertical-align:middle; margin-right:6px;
+    }
+    @keyframes spin { to { transform:rotate(360deg); } }
+
+    /* ── Creator card ── */
+    #creatorsList { display:flex; flex-direction:column; gap:10px; }
+
+    .creator-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 12px; padding: 16px 18px;
+      display: flex; align-items: center; gap: 14px;
+      transition: border-color .2s;
+    }
+    .creator-card:hover { border-color: var(--border2); }
+
+    .rank-badge {
+      width: 30px; height: 30px; border-radius: 8px; flex-shrink:0;
+      display:flex; align-items:center; justify-content:center;
+      font-size:.78rem; font-weight:800;
+      background: var(--surface2); border: 1px solid var(--border2); color: var(--text-2);
+    }
+    .rank-badge.gold   { background: rgba(240,185,11,.12); border-color: rgba(240,185,11,.3);  color: var(--gold); }
+    .rank-badge.silver { background: rgba(200,200,200,.1); border-color: rgba(200,200,200,.3); color: #cfcfcf; }
+    .rank-badge.bronze { background: rgba(205,127,50,.12); border-color: rgba(205,127,50,.3);  color: #cd7f32; }
+
+    .creator-avatar {
+      width: 48px; height: 48px; border-radius: 50%; flex-shrink:0; overflow:hidden;
+      background: linear-gradient(135deg,#3b82f6,#1d4ed8);
+      display:flex; align-items:center; justify-content:center;
+      font-size:.95rem; font-weight:700; color:#fff;
+      border: 2px solid var(--border2);
+    }
+    .creator-avatar img { width:100%; height:100%; object-fit:cover; }
+
+    .creator-info { flex:1; min-width:0; }
+    .creator-name { font-size:.92rem; font-weight:700; display:flex; align-items:center; gap:6px; }
+    .verified-badge { color: var(--blue); font-size:.8rem; }
+    .creator-username { font-size:.78rem; color:var(--text-2); margin-top:1px; }
+    .creator-bio {
+      font-size:.78rem; color:var(--text-3); margin-top:4px;
+      white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:360px;
+    }
+
+    .creator-stats { display:flex; gap:18px; flex-shrink:0; }
+    .creator-stat { text-align:center; }
+    .creator-stat .num { font-size:.9rem; font-weight:700; color:#fff; }
+    .creator-stat .label { font-size:.65rem; color:var(--text-3); text-transform:uppercase; letter-spacing:.05em; }
+
+    .follow-btn {
+      padding: 8px 18px; border-radius: 7px; font-size: .8rem; font-weight: 600;
+      cursor: pointer; border: 1px solid var(--blue); background: var(--blue); color:#fff;
+      transition: all .15s; flex-shrink:0; min-width:96px;
+    }
+    .follow-btn:hover { opacity:.88; }
+    .follow-btn.following {
+      background: transparent; border: 1px solid var(--border2); color: var(--text-2);
+    }
+    .follow-btn.following:hover { border-color: var(--red); color: var(--red); }
+    .follow-btn:disabled { opacity:.5; cursor:not-allowed; }
+    .follow-btn.self { background: var(--surface2); border-color: var(--border2); color: var(--text-3); cursor:default; }
+    .follow-btn.self:hover { opacity:1; border-color: var(--border2); color: var(--text-3); }
+
+    .toast {
+      position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+      background: var(--surface2); border: 1px solid var(--border2);
+      border-radius: 8px; padding: 10px 18px; font-size:.82rem;
+      display:none; z-index:400; box-shadow: 0 8px 24px rgba(0,0,0,.5);
+    }
+    .toast.error { border-color: rgba(239,68,68,.3); color: var(--red); }
+    .toast.success { border-color: rgba(34,197,94,.3); color: var(--green); }
+
+    ::-webkit-scrollbar { width:5px; }
+    ::-webkit-scrollbar-track { background:transparent; }
+    ::-webkit-scrollbar-thumb { background:var(--border2); border-radius:99px; }
+
+    @media(max-width:640px) {
+      .creator-card { flex-wrap:wrap; }
+      .creator-stats { display:none; }
+      .creator-bio { max-width:220px; }
+    }
+  </style>
+</head>
+<body>
+
+<header class="topnav">
+  <a href="/dashboard" class="topnav-logo">
+    <span class="topnav-logo-dot"></span>CryptoTrade
+  </a>
+  <div class="topnav-right">
+    <a href="/dashboard" class="nav-pill">← Back to Dashboard</a>
+  </div>
+</header>
+
+<div class="page">
+  <div class="page-title">🏆 Top Creators</div>
+  <div class="page-sub">
+    The 10 most-followed creators on CryptoTrade.
+  </div>
+
+  <div id="creatorsList">
+    <div class="loading-state"><span class="spinner-inline"></span>Loading top creators…</div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ═══════════════════════════════════════════════════════
+   STATE
+   ═══════════════════════════════════════════════════════
+   Backend: Social_Platform/follow_unfollow.js
+     GET  /api/top-creators -> { creators: [...] }  (Quickselect top-10)
+     POST /api/follow       -> { username }
+     POST /api/unfollow     -> { username }
+   ═══════════════════════════════════════════════════════ */
+let creators = [];
+
+function escapeHtml(str) {
+  const div = document.createElement('div');
+  div.textContent = str ?? '';
+  return div.innerHTML;
+}
+
+function initials(name) {
+  return (name || '?').slice(0, 2).toUpperCase();
+}
+
+function rankClass(rank) {
+  if (rank === 1) return 'gold';
+  if (rank === 2) return 'silver';
+  if (rank === 3) return 'bronze';
+  return '';
+}
+
+async function safeParseJson(res) {
+  const contentType = res.headers.get('content-type') || '';
+  if (!contentType.includes('application/json')) {
+    return { success: false, message: `Unexpected server response (status ${res.status}). Please try again.` };
+  }
+  try { return await res.json(); }
+  catch { return { success: false, message: 'Unexpected server response. Please try again.' }; }
+}
+
+/* ═══════════════════════════════════════════════════════
+   LOAD TOP CREATORS
+   ═══════════════════════════════════════════════════════ */
+async function loadTopCreators() {
+  const container = document.getElementById('creatorsList');
+  try {
+    const r = await fetch('/api/top-creators');
+    const d = await safeParseJson(r);
+
+    if (!d.success) {
+      if (r.status === 401) { window.location.href = '/login'; return; }
+      container.innerHTML = `<div class="empty-state">${escapeHtml(d.message || 'Failed to load top creators.')}</div>`;
+      return;
+    }
+
+    creators = d.data.creators || [];
+    renderCreators();
+
+  } catch (e) {
+    console.error('loadTopCreators error:', e);
+    container.innerHTML = `<div class="empty-state">Network error while loading top creators.</div>`;
+  }
+}
+
+function renderCreators() {
+  const container = document.getElementById('creatorsList');
+
+  if (!creators.length) {
+    container.innerHTML = `<div class="empty-state">No creators yet — be the first to build a following!</div>`;
+    return;
+  }
+
+  container.innerHTML = creators.map(c => {
+    const avatarHtml = c.avatarUrl
+      ? `<img src="${c.avatarUrl}" alt="avatar"/>`
+      : initials(c.displayName || c.username);
+
+    let btnHtml;
+    if (c.isSelf) {
+      btnHtml = `<button class="follow-btn self" disabled>You</button>`;
+    } else if (c.isFollowing) {
+      btnHtml = `<button class="follow-btn following" data-username="${escapeHtml(c.username)}" onclick="handleUnfollow(this)">UnFollow</button>`;
+    } else {
+      btnHtml = `<button class="follow-btn" data-username="${escapeHtml(c.username)}" onclick="handleFollow(this)">Follow</button>`;
+    }
+
+    return `
+      <div class="creator-card" id="creator-${escapeHtml(c.username)}">
+        <div class="rank-badge ${rankClass(c.rank)}">#${c.rank}</div>
+        <div class="creator-avatar">${avatarHtml}</div>
+        <div class="creator-info">
+          <div class="creator-name">
+            ${escapeHtml(c.displayName)}
+          </div>
+          <div class="creator-username">@${escapeHtml(c.username)}</div>
+          ${c.bio ? `<div class="creator-bio">${escapeHtml(c.bio)}</div>` : ''}
+        </div>
+        <div class="creator-stats">
+          <div class="creator-stat"><div class="num">${c.followersCount}</div><div class="label">Followers</div></div>
+          <div class="creator-stat"><div class="num">${c.postsCount}</div><div class="label">Posts</div></div>
+        </div>
+        ${btnHtml}
+      </div>`;
+  }).join('');
+}
+
+/* ═══════════════════════════════════════════════════════
+   FOLLOW / UNFOLLOW
+   ═══════════════════════════════════════════════════════ */
+async function handleFollow(btn) {
+  const username = btn.dataset.username;
+  btn.disabled = true;
+  const originalText = btn.textContent;
+  btn.textContent = 'Following…';
+
+  try {
+    const r = await fetch('/api/follow', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username }),
+    });
+    const d = await safeParseJson(r);
+
+    if (d.success) {
+      updateLocalFollowState(username, true, d.data?.followersCount);
+      renderCreators();
+      showToast(`You're now following @${username}`, 'success');
+    } else {
+      showToast(d.message || 'Failed to follow user.', 'error');
+      btn.disabled = false;
+      btn.textContent = originalText;
+    }
+  } catch (e) {
+    showToast('Network error. Please try again.', 'error');
+    btn.disabled = false;
+    btn.textContent = originalText;
+  }
+}
+
+async function handleUnfollow(btn) {
+  const username = btn.dataset.username;
+  btn.disabled = true;
+  const originalText = btn.textContent;
+  btn.textContent = 'Unfollowing…';
+
+  try {
+    const r = await fetch('/api/unfollow', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username }),
+    });
+    const d = await safeParseJson(r);
+
+    if (d.success) {
+      updateLocalFollowState(username, false, d.data?.followersCount);
+      renderCreators();
+      showToast(`You unfollowed @${username}`, 'success');
+    } else {
+      showToast(d.message || 'Failed to unfollow user.', 'error');
+      btn.disabled = false;
+      btn.textContent = originalText;
+    }
+  } catch (e) {
+    showToast('Network error. Please try again.', 'error');
+    btn.disabled = false;
+    btn.textContent = originalText;
+  }
+}
+
+function updateLocalFollowState(username, isFollowing, newFollowersCount) {
+  const c = creators.find(x => x.username === username);
+  if (!c) return;
+  c.isFollowing = isFollowing;
+  if (typeof newFollowersCount === 'number') c.followersCount = newFollowersCount;
+}
+
+/* ═══════════════════════════════════════════════════════
+   TOAST
+   ═══════════════════════════════════════════════════════ */
+let toastTimer = null;
+function showToast(msg, type) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = 'toast ' + type;
+  el.style.display = 'block';
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { el.style.display = 'none'; }, 3000);
+}
+
+/* ═══════════════════════════════════════════════════════
+   INIT
+   ═══════════════════════════════════════════════════════ */
+document.addEventListener('DOMContentLoaded', loadTopCreators);
+</script>
+</body>
+</html>
