@@ -37,8 +37,7 @@ function setAuthCookie(res, token) {
 // ================= SOCIAL PROFILE HELPER =================
 
 async function ensureSocialProfile(userId, username, email) {
-    console.log({ userId, username, email });
-
+    
     const profile = await SocialProfile.findOneAndUpdate(
         { userId },
         {

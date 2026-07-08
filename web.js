@@ -24,7 +24,7 @@ app.use(cookieParser());
 
 // ---------------- BODY PARSERS ----------------
 app.use(express.urlencoded({ extended: true }));
-app.use(express.json()); // 🔥 REQUIRED FOR YOUR TRANSFER API
+app.use(express.json({ limit: '5mb' }));
 
 // ---------------- STATIC FILES ----------------
 app.use(express.static(path.join(__dirname), { index: false }));
@@ -34,7 +34,8 @@ app.use(homeRoutes);
 app.use(authRoutes);
 app.use(transferRoutes);
 app.use(chatRoutes);
-app.use(aiChatbotRoutes); 
+app.use(aiChatbotRoutes);
+app.use(require('../NodeJS/Social_Platform/profile'));
 
 // ---------------- 404 ----------------
 app.use((req, res) => res.status(404).send("Route not found"));

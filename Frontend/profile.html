@@ -1,0 +1,534 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Social Profile — CryptoTrade</title>
+  <style>
+    *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+
+    :root {
+      --bg:        #000000;
+      --surface:   #0a0a0a;
+      --surface2:  #111111;
+      --surface3:  #161616;
+      --border:    #1a1a1a;
+      --border2:   #222222;
+      --text:      #ffffff;
+      --text-2:    #888888;
+      --text-3:    #444444;
+      --blue:      #3b82f6;
+      --blue-dim:  rgba(59,130,246,0.12);
+      --green:     #22c55e;
+      --red:       #ef4444;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    /* ── Topnav ── */
+    .topnav {
+      height: 60px;
+      background: rgba(0,0,0,0.9);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      padding: 0 24px;
+      gap: 16px;
+      position: sticky;
+      top: 0;
+      z-index: 200;
+      backdrop-filter: blur(12px);
+    }
+    .topnav-logo {
+      font-size: 1.15rem;
+      font-weight: 800;
+      letter-spacing: -0.5px;
+      background: linear-gradient(90deg,#fff 0%,#93c5fd 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      text-decoration: none;
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      flex-shrink: 0;
+    }
+    .topnav-logo-dot {
+      width: 7px; height: 7px;
+      background: var(--blue);
+      border-radius: 50%;
+      -webkit-text-fill-color: initial;
+      flex-shrink: 0;
+    }
+    .topnav-right { margin-left: auto; display:flex; align-items:center; gap:10px; }
+    .nav-pill {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 6px 14px; border-radius: 7px;
+      font-size: .82rem; font-weight: 600; text-decoration: none;
+      border: 1px solid var(--border2); color: var(--text-2);
+      background: transparent; cursor: pointer; transition: all .18s;
+    }
+    .nav-pill:hover { color:#fff; border-color:#444; background: var(--surface2); }
+
+    /* ── Page ── */
+    .page {
+      max-width: 780px;
+      margin: 0 auto;
+      padding: 32px 24px 64px;
+    }
+    .page-title { font-size: 1.4rem; font-weight: 700; letter-spacing: -.5px; margin-bottom: 4px; }
+    .page-sub { font-size: .83rem; color: var(--text-2); margin-bottom: 26px; }
+
+    /* ── Profile card ── */
+    .profile-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 28px;
+      margin-bottom: 24px;
+      position: relative;
+      overflow: hidden;
+    }
+    .profile-card::before {
+      content:''; position:absolute; top:-60px; left:-60px;
+      width:260px; height:260px;
+      background: radial-gradient(circle, rgba(59,130,246,.08) 0%, transparent 70%);
+      pointer-events: none;
+    }
+
+    .profile-top { display:flex; gap:22px; align-items:flex-start; position:relative; z-index:1; }
+
+    .avatar-wrap { position:relative; flex-shrink:0; }
+    .avatar-big {
+      width: 96px; height: 96px; border-radius: 50%;
+      background: linear-gradient(135deg,#3b82f6,#1d4ed8);
+      display:flex; align-items:center; justify-content:center;
+      font-size: 1.8rem; font-weight:700; color:#fff;
+      border: 3px solid var(--border2);
+      overflow: hidden;
+    }
+    .avatar-big img { width:100%; height:100%; object-fit:cover; }
+    .avatar-edit-btn {
+      position:absolute; bottom:-2px; right:-2px;
+      width:30px; height:30px; border-radius:50%;
+      background: var(--blue); border: 2px solid var(--surface);
+      color:#fff; font-size:.85rem; cursor:pointer;
+      display:flex; align-items:center; justify-content:center;
+      transition: transform .15s;
+    }
+    .avatar-edit-btn:hover { transform: scale(1.08); }
+
+    .profile-info { flex:1; min-width:0; }
+    .profile-name { font-size:1.25rem; font-weight:700; }
+    .profile-username { font-size:.85rem; color:var(--text-2); margin-top:2px; }
+    .profile-email { font-size:.78rem; color:var(--text-3); margin-top:2px; }
+    .profile-bio { font-size:.86rem; color:var(--text-2); line-height:1.6; margin-top:12px; max-width:520px; }
+
+    .profile-stats { display:flex; gap:22px; margin-top:16px; }
+    .profile-stat .num { font-size:1rem; font-weight:700; color:#fff; }
+    .profile-stat .label { font-size:.7rem; color:var(--text-3); text-transform:uppercase; letter-spacing:.06em; }
+
+    .edit-btn {
+      padding: 8px 16px; border-radius: 7px; font-size: .8rem; font-weight: 600;
+      background: var(--surface2); border: 1px solid var(--border2); color: var(--text);
+      cursor: pointer; transition: all .15s; flex-shrink:0;
+    }
+    .edit-btn:hover { border-color:#444; }
+
+    /* ── Edit mode ── */
+    #editMode { display:none; margin-top:22px; position:relative; z-index:1; }
+    .form-group { margin-bottom:16px; }
+    .form-group label { display:block; font-size:.78rem; color:var(--text-2); margin-bottom:6px; font-weight:500; }
+    .form-input, textarea.form-input {
+      width:100%; background: var(--surface2); border: 1px solid var(--border2);
+      border-radius:7px; color: var(--text); font-size:.88rem;
+      padding: 10px 13px; outline:none; transition: border-color .2s; font-family:inherit;
+    }
+    .form-input:focus { border-color:#444; }
+    .char-count { font-size:.7rem; color:var(--text-3); margin-top:4px; text-align:right; }
+    .edit-actions { display:flex; gap:10px; margin-top:6px; }
+    .btn-save, .btn-cancel {
+      padding: 9px 18px; border-radius: 7px; font-size: .85rem; font-weight: 600;
+      cursor:pointer; border:none; transition:.15s;
+    }
+    .btn-save { background: var(--blue); color:#fff; }
+    .btn-save:hover { opacity:.88; }
+    .btn-save:disabled { opacity:.4; cursor:not-allowed; }
+    .btn-cancel { background: var(--surface2); border:1px solid var(--border2); color: var(--text-2); }
+    .btn-cancel:hover { color:#fff; border-color:#444; }
+
+    .msg-box { padding:10px 13px; border-radius:7px; font-size:.82rem; margin-top:14px; }
+    .msg-box.success { background:rgba(34,197,94,.1); border:1px solid rgba(34,197,94,.2); color:var(--green); }
+    .msg-box.error   { background:rgba(239,68,68,.1);  border:1px solid rgba(239,68,68,.2);  color:var(--red); }
+
+    /* ── Posts section ── */
+    .sec-head { display:flex; align-items:center; justify-content:space-between; margin-bottom:14px; }
+    .sec-head h3 { font-size:.95rem; font-weight:700; }
+
+    .post-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 10px; padding: 18px 20px; margin-bottom: 12px;
+    }
+    .post-header { display:flex; align-items:center; gap:10px; margin-bottom:10px; }
+    .post-header .mini-avatar {
+      width:30px; height:30px; border-radius:50%; overflow:hidden;
+      background: linear-gradient(135deg,#3b82f6,#1d4ed8);
+      display:flex; align-items:center; justify-content:center;
+      font-size:.72rem; font-weight:700; color:#fff; flex-shrink:0;
+    }
+    .post-header .mini-avatar img { width:100%; height:100%; object-fit:cover; }
+    .post-header .who { font-size:.88rem; font-weight:600; }
+    .post-header .when { font-size:.75rem; color:var(--text-3); margin-left:auto; }
+    .post-content { font-size:.85rem; color:var(--text-2); line-height:1.65; white-space:pre-wrap; word-break:break-word; }
+    .post-media { margin-top:10px; display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:8px; }
+    .post-media img, .post-media video { width:100%; border-radius:8px; border:1px solid var(--border2); max-height:220px; object-fit:cover; }
+    .post-meta { font-size:.75rem; color:var(--text-3); margin-top:12px; }
+
+    .empty-state {
+      background: var(--surface); border: 1px dashed var(--border2);
+      border-radius: 10px; padding: 36px 20px; text-align:center;
+      color: var(--text-3); font-size:.86rem;
+    }
+
+    .loading-state { text-align:center; padding:30px; color:var(--text-3); font-size:.85rem; }
+    .spinner-inline {
+      display:inline-block; width:14px; height:14px;
+      border:2px solid var(--border2); border-top-color: var(--blue);
+      border-radius:50%; animation: spin .7s linear infinite;
+      vertical-align:middle; margin-right:6px;
+    }
+    @keyframes spin { to { transform:rotate(360deg); } }
+
+    ::-webkit-scrollbar { width:5px; }
+    ::-webkit-scrollbar-track { background:transparent; }
+    ::-webkit-scrollbar-thumb { background:var(--border2); border-radius:99px; }
+
+    @media(max-width:640px){
+      .profile-top { flex-direction:column; align-items:center; text-align:center; }
+      .profile-stats { justify-content:center; }
+      .edit-btn { margin-top:12px; }
+    }
+  </style>
+</head>
+<body>
+
+<header class="topnav">
+  <a href="/dashboard" class="topnav-logo">
+    <span class="topnav-logo-dot"></span>CryptoTrade
+  </a>
+  <div class="topnav-right">
+    <a href="/dashboard" class="nav-pill">← Back to Dashboard</a>
+  </div>
+</header>
+
+<div class="page">
+  <div class="page-title">Social Profile</div>
+  <div class="page-sub">Manage your public profile photo, bio, and view your posts.</div>
+
+  <div class="profile-card">
+    <!-- ── VIEW MODE ── -->
+    <div id="viewMode">
+      <div class="profile-top">
+        <div class="avatar-wrap">
+          <div class="avatar-big" id="avatarBig">?</div>
+          <button class="avatar-edit-btn" id="avatarEditBtnView" onclick="enterEditMode()" title="Change photo">✎</button>
+        </div>
+        <div class="profile-info">
+          <div class="profile-name" id="displayNameView">—</div>
+          <div class="profile-username" id="usernameView">@—</div>
+          <div class="profile-email" id="emailView">—</div>
+          <div class="profile-bio" id="bioView">No bio yet.</div>
+          <div class="profile-stats">
+            <div class="profile-stat"><div class="num" id="postsCount">0</div><div class="label">Posts</div></div>
+            <div class="profile-stat"><div class="num" id="followersCount">0</div><div class="label">Followers</div></div>
+            <div class="profile-stat"><div class="num" id="followingCount">0</div><div class="label">Following</div></div>
+          </div>
+        </div>
+        <button class="edit-btn" onclick="enterEditMode()">Edit Profile</button>
+      </div>
+    </div>
+
+    <!-- ── EDIT MODE ── -->
+    <div id="editMode">
+      <div class="profile-top" style="margin-bottom:6px;">
+        <div class="avatar-wrap">
+          <div class="avatar-big" id="avatarBigEdit">?</div>
+          <button class="avatar-edit-btn" onclick="document.getElementById('avatarFileInput').click()" title="Change photo">✎</button>
+          <input type="file" id="avatarFileInput" accept="image/*" style="display:none;"/>
+        </div>
+        <div class="profile-info">
+          <div class="form-note" style="font-size:.75rem;color:var(--text-3);">
+            Click the pencil icon to pick a new profile photo from your computer (JPG/PNG, max 2MB).
+          </div>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label>Display Name</label>
+        <input class="form-input" type="text" id="editDisplayName" maxlength="60" placeholder="Your display name" oninput="updateCharCount('editDisplayName','dnCount',60)"/>
+        <div class="char-count" id="dnCount">0 / 60</div>
+      </div>
+
+      <div class="form-group">
+        <label>Bio</label>
+        <textarea class="form-input" id="editBio" rows="3" maxlength="300" placeholder="Tell people a bit about yourself…" oninput="updateCharCount('editBio','bioCount',300)"></textarea>
+        <div class="char-count" id="bioCount">0 / 300</div>
+      </div>
+
+      <div class="edit-actions">
+        <button class="btn-save" id="saveProfileBtn" onclick="saveProfile()">Save Changes</button>
+        <button class="btn-cancel" onclick="cancelEdit()">Cancel</button>
+      </div>
+
+      <div id="profile-msg" class="msg-box" style="display:none;"></div>
+    </div>
+  </div>
+
+  <div class="sec-head">
+    <h3>Your Posts</h3>
+  </div>
+  <div id="postsContainer">
+    <div class="loading-state"><span class="spinner-inline"></span>Loading posts…</div>
+  </div>
+</div>
+
+<script>
+/* ═══════════════════════════════════════════════════════
+   STATE
+   ═══════════════════════════════════════════════════════
+   Backend: Social_Platform/profile.js
+     GET  /api/profile         -> { profile, posts }
+     PUT  /api/profile         -> update displayName/bio
+     POST /api/profile/avatar  -> update avatarUrl (base64 data URL)
+   ═══════════════════════════════════════════════════════ */
+let currentProfile   = null;
+let pendingAvatarData = null; // base64 data URL staged for save, or null
+
+const DEFAULT_AVATAR_HTML = (name) => (name || '?').slice(0, 2).toUpperCase();
+
+function escapeHtml(str) {
+  const div = document.createElement('div');
+  div.textContent = str ?? '';
+  return div.innerHTML;
+}
+
+/* ═══════════════════════════════════════════════════════
+   LOAD PROFILE + POSTS
+   ═══════════════════════════════════════════════════════ */
+async function loadProfile() {
+  try {
+    const r = await fetch('/api/profile');
+    const d = await r.json();
+
+    if (!d.success) {
+      if (r.status === 401) { window.location.href = '/login'; return; }
+      document.getElementById('postsContainer').innerHTML =
+        `<div class="empty-state">${escapeHtml(d.message || 'Failed to load profile.')}</div>`;
+      return;
+    }
+
+    currentProfile = d.data.profile;
+    renderProfile(currentProfile);
+    renderPosts(d.data.posts || []);
+
+  } catch (e) {
+    console.error('loadProfile error:', e);
+    document.getElementById('postsContainer').innerHTML =
+      `<div class="empty-state">Network error while loading your profile.</div>`;
+  }
+}
+
+function renderProfile(p) {
+  const initials = DEFAULT_AVATAR_HTML(p.displayName || p.username);
+
+  ['avatarBig', 'avatarBigEdit'].forEach(id => {
+    const el = document.getElementById(id);
+    if (p.avatarUrl) {
+      el.innerHTML = `<img src="${p.avatarUrl}" alt="avatar"/>`;
+    } else {
+      el.textContent = initials;
+    }
+  });
+
+  document.getElementById('displayNameView').textContent = p.displayName || p.username;
+  document.getElementById('usernameView').textContent    = '@' + p.username;
+  document.getElementById('emailView').textContent        = p.email;
+  document.getElementById('bioView').textContent          = p.bio && p.bio.trim() ? p.bio : 'No bio yet.';
+
+  document.getElementById('postsCount').textContent     = p.postsCount ?? 0;
+  document.getElementById('followersCount').textContent = p.followersCount ?? 0;
+  document.getElementById('followingCount').textContent = p.followingCount ?? 0;
+
+  // Pre-fill edit form
+  document.getElementById('editDisplayName').value = p.displayName || '';
+  document.getElementById('editBio').value          = p.bio || '';
+  updateCharCount('editDisplayName', 'dnCount', 60);
+  updateCharCount('editBio', 'bioCount', 300);
+}
+
+function renderPosts(posts) {
+  const el = document.getElementById('postsContainer');
+
+  if (!posts || posts.length === 0) {
+    el.innerHTML = `<div class="empty-state">No posts yet. Once you start posting, your posts will show up here.</div>`;
+    return;
+  }
+
+  el.innerHTML = posts.map(post => {
+    const initials = DEFAULT_AVATAR_HTML(currentProfile?.displayName || currentProfile?.username);
+    const avatarHtml = currentProfile?.avatarUrl
+      ? `<img src="${currentProfile.avatarUrl}" alt="avatar"/>`
+      : initials;
+
+    const mediaHtml = (post.media && post.media.length)
+      ? `<div class="post-media">${post.media.map(m =>
+          m.type === 'video'
+            ? `<video src="${m.url}" controls></video>`
+            : `<img src="${m.url}" alt="post media"/>`
+        ).join('')}</div>`
+      : '';
+
+    const when = post.createdAt ? new Date(post.createdAt).toLocaleString() : '';
+
+    return `
+      <div class="post-card">
+        <div class="post-header">
+          <div class="mini-avatar">${avatarHtml}</div>
+          <span class="who">${escapeHtml(currentProfile?.displayName || currentProfile?.username)}</span>
+          <span class="when">${when}</span>
+        </div>
+        <div class="post-content">${escapeHtml(post.content)}</div>
+        ${mediaHtml}
+        <div class="post-meta">❤ ${post.likesCount || 0} · 💬 ${post.commentsCount || 0}</div>
+      </div>`;
+  }).join('');
+}
+
+/* ═══════════════════════════════════════════════════════
+   EDIT MODE TOGGLE
+   ═══════════════════════════════════════════════════════ */
+function enterEditMode() {
+  document.getElementById('viewMode').style.display = 'none';
+  document.getElementById('editMode').style.display  = 'block';
+  hideMsg();
+}
+
+function cancelEdit() {
+  pendingAvatarData = null;
+  if (currentProfile) renderProfile(currentProfile); // reset any unsaved avatar preview
+  document.getElementById('viewMode').style.display = 'block';
+  document.getElementById('editMode').style.display  = 'none';
+  hideMsg();
+}
+
+/* ═══════════════════════════════════════════════════════
+   AVATAR FILE PICKER (reads file from the user's computer)
+   ═══════════════════════════════════════════════════════ */
+document.getElementById('avatarFileInput').addEventListener('change', function (e) {
+  const file = e.target.files[0];
+  if (!file) return;
+
+  if (!file.type.startsWith('image/')) {
+    showMsg('⚠ Please select an image file (JPG, PNG, GIF, etc).', 'error');
+    e.target.value = '';
+    return;
+  }
+  if (file.size > 2 * 1024 * 1024) {
+    showMsg('⚠ Image is too large. Please choose a file under 2MB.', 'error');
+    e.target.value = '';
+    return;
+  }
+
+  const reader = new FileReader();
+  reader.onload = function (ev) {
+    pendingAvatarData = ev.target.result; // base64 data URL
+    document.getElementById('avatarBigEdit').innerHTML = `<img src="${pendingAvatarData}" alt="preview"/>`;
+  };
+  reader.onerror = function () {
+    showMsg('⚠ Could not read that file. Please try another image.', 'error');
+  };
+  reader.readAsDataURL(file);
+});
+
+/* ═══════════════════════════════════════════════════════
+   SAVE PROFILE (avatar + display name + bio)
+   ═══════════════════════════════════════════════════════ */
+function updateCharCount(fieldId, countId, max) {
+  const val = document.getElementById(fieldId).value || '';
+  document.getElementById(countId).textContent = `${val.length} / ${max}`;
+}
+
+async function saveProfile() {
+  const displayName = document.getElementById('editDisplayName').value.trim();
+  const bio          = document.getElementById('editBio').value.trim();
+  const btn          = document.getElementById('saveProfileBtn');
+
+  btn.disabled = true;
+  btn.textContent = 'Saving…';
+  hideMsg();
+
+  try {
+    // Step 1: upload the new avatar first, if the user picked one
+    if (pendingAvatarData) {
+      const avRes = await fetch('/api/profile/avatar', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ imageData: pendingAvatarData }),
+      });
+      const avData = await avRes.json();
+      if (!avData.success) {
+        showMsg(avData.message || '✕ Failed to update profile photo.', 'error');
+        btn.disabled = false;
+        btn.textContent = 'Save Changes';
+        return;
+      }
+    }
+
+    // Step 2: update display name / bio
+    const r = await fetch('/api/profile', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ displayName, bio }),
+    });
+    const d = await r.json();
+
+    if (d.success) {
+      pendingAvatarData = null;
+      await loadProfile();
+      document.getElementById('viewMode').style.display = 'block';
+      document.getElementById('editMode').style.display  = 'none';
+    } else {
+      showMsg(d.message || '✕ Failed to update profile.', 'error');
+    }
+  } catch (e) {
+    console.error('saveProfile error:', e);
+    showMsg('✕ Network error while saving. Please try again.', 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Save Changes';
+  }
+}
+
+/* ═══════════════════════════════════════════════════════
+   MESSAGE HELPERS
+   ═══════════════════════════════════════════════════════ */
+function showMsg(msg, type) {
+  const el = document.getElementById('profile-msg');
+  el.textContent = msg;
+  el.className = 'msg-box ' + type;
+  el.style.display = 'block';
+}
+function hideMsg() {
+  document.getElementById('profile-msg').style.display = 'none';
+}
+
+
+document.addEventListener('DOMContentLoaded', loadProfile);
+</script>
+</body>
+</html>

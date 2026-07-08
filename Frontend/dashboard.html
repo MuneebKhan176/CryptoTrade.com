@@ -122,7 +122,9 @@
       font-size: .78rem; font-weight: 700; color:#fff;
       cursor: pointer; flex-shrink: 0;
       border: 2px solid var(--border2);
+      overflow: hidden;
     }
+    .avatar img { width:100%; height:100%; object-fit:cover; }
 
     /* ── Layout ── */
     .layout { display: flex; flex: 1; }
@@ -411,7 +413,7 @@
     <button class="nav-pill" onclick="showPanel('insights')">📝 Insights</button>
     <a href="/chat" class="nav-pill">💬 Live Chat</a>
     <button class="nav-pill blue" onclick="showPanel('demo')">🎁 Get Demo Funds</button>
-    <div class="avatar" id="avatarEl">?</div>
+    <a href="/profile" class="avatar" id="avatarEl" title="Social Profile">?</a>
   </div>
 </header>
 
@@ -430,6 +432,9 @@
       <button class="sidebar-link" onclick="showPanel('account')">
         <span class="icon">👤</span> Account
       </button>
+      <a href="/profile" class="sidebar-link">
+        <span class="icon">🪪</span> Social Profile
+      </a>
       <button class="sidebar-link" onclick="showPanel('market')">
         <span class="icon">🌐</span> Markets
       </button>
@@ -884,7 +889,13 @@ async function fetchUser() {
     userData._account = acc;
 
     const initials = (userData.username || '?').slice(0, 2).toUpperCase();
-    document.getElementById('avatarEl').textContent = initials;
+    const avatarEl = document.getElementById('avatarEl');
+    const socialAvatarUrl = d.data.socialProfile && d.data.socialProfile.avatarUrl;
+    if (socialAvatarUrl) {
+      avatarEl.innerHTML = `<img src="${socialAvatarUrl}" alt="avatar"/>`;
+    } else {
+      avatarEl.textContent = initials;
+    }
 
     const hr = new Date().getHours();
     const greet = hr < 12 ? 'Good morning' : hr < 17 ? 'Good afternoon' : 'Good evening';
