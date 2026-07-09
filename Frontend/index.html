@@ -913,7 +913,7 @@
       <div class="section-label reveal">Live Prices</div>
       <h2 class="section-title reveal">Market Overview</h2>
       <p class="section-subtitle reveal">
-        Real-time prices via CoinGecko API — the same data you'll trade with.
+        Real-time prices streamed straight from Binance's public WebSocket feed — the same data you'll trade with.
       </p>
 
       <div class="market-table-wrap reveal">
@@ -924,20 +924,20 @@
               <th>Rank</th>
               <th>Price</th>
               <th>24h Change</th>
-              <th>Market Cap</th>
+              <th>24h Volume</th>
             </tr>
           </thead>
           <tbody id="marketTableBody">
             <tr class="loading-row">
               <td colspan="5">
-                <span class="spinner"></span>Fetching live prices…
+                <span class="spinner"></span>Connecting to WebSocket…
               </td>
             </tr>
           </tbody>
         </table>
         <div class="table-footer">
           <span class="live-dot"></span>
-          <span id="lastUpdated">Connecting to CoinGecko…</span>
+          <span id="lastUpdated">Connecting to Binance…</span>
         </div>
       </div>
     </section>
@@ -1124,33 +1124,77 @@
 
     document.querySelectorAll('.reveal, .step-card').forEach(el => revealObserver.observe(el));
 
-    /* ——— Market data ——— */
+    /* ═══════════════════════════════════════════════════════
+       LIVE MARKET DATA — SHARED SERVER WEBSOCKET
+       ═══════════════════════════════════════════════════════
+       We do NOT connect to Binance from the browser. Every visitor
+       connects to OUR server at /ws/market-data instead. The server
+       (Market_Stream/market_data.js) holds exactly one upstream
+       connection to Binance and rebroadcasts a shared snapshot to
+       every connected browser once a second — no matter how many
+       people are on the site, Binance only ever sees one connection.
+
+       Binance doesn't expose "market cap" (it's a supply-based
+       metric, not something an exchange tracks), so that column
+       is live 24h quote volume instead, passed straight through
+       from the server.
+       ═══════════════════════════════════════════════════════ */
     const COINS = [
-      { id: 'bitcoin',  symbol: 'BTC', name: 'Bitcoin',  cls: 'btc', icon: '₿' },
-      { id: 'ethereum', symbol: 'ETH', name: 'Ethereum', cls: 'eth', icon: 'Ξ' },
-      { id: 'solana',   symbol: 'SOL', name: 'Solana',   cls: 'sol', icon: '◎' },
-      { id: 'ripple',   symbol: 'XRP', name: 'XRP',      cls: 'xrp', icon: '✕' },
-      { id: 'binancecoin', symbol: 'BNB', name: 'BNB',   cls: 'bnb', icon: 'B' },
+      { id: 'bitcoin',     symbol: 'BTC', name: 'Bitcoin',  cls: 'btc', icon: '₿', rank: 1 },
+      { id: 'ethereum',    symbol: 'ETH', name: 'Ethereum', cls: 'eth', icon: 'Ξ', rank: 2 },
+      { id: 'binancecoin', symbol: 'BNB', name: 'BNB',      cls: 'bnb', icon: 'B', rank: 4 },
+      { id: 'solana',      symbol: 'SOL', name: 'Solana',   cls: 'sol', icon: '◎', rank: 5 },
+      { id: 'ripple',      symbol: 'XRP', name: 'XRP',      cls: 'xrp', icon: '✕', rank: 7 },
     ];
 
-    const IDS = COINS.map(c => c.id).join(',');
-    const API_URL = `https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=${IDS}&order=market_cap_desc&price_change_percentage=24h`;
+    let liveData = {};
+    let socket = null;
+    let reconnectTimer = null;
+
+    function connectSocket() {
+      const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+      socket = new WebSocket(`${proto}://${location.host}/ws/market-data`);
+
+      socket.onopen = () => setStatus('Live via server WebSocket');
+
+      socket.onmessage = (event) => {
+        const msg = JSON.parse(event.data);
+        if (msg.type !== 'snapshot' || !msg.data) return;
+        // Server sends the full latest snapshot keyed by coin id — just adopt it.
+        liveData = msg.data;
+      };
+
+      socket.onerror = () => setStatus('WebSocket error — reconnecting…');
+
+      socket.onclose = () => {
+        setStatus('Disconnected — reconnecting…');
+        clearTimeout(reconnectTimer);
+        reconnectTimer = setTimeout(connectSocket, 3000);
+      };
+    }
+
+    function setStatus(text) {
+      const el = document.getElementById('lastUpdated');
+      if (el) el.textContent = text + ' · ' + new Date().toLocaleTimeString();
+    }
 
     function formatPrice(n) {
+      if (n === undefined || n === null || isNaN(n)) return '—';
       if (n >= 1000) return '$' + n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
       if (n >= 1)    return '$' + n.toFixed(4);
       return '$' + n.toFixed(6);
     }
 
-    function formatMCap(n) {
-      if (n >= 1e12) return '$' + (n / 1e12).toFixed(2) + 'T';
-      if (n >= 1e9)  return '$' + (n / 1e9).toFixed(2)  + 'B';
-      if (n >= 1e6)  return '$' + (n / 1e6).toFixed(2)  + 'M';
+    function formatVol(n) {
+      if (!n) return '—';
+      if (n >= 1e9) return '$' + (n / 1e9).toFixed(2) + 'B';
+      if (n >= 1e6) return '$' + (n / 1e6).toFixed(2) + 'M';
+      if (n >= 1e3) return '$' + (n / 1e3).toFixed(2) + 'K';
       return '$' + n.toLocaleString();
     }
 
     function buildTableRow(coin, data) {
-      const pct = data.price_change_percentage_24h;
+      const pct = data.changePct || 0;
       const sign = pct >= 0 ? '+' : '';
       const cls  = pct >= 0 ? 'up' : 'down';
       const arrow = pct >= 0 ? '▲' : '▼';
@@ -1165,72 +1209,56 @@
               </div>
             </div>
           </td>
-          <td><span class="rank-badge">${data.market_cap_rank}</span></td>
-          <td class="price-cell">${formatPrice(data.current_price)}</td>
+          <td><span class="rank-badge">${coin.rank}</span></td>
+          <td class="price-cell">${formatPrice(data.price)}</td>
           <td class="change-cell ${cls}">${arrow} ${sign}${pct.toFixed(2)}%</td>
-          <td class="mcap-cell">${formatMCap(data.market_cap)}</td>
+          <td class="mcap-cell">${formatVol(data.quoteVol)}</td>
         </tr>`;
     }
 
     function buildTickerItem(coin, data) {
-      const pct = data.price_change_percentage_24h;
+      const pct = data.changePct || 0;
       const sign = pct >= 0 ? '+' : '';
       const cls = pct >= 0 ? 'up' : 'down';
       return `
         <div class="ticker-item">
           <span class="ticker-symbol">${coin.symbol}</span>
-          <span class="ticker-price">${formatPrice(data.current_price)}</span>
+          <span class="ticker-price">${formatPrice(data.price)}</span>
           <span class="ticker-change ${cls}">${sign}${pct.toFixed(2)}%</span>
         </div>`;
     }
 
-    async function fetchMarket() {
-      try {
-        const res = await fetch(API_URL);
-        if (!res.ok) throw new Error('API error');
-        const list = await res.json();
+    function renderMarket() {
+      const tbody = document.getElementById('marketTableBody');
+      const ticker = document.getElementById('tickerTrack');
+      let tableHTML = '';
+      let tickerHTML = '';
 
-        const tbody = document.getElementById('marketTableBody');
-        const ticker = document.getElementById('tickerTrack');
-        let tableHTML = '';
-        let tickerHTML = '';
+      COINS.forEach(coin => {
+        const data = liveData[coin.id];
+        if (!data) return;
+        tableHTML  += buildTableRow(coin, data);
+        tickerHTML += buildTickerItem(coin, data);
+      });
 
-        COINS.forEach(coin => {
-          const data = list.find(d => d.id === coin.id);
-          if (!data) return;
-          tableHTML  += buildTableRow(coin, data);
-          tickerHTML += buildTickerItem(coin, data);
-        });
+      if (!tableHTML) return; // nothing streamed yet
 
-        tbody.innerHTML = tableHTML;
+      tbody.innerHTML = tableHTML;
+      ticker.innerHTML = tickerHTML + tickerHTML; // duplicate for seamless loop
 
-        // Duplicate ticker for seamless loop
-        ticker.innerHTML = tickerHTML + tickerHTML;
+      setStatus('Live via Binance WebSocket');
 
-        // Update timestamp
-        const now = new Date();
-        document.getElementById('lastUpdated').textContent =
-          `Live via CoinGecko · Updated ${now.toLocaleTimeString()}`;
-
-        // Flash updated rows
-        document.querySelectorAll('#marketTableBody tr').forEach(row => {
-          row.style.transition = 'background 0.3s';
-          row.style.background = 'rgba(59,130,246,0.04)';
-          setTimeout(() => { row.style.background = ''; }, 400);
-        });
-
-      } catch (err) {
-        document.getElementById('marketTableBody').innerHTML = `
-          <tr class="loading-row">
-            <td colspan="5">Unable to load prices. Retrying…</td>
-          </tr>`;
-        document.getElementById('lastUpdated').textContent = 'Connection error — retrying in 30s';
-      }
+      // Flash updated rows
+      document.querySelectorAll('#marketTableBody tr').forEach(row => {
+        row.style.transition = 'background 0.3s';
+        row.style.background = 'rgba(59,130,246,0.04)';
+        setTimeout(() => { row.style.background = ''; }, 400);
+      });
     }
 
-    // Fetch immediately, then every 30s
-    fetchMarket();
-    setInterval(fetchMarket, 30000);
+    connectSocket();
+    // The socket pushes updates continuously — paint the latest snapshot once a second.
+    setInterval(renderMarket, 1000);
 
     /* ——— Active nav on scroll ——— */
     const sections = document.querySelectorAll('section[id]');

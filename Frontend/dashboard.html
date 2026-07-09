@@ -542,7 +542,7 @@
         <div class="chart-info">
           <div class="chart-info-item"><label>Current Price</label><span id="ci-price">—</span></div>
           <div class="chart-info-item"><label>24h Change</label><span id="ci-change">—</span></div>
-          <div class="chart-info-item"><label>Market Cap</label><span id="ci-mcap">—</span></div>
+          <div class="chart-info-item"><label>24h Volume</label><span id="ci-mcap">—</span></div>
         </div>
       </div>
 
@@ -554,12 +554,12 @@
         <table>
           <thead>
             <tr>
-              <th>Coin</th><th>Rank</th><th>Price</th><th>24h Change</th><th>Market Cap</th><th>Action</th>
+              <th>Coin</th><th>Rank</th><th>Price</th><th>24h Change</th><th>24h Volume</th><th>Action</th>
             </tr>
           </thead>
           <tbody id="overviewTable">
             <tr><td colspan="6" style="text-align:center;padding:30px;color:var(--text-3)">
-              <span class="spinner-inline"></span>Loading…
+              <span class="spinner-inline"></span>Connecting to WebSocket…
             </td></tr>
           </tbody>
         </table>
@@ -597,18 +597,18 @@
         <div class="chart-info">
           <div class="chart-info-item"><label>Current Price</label><span id="tci-price">—</span></div>
           <div class="chart-info-item"><label>24h Change</label><span id="tci-change">—</span></div>
-          <div class="chart-info-item"><label>Market Cap</label><span id="tci-mcap">—</span></div>
+          <div class="chart-info-item"><label>24h Volume</label><span id="tci-mcap">—</span></div>
         </div>
       </div>
       <div class="sec-head"><h3>All Markets</h3></div>
       <div class="table-wrap">
         <table>
           <thead>
-            <tr><th>Coin</th><th>Rank</th><th>Price</th><th>24h Change</th><th>Market Cap</th><th>Action</th></tr>
+            <tr><th>Coin</th><th>Rank</th><th>Price</th><th>24h Change</th><th>24h Volume</th><th>Action</th></tr>
           </thead>
           <tbody id="tradeTable">
             <tr><td colspan="6" style="text-align:center;padding:30px;color:var(--text-3)">
-              <span class="spinner-inline"></span>Loading…
+              <span class="spinner-inline"></span>Connecting to WebSocket…
             </td></tr>
           </tbody>
         </table>
@@ -656,11 +656,11 @@
       <div class="table-wrap">
         <table>
           <thead>
-            <tr><th>Coin</th><th>Rank</th><th>Price</th><th>24h Change</th><th>Market Cap</th><th>Action</th></tr>
+            <tr><th>Coin</th><th>Rank</th><th>Price</th><th>24h Change</th><th>24h Volume</th><th>Action</th></tr>
           </thead>
           <tbody id="marketTable">
             <tr><td colspan="6" style="text-align:center;padding:30px;color:var(--text-3)">
-              <span class="spinner-inline"></span>Loading…
+              <span class="spinner-inline"></span>Connecting to WebSocket…
             </td></tr>
           </tbody>
         </table>
@@ -788,7 +788,7 @@
 </div>
 
 <footer>
-  <p>© 2025 CryptoTrade · Demo trading platform · Educational use only</p>
+  <p>© 2025 CryptoTrade · Demo trading platform · Created by Muneeb</p>
   <div class="footer-links">
     <a href="/">Home</a>
     <a href="/contact">Support</a>
@@ -823,23 +823,32 @@
    STATE
    ═══════════════════════════════════════════════════════ */
 let userData    = null;
-let marketData  = [];
 let chartDays   = 1;
 let tradeDays   = 1;
 let chartInstance      = null;
 let tradeChartInstance = null;
 let chatHistory = []; // [{role:'user'|'bot', text:string}] — sent to /api/ai-chatbot/message for context
 
+/* Live price state populated directly from the Binance WebSocket stream.
+   Keyed by our internal coin id ('bitcoin', 'ethereum', …). */
+let liveData = {};
+
 const COINS = [
-  { id:'bitcoin',     sym:'BTC',  name:'Bitcoin',  cls:'btc',  icon:'₿' },
-  { id:'ethereum',    sym:'ETH',  name:'Ethereum', cls:'eth',  icon:'Ξ' },
-  { id:'solana',      sym:'SOL',  name:'Solana',   cls:'sol',  icon:'◎' },
-  { id:'ripple',      sym:'XRP',  name:'XRP',      cls:'xrp',  icon:'✕' },
-  { id:'binancecoin', sym:'BNB',  name:'BNB',      cls:'bnb',  icon:'B' },
-  { id:'tether',      sym:'USDT', name:'Tether',   cls:'usdt', icon:'₮' },
-  { id:'usd-coin',    sym:'USDC', name:'USD Coin', cls:'usdc', icon:'$' },
+  { id:'bitcoin',     stream:'btcusdt',  sym:'BTC',  name:'Bitcoin',  cls:'btc',  icon:'₿', rank:1 },
+  { id:'ethereum',    stream:'ethusdt',  sym:'ETH',  name:'Ethereum', cls:'eth',  icon:'Ξ', rank:2 },
+  { id:'tether',      stream:null,       sym:'USDT', name:'Tether',   cls:'usdt', icon:'₮', rank:3, staticPrice:1.0 },
+  { id:'binancecoin', stream:'bnbusdt',  sym:'BNB',  name:'BNB',      cls:'bnb',  icon:'B', rank:4 },
+  { id:'solana',      stream:'solusdt',  sym:'SOL',  name:'Solana',   cls:'sol',  icon:'◎', rank:5 },
+  { id:'usd-coin',    stream:'usdcusdt', sym:'USDC', name:'USD Coin', cls:'usdc', icon:'$', rank:6, staticPrice:1.0 },
+  { id:'ripple',      stream:'xrpusdt',  sym:'XRP',  name:'XRP',      cls:'xrp',  icon:'✕', rank:7 },
 ];
-const IDS = COINS.map(c => c.id).join(',');
+
+/* Map Binance kline interval → chart range in days */
+const CHART_INTERVALS = {
+  1:  { interval: '15m', limit: 96 },
+  7:  { interval: '2h',  limit: 84 },
+  30: { interval: '1d',  limit: 30 },
+};
 
 /* ═══════════════════════════════════════════════════════
    PANEL NAVIGATION
@@ -935,24 +944,74 @@ async function fetchUser() {
 function refreshDemoBalance() { fetchUser(); }
 
 /* ═══════════════════════════════════════════════════════
-   MARKET DATA
+   LIVE MARKET DATA — SHARED SERVER WEBSOCKET
+   ═══════════════════════════════════════════════════════
+   We do NOT connect to Binance from the browser. Instead every
+   user connects to OUR server at /ws/market-data. The server
+   (Market_Stream/market_data.js) holds a single upstream
+   connection to Binance and rebroadcasts one shared snapshot
+   to every connected client once a second — so 1 user or
+   10,000 users still means exactly one Binance connection.
+
+   Binance has no concept of "market cap" (that requires
+   circulating-supply data an exchange doesn't hold), so the
+   old Market Cap column is real, live 24h quote volume
+   instead, which the server streams straight through.
    ═══════════════════════════════════════════════════════ */
+let marketSocket = null;
+let wsReconnectTimer = null;
+
+function connectMarketSocket() {
+  const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+  const url = `${proto}://${location.host}/ws/market-data`;
+
+  marketSocket = new WebSocket(url);
+
+  marketSocket.onopen = () => {
+    setStatus('Live via server WebSocket');
+  };
+
+  marketSocket.onmessage = (event) => {
+    const msg = JSON.parse(event.data);
+    if (msg.type !== 'snapshot' || !msg.data) return;
+    // Server sends the full latest snapshot keyed by coin id — just adopt it.
+    liveData = msg.data;
+  };
+
+  marketSocket.onerror = () => setStatus('WebSocket error — reconnecting…');
+
+  marketSocket.onclose = () => {
+    setStatus('Disconnected — reconnecting…');
+    clearTimeout(wsReconnectTimer);
+    wsReconnectTimer = setTimeout(connectMarketSocket, 3000);
+  };
+}
+
+function setStatus(text) {
+  const now = new Date().toLocaleTimeString();
+  const full = text + ' · ' + now;
+  ['tableUpdated', 'tradeTableUpdated', 'mktUpdated'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = full;
+  });
+}
+
 function fmtPrice(n) {
-  if (!n && n !== 0) return '—';
+  if (n === null || n === undefined || isNaN(n)) return '—';
   if (n >= 1000) return '$' + n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   if (n >= 1)    return '$' + n.toFixed(4);
   return '$' + n.toFixed(6);
 }
-function fmtMCap(n) {
+function fmtVol(n) {
   if (!n) return '—';
-  if (n >= 1e12) return '$' + (n / 1e12).toFixed(2) + 'T';
-  if (n >= 1e9)  return '$' + (n / 1e9).toFixed(2)  + 'B';
-  if (n >= 1e6)  return '$' + (n / 1e6).toFixed(2)  + 'M';
+  if (n >= 1e9) return '$' + (n / 1e9).toFixed(2) + 'B';
+  if (n >= 1e6) return '$' + (n / 1e6).toFixed(2) + 'M';
+  if (n >= 1e3) return '$' + (n / 1e3).toFixed(2) + 'K';
   return '$' + n.toLocaleString();
 }
 
 function buildRow(coin, d) {
-  const pct   = d.price_change_percentage_24h || 0;
+  const pct   = d.changePct || 0;
   const sign  = pct >= 0 ? '+' : '';
   const cls   = pct >= 0 ? 'up' : 'down';
   const arrow = pct >= 0 ? '▲' : '▼';
@@ -961,78 +1020,67 @@ function buildRow(coin, d) {
       <div class="coin-icon ${coin.cls}">${coin.icon}</div>
       <div><div class="coin-name">${coin.name}</div><div class="coin-sym">${coin.sym}</div></div>
     </div></td>
-    <td><span class="rank-badge">${d.market_cap_rank || '—'}</span></td>
-    <td style="font-weight:600;font-variant-numeric:tabular-nums;">${fmtPrice(d.current_price)}</td>
+    <td><span class="rank-badge">${coin.rank}</span></td>
+    <td style="font-weight:600;font-variant-numeric:tabular-nums;">${fmtPrice(d.price)}</td>
     <td class="${cls}" style="font-weight:600;font-size:.82rem;">${arrow} ${sign}${pct.toFixed(2)}%</td>
-    <td style="color:var(--text-2);font-size:.82rem;">${fmtMCap(d.market_cap)}</td>
+    <td style="color:var(--text-2);font-size:.82rem;">${fmtVol(d.quoteVol)}</td>
     <td><button class="trade-btn" title="Trading coming soon">Trade</button></td>
   </tr>`;
 }
 
-async function fetchMarket() {
-  try {
-    const r = await fetch(
-      `https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=${IDS}&order=market_cap_desc&price_change_percentage=24h`
-    );
-    if (!r.ok) throw new Error();
-    marketData = await r.json();
+function renderMarketTables() {
+  let html = '';
+  COINS.forEach(coin => {
+    const d = liveData[coin.id];
+    if (d) html += buildRow(coin, d);
+  });
+  if (!html) return;
 
-    const now = new Date().toLocaleTimeString();
-    let html = '';
-    COINS.forEach(coin => {
-      const d = marketData.find(x => x.id === coin.id);
-      if (d) html += buildRow(coin, d);
-    });
+  ['overviewTable', 'tradeTable', 'marketTable'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.innerHTML = html;
+  });
 
-    ['overviewTable', 'tradeTable', 'marketTable'].forEach(id => {
-      const el = document.getElementById(id);
-      if (el) el.innerHTML = html;
-    });
-    ['tableUpdated', 'tradeTableUpdated', 'mktUpdated'].forEach(id => {
-      const el = document.getElementById(id);
-      if (el) el.textContent = 'Live via CoinGecko · Updated ' + now;
-    });
+  setStatus('Live via Binance WebSocket');
 
-    const upd = (id, val, pct) => {
-      const sign = pct >= 0 ? '+' : '';
-      const cls  = pct >= 0 ? 'up' : 'down';
-      const el   = document.getElementById(id);
-      const ch   = document.getElementById(id + '-ch');
-      if (el) el.textContent = val;
-      if (ch) { ch.textContent = sign + pct.toFixed(2) + '%'; ch.className = 'stat-chip-sub ' + cls; }
-    };
-    const g = id => marketData.find(x => x.id === id);
-    if (g('bitcoin'))     upd('qs-btc', fmtPrice(g('bitcoin').current_price),     g('bitcoin').price_change_percentage_24h || 0);
-    if (g('ethereum'))    upd('qs-eth', fmtPrice(g('ethereum').current_price),    g('ethereum').price_change_percentage_24h || 0);
-    if (g('solana'))      upd('qs-sol', fmtPrice(g('solana').current_price),      g('solana').price_change_percentage_24h || 0);
-    if (g('binancecoin')) upd('qs-bnb', fmtPrice(g('binancecoin').current_price), g('binancecoin').price_change_percentage_24h || 0);
+  const upd = (id, val, pct) => {
+    const sign = pct >= 0 ? '+' : '';
+    const cls  = pct >= 0 ? 'up' : 'down';
+    const el   = document.getElementById(id);
+    const ch   = document.getElementById(id + '-ch');
+    if (el) el.textContent = val;
+    if (ch) { ch.textContent = sign + pct.toFixed(2) + '%'; ch.className = 'stat-chip-sub ' + cls; }
+  };
+  const g = id => liveData[id];
+  if (g('bitcoin'))     upd('qs-btc', fmtPrice(g('bitcoin').price),     g('bitcoin').changePct);
+  if (g('ethereum'))    upd('qs-eth', fmtPrice(g('ethereum').price),    g('ethereum').changePct);
+  if (g('solana'))      upd('qs-sol', fmtPrice(g('solana').price),      g('solana').changePct);
+  if (g('binancecoin')) upd('qs-bnb', fmtPrice(g('binancecoin').price), g('binancecoin').changePct);
 
-    updateChartInfo(document.getElementById('chartCoinSelect').value);
-
-  } catch (e) {
-    ['overviewTable', 'tradeTable', 'marketTable'].forEach(id => {
-      const el = document.getElementById(id);
-      if (el) el.innerHTML = `<tr><td colspan="6" style="text-align:center;padding:30px;color:var(--text-3)">Error loading — retrying…</td></tr>`;
-    });
-  }
+  updateChartInfo(document.getElementById('chartCoinSelect').value);
 }
 
 function updateChartInfo(coinId) {
-  const d = marketData.find(x => x.id === coinId);
+  const d = liveData[coinId];
   if (!d) return;
-  const pct  = d.price_change_percentage_24h || 0;
+  const pct  = d.changePct || 0;
   const sign = pct >= 0 ? '+' : '';
   const cls  = pct >= 0 ? 'up' : 'down';
-  document.getElementById('ci-price').textContent  = fmtPrice(d.current_price);
+  document.getElementById('ci-price').textContent  = fmtPrice(d.price);
   document.getElementById('ci-change').innerHTML   = `<span class="${cls}">${sign}${pct.toFixed(2)}%</span>`;
-  document.getElementById('ci-mcap').textContent   = fmtMCap(d.market_cap);
-  document.getElementById('tci-price').textContent = fmtPrice(d.current_price);
+  document.getElementById('ci-mcap').textContent   = fmtVol(d.quoteVol);
+  document.getElementById('tci-price').textContent = fmtPrice(d.price);
   document.getElementById('tci-change').innerHTML  = `<span class="${cls}">${sign}${pct.toFixed(2)}%</span>`;
-  document.getElementById('tci-mcap').textContent  = fmtMCap(d.market_cap);
+  document.getElementById('tci-mcap').textContent  = fmtVol(d.quoteVol);
 }
 
 /* ═══════════════════════════════════════════════════════
-   CHARTS
+   CHARTS — Binance klines (historical candles)
+   ═══════════════════════════════════════════════════════
+   Historical chart data isn't something a live ticker stream
+   carries, so a single REST call to Binance's public klines
+   endpoint is used per coin/range change (not polling) — same
+   exchange as the live feed, just a one-off history fetch.
    ═══════════════════════════════════════════════════════ */
 async function loadChart() {
   const coinId = document.getElementById('chartCoinSelect').value;
@@ -1047,23 +1095,41 @@ async function loadTradeChart() {
 }
 
 async function renderChart(coinId, days, canvasId, existingChart, setChart) {
+  const coin = COINS.find(c => c.id === coinId);
+  const ctx  = document.getElementById(canvasId).getContext('2d');
+
+  if (existingChart) existingChart.destroy();
+
+  // Stablecoins have no Binance USDT pair — just draw a flat $1.00 reference line.
+  if (!coin || !coin.stream) {
+    const labels = Array.from({ length: 20 }, (_, i) => i);
+    const inst = new Chart(ctx, {
+      type: 'line',
+      data: { labels, datasets: [{ data: labels.map(() => 1), borderColor: '#26a17b', borderWidth: 1.8, pointRadius: 0 }] },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: { x: { display: false }, y: { min: 0.98, max: 1.02, ticks: { color: '#444' }, grid: { color: 'rgba(255,255,255,.04)' } } }
+      }
+    });
+    setChart(inst);
+    return;
+  }
+
   try {
-    const r = await fetch(
-      `https://api.coingecko.com/api/v3/coins/${coinId}/market_chart?vs_currency=usd&days=${days}`
-    );
+    const cfg = CHART_INTERVALS[days] || CHART_INTERVALS[1];
+    const symbol = coin.stream.toUpperCase();
+    const r = await fetch(`https://api.binance.com/api/v3/klines?symbol=${symbol}&interval=${cfg.interval}&limit=${cfg.limit}`);
     if (!r.ok) return;
-    const d      = await r.json();
-    const prices = d.prices || [];
-    const labels = prices.map(p => new Date(p[0]).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }));
-    const vals   = prices.map(p => p[1]);
+    const klines = await r.json();
+
+    const labels = klines.map(k => new Date(k[0]).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }));
+    const vals   = klines.map(k => parseFloat(k[4])); // close price
     const first  = vals[0] || 0;
     const last   = vals[vals.length - 1] || 0;
     const rising = last >= first;
     const color  = rising ? '#22c55e' : '#ef4444';
 
-    if (existingChart) existingChart.destroy();
-
-    const ctx      = document.getElementById(canvasId).getContext('2d');
     const gradient = ctx.createLinearGradient(0, 0, 0, 260);
     gradient.addColorStop(0, rising ? 'rgba(34,197,94,.18)' : 'rgba(239,68,68,.18)');
     gradient.addColorStop(1, 'rgba(0,0,0,0)');
@@ -1404,10 +1470,12 @@ function showMsg(el, msg, type) {
    ═══════════════════════════════════════════════════════ */
 document.addEventListener('DOMContentLoaded', () => {
   fetchUser();
-  fetchMarket();
+  connectMarketSocket();
   loadChart();
   renderInsights();
-  setInterval(fetchMarket, 30000);
+  // Re-render the tables from the latest WebSocket data once per second —
+  // the socket itself pushes updates continuously, this just paints them.
+  setInterval(renderMarketTables, 1000);
 });
 </script>
 </body>
