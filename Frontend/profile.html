@@ -20,7 +20,9 @@
       --blue:      #3b82f6;
       --blue-dim:  rgba(59,130,246,0.12);
       --green:     #22c55e;
+      --green-dim: rgba(34,197,94,0.12);
       --red:       #ef4444;
+      --red-dim:   rgba(239,68,68,0.12);
     }
 
     body {
@@ -172,22 +174,165 @@
 
     .post-card {
       background: var(--surface); border: 1px solid var(--border);
-      border-radius: 10px; padding: 18px 20px; margin-bottom: 12px;
+      border-radius: 12px; padding: 18px 20px; margin-bottom: 12px;
     }
-    .post-header { display:flex; align-items:center; gap:10px; margin-bottom:10px; }
+    .post-header { display:flex; align-items:center; gap:10px; margin-bottom:8px; }
     .post-header .mini-avatar {
-      width:30px; height:30px; border-radius:50%; overflow:hidden;
+      width:32px; height:32px; border-radius:50%; overflow:hidden;
       background: linear-gradient(135deg,#3b82f6,#1d4ed8);
       display:flex; align-items:center; justify-content:center;
       font-size:.72rem; font-weight:700; color:#fff; flex-shrink:0;
     }
     .post-header .mini-avatar img { width:100%; height:100%; object-fit:cover; }
     .post-header .who { font-size:.88rem; font-weight:600; }
-    .post-header .when { font-size:.75rem; color:var(--text-3); margin-left:auto; }
-    .post-content { font-size:.85rem; color:var(--text-2); line-height:1.65; white-space:pre-wrap; word-break:break-word; }
-    .post-media { margin-top:10px; display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:8px; }
-    .post-media img, .post-media video { width:100%; border-radius:8px; border:1px solid var(--border2); max-height:220px; object-fit:cover; }
-    .post-meta { font-size:.75rem; color:var(--text-3); margin-top:12px; }
+
+    /* Bullish / Bearish sentiment pill, shown right next to the display name */
+    .sentiment-pill {
+      display: inline-flex; align-items: center; gap: 3px;
+      padding: 2px 8px; border-radius: 999px;
+      font-size: .68rem; font-weight: 700; letter-spacing: .02em;
+      text-transform: uppercase;
+    }
+    .sentiment-pill.bullish { color: var(--green); background: var(--green-dim); border: 1px solid rgba(34,197,94,.3); }
+    .sentiment-pill.bearish { color: var(--red);   background: var(--red-dim);   border: 1px solid rgba(239,68,68,.3); }
+    .sentiment-pill svg { width: 10px; height: 10px; }
+
+    .post-header .when { font-size:.75rem; color:var(--text-3); margin-left:auto; cursor:default; }
+
+    /* Post heading / body — pulled ~0.5cm to the left of where the display
+       name starts (avatar width + header gap, minus 0.5cm), per request,
+       while the post card itself stays centered on the page. */
+    .post-title {
+      font-size: 1rem;
+      font-weight: 700;
+      letter-spacing: -.2px;
+      color: var(--text);
+      margin-bottom: 6px;
+      margin-left: calc(42px - 0.5cm);
+      line-height: 1.35;
+    }
+
+    .post-content {
+      font-size:.86rem; color:var(--text-2); line-height:1.65;
+      white-space:pre-wrap; word-break:break-word;
+      margin-left: calc(42px - 0.5cm);
+    }
+    .post-content.clamped {
+      display: -webkit-box;
+
+      line-clamp: 4;          /* Standard property */
+      -webkit-line-clamp: 4;  
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+    .post-content.expanded {
+      line-clamp: unset;
+      -webkit-line-clamp: unset;
+      overflow: visible;
+    }
+    .read-more-btn {
+      display: inline-block;
+      background: none; border: none; padding: 0;
+      margin-top: 6px;
+      margin-left: calc(42px - 0.5cm);
+      color: var(--blue); font-size: .78rem; font-weight: 600;
+      cursor: pointer;
+    }
+    .read-more-btn:hover { text-decoration: underline; }
+
+    /* ── Full-picture media slider ─────────────────────────────────────
+       Shows the complete image (object-fit: contain, never cropped) inside
+       a fixed-height stage. When a post has 2+ images, arrow buttons and
+       dots let you step through them; a single image just renders alone. */
+    .post-media-slider {
+      margin-top: 12px;
+      position: relative;
+      border-radius: 14px;
+      overflow: hidden;
+      border: 1px solid var(--border2);
+      background: #000;
+    }
+    .slider-stage {
+      height: 420px;
+      display: flex;
+      overflow: hidden;
+    }
+    .slider-track {
+      display: flex;
+      width: 100%;
+      height: 100%;
+      transition: transform .32s cubic-bezier(.4,0,.2,1);
+    }
+    .slider-slide {
+      flex: 0 0 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--surface2);
+    }
+    .slider-slide img,
+    .slider-slide video {
+      max-width: 100%;
+      max-height: 100%;
+      width: auto;
+      height: auto;
+      object-fit: contain; /* always show the complete picture, no cropping */
+    }
+    .slider-arrow {
+      position: absolute; top: 50%; transform: translateY(-50%);
+      width: 34px; height: 34px; border-radius: 50%;
+      background: rgba(0,0,0,0.55); border: 1px solid rgba(255,255,255,.15);
+      color: #fff; font-size: 1.1rem; line-height: 1;
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer; backdrop-filter: blur(4px); transition: background .15s;
+      user-select: none;
+    }
+    .slider-arrow:hover { background: rgba(0,0,0,0.8); }
+    .slider-arrow.prev { left: 10px; }
+    .slider-arrow.next { right: 10px; }
+    .slider-arrow.disabled { opacity: .25; pointer-events: none; }
+    .slider-dots {
+      position: absolute; bottom: 10px; left: 0; right: 0;
+      display: flex; justify-content: center; gap: 6px;
+    }
+    .slider-dot {
+      width: 6px; height: 6px; border-radius: 50%;
+      background: rgba(255,255,255,.35); border: none; cursor: pointer;
+      padding: 0; transition: background .15s, transform .15s;
+    }
+    .slider-dot.active { background: #fff; transform: scale(1.25); }
+    .slider-counter {
+      position: absolute; top: 10px; right: 12px;
+      background: rgba(0,0,0,0.55); color: #fff;
+      font-size: .68rem; font-weight: 600; padding: 3px 8px; border-radius: 999px;
+    }
+
+    /* Hashtags — shown at the very end of the post */
+    .post-hashtags {
+      display: flex; flex-wrap: wrap; gap: 6px;
+      margin-top: 12px;
+    }
+    .hashtag-pill {
+      font-size: .76rem; font-weight: 600; color: var(--blue);
+      background: var(--blue-dim); border: 1px solid rgba(59,130,246,.25);
+      padding: 3px 10px; border-radius: 999px;
+    }
+
+    /* Engagement bar — comment / like / views, with generous spacing */
+    .post-engagement {
+      display: flex; align-items: center; gap: 34px;
+      margin-top: 14px; padding-top: 12px;
+      border-top: 1px solid var(--border);
+    }
+    .eng-item {
+      display: flex; align-items: center; gap: 6px;
+      color: var(--text-3); font-size: .78rem; font-weight: 600;
+    }
+    .eng-item svg {
+      width: 16px; height: 16px;
+      fill: none; stroke: currentColor;
+    }
 
     .empty-state {
       background: var(--surface); border: 1px dashed var(--border2);
@@ -212,6 +357,7 @@
       .profile-top { flex-direction:column; align-items:center; text-align:center; }
       .profile-stats { justify-content:center; }
       .edit-btn { margin-top:12px; }
+      .slider-stage { height: 300px; }
     }
   </style>
 </head>
@@ -291,6 +437,7 @@
 
   <div class="sec-head">
     <h3>Your Posts</h3>
+    <a href="/create-post" class="nav-pill" title="Create Post">+ Create Post</a>
   </div>
   <div id="postsContainer">
     <div class="loading-state"><span class="spinner-inline"></span>Loading posts…</div>
@@ -301,13 +448,15 @@
 /* ═══════════════════════════════════════════════════════
    STATE
    ═══════════════════════════════════════════════════════
-   Backend: Social_Platform/profile.js
-     GET  /api/profile         -> { profile, posts }
-     PUT  /api/profile         -> update displayName/bio
-     POST /api/profile/avatar  -> update avatarUrl (base64 data URL)
+   Backend: Social_Platform/profile.js + Social_Platform/posts.js
+     GET  /api/profile           -> { profile, posts }
+     PUT  /api/profile           -> update displayName/bio
+     POST /api/profile/avatar    -> update avatarUrl (base64 data URL)
+     POST /api/posts/:id/view    -> increments Post.viewsCount once
    ═══════════════════════════════════════════════════════ */
 let currentProfile   = null;
 let pendingAvatarData = null; // base64 data URL staged for save, or null
+const viewedPostIds  = new Set(); // dedupe view-tracking per page load
 
 const DEFAULT_AVATAR_HTML = (name) => (name || '?').slice(0, 2).toUpperCase();
 
@@ -371,6 +520,90 @@ function renderProfile(p) {
   updateCharCount('editBio', 'bioCount', 300);
 }
 
+/* ═══════════════════════════════════════════════════════
+   POST RENDER HELPERS
+   ═══════════════════════════════════════════════════════ */
+
+// Posts are stored with an optional title folded in as a leading
+// "## Title" line (see posts.js). Split it back out so the title can be
+// shown as its own bolded heading above the body text.
+function parsePostContent(raw) {
+  const text = raw || '';
+  const match = text.match(/^##[ \t]+(.+?)(?:\r?\n)([\s\S]*)$/);
+  if (match) {
+    return { title: match[1].trim(), body: match[2].replace(/^\r?\n+/, '') };
+  }
+  return { title: null, body: text };
+}
+
+function formatCount(n) {
+  n = Number(n) || 0;
+  if (n >= 1e6) return (n / 1e6).toFixed(1).replace(/\.0$/, '') + 'M';
+  if (n >= 1e3) return (n / 1e3).toFixed(1).replace(/\.0$/, '') + 'k';
+  return String(n);
+}
+
+function formatPostDate(dateInput) {
+  if (!dateInput) return { short: '', full: '' };
+  const d = new Date(dateInput);
+  const sameYear = d.getFullYear() === new Date().getFullYear();
+  const short = d.toLocaleDateString('en-US', sameYear
+    ? { month: 'short', day: 'numeric' }
+    : { month: 'short', day: 'numeric', year: 'numeric' });
+  const full = d.toLocaleString();
+  return { short, full };
+}
+
+const ICON_COMMENT = '<svg viewBox="0 0 24 24" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.4 8.4 0 0 1-8.4 8.4 8.3 8.3 0 0 1-3.8-.9L3 21l1.9-5.7a8.3 8.3 0 0 1-.9-3.8A8.4 8.4 0 0 1 12.5 3h.1A8.4 8.4 0 0 1 21 11.4v.1z"/></svg>';
+const ICON_LIKE    = '<svg viewBox="0 0 24 24" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21l7.8-7.8 1-1a5.5 5.5 0 0 0 0-7.6z"/></svg>';
+const ICON_VIEWS   = '<svg viewBox="0 0 24 24" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>';
+const ICON_UP      = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 4l8 10h-5v6h-6v-6H4z"/></svg>';
+const ICON_DOWN    = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 20l-8-10h5V4h6v6h5z"/></svg>';
+
+function sentimentPillHtml(sentiment) {
+  if (sentiment === 'bullish') return `<span class="sentiment-pill bullish">${ICON_UP}Bullish</span>`;
+  if (sentiment === 'bearish') return `<span class="sentiment-pill bearish">${ICON_DOWN}Bearish</span>`;
+  return '';
+}
+
+function hashtagsHtml(hashtags) {
+  if (!hashtags || !hashtags.length) return '';
+  return `<div class="post-hashtags">${
+    hashtags.map(h => `<span class="hashtag-pill">#${escapeHtml(h)}</span>`).join('')
+  }</div>`;
+}
+
+function mediaTag(m) {
+  return m.type === 'video'
+    ? `<video src="${m.url}" controls playsinline></video>`
+    : `<img src="${m.url}" alt="post media" loading="lazy"/>`;
+}
+
+// Full-picture slider: object-fit:contain so images are never cropped.
+// A single image renders with no controls; 2+ images get prev/next arrows,
+// dots, and a "1 / N" counter.
+function mediaSliderHtml(media, uid) {
+  if (!media || !media.length) return '';
+
+  const slides = media.map(m => `<div class="slider-slide">${mediaTag(m)}</div>`).join('');
+
+  if (media.length === 1) {
+    return `<div class="post-media-slider" id="slider-${uid}">
+      <div class="slider-stage"><div class="slider-track">${slides}</div></div>
+    </div>`;
+  }
+
+  const dots = media.map((_, i) => `<button class="slider-dot${i === 0 ? ' active' : ''}" data-idx="${i}"></button>`).join('');
+
+  return `<div class="post-media-slider" id="slider-${uid}" data-index="0" data-count="${media.length}">
+    <div class="slider-stage"><div class="slider-track">${slides}</div></div>
+    <button class="slider-arrow prev disabled" data-dir="-1" title="Previous photo">‹</button>
+    <button class="slider-arrow next" data-dir="1" title="Next photo">›</button>
+    <div class="slider-dots">${dots}</div>
+    <div class="slider-counter">1 / ${media.length}</div>
+  </div>`;
+}
+
 function renderPosts(posts) {
   const el = document.getElementById('postsContainer');
 
@@ -379,34 +612,124 @@ function renderPosts(posts) {
     return;
   }
 
-  el.innerHTML = posts.map(post => {
+  el.innerHTML = posts.map((post, idx) => {
     const initials = DEFAULT_AVATAR_HTML(currentProfile?.displayName || currentProfile?.username);
     const avatarHtml = currentProfile?.avatarUrl
       ? `<img src="${currentProfile.avatarUrl}" alt="avatar"/>`
       : initials;
 
-    const mediaHtml = (post.media && post.media.length)
-      ? `<div class="post-media">${post.media.map(m =>
-          m.type === 'video'
-            ? `<video src="${m.url}" controls></video>`
-            : `<img src="${m.url}" alt="post media"/>`
-        ).join('')}</div>`
-      : '';
-
-    const when = post.createdAt ? new Date(post.createdAt).toLocaleString() : '';
+    const { title, body } = parsePostContent(post.content);
+    const { short: whenShort, full: whenFull } = formatPostDate(post.createdAt);
+    const contentId = `post-content-${idx}`;
+    const sliderUid = post._id || idx;
 
     return `
-      <div class="post-card">
+      <div class="post-card" data-post-id="${post._id || ''}">
         <div class="post-header">
           <div class="mini-avatar">${avatarHtml}</div>
           <span class="who">${escapeHtml(currentProfile?.displayName || currentProfile?.username)}</span>
-          <span class="when">${when}</span>
+          ${sentimentPillHtml(post.sentiment)}
+          <span class="when" title="${escapeHtml(whenFull)}">${escapeHtml(whenShort)}</span>
         </div>
-        <div class="post-content">${escapeHtml(post.content)}</div>
-        ${mediaHtml}
-        <div class="post-meta">❤ ${post.likesCount || 0} · 💬 ${post.commentsCount || 0}</div>
+        ${title ? `<div class="post-title">${escapeHtml(title)}</div>` : ''}
+        <div class="post-content clamped" id="${contentId}">${escapeHtml(body)}</div>
+        <button class="read-more-btn" data-target="${contentId}" style="display:none;">Read more</button>
+        ${mediaSliderHtml(post.media, sliderUid)}
+        ${hashtagsHtml(post.hashtags)}
+        <div class="post-engagement">
+          <span class="eng-item">${ICON_COMMENT}${formatCount(post.commentsCount || 0)}</span>
+          <span class="eng-item">${ICON_LIKE}${formatCount(post.likesCount || 0)}</span>
+          <span class="eng-item">${ICON_VIEWS}${formatCount(post.viewsCount || 0)}</span>
+        </div>
       </div>`;
   }).join('');
+
+  // Only show the "Read more" toggle on posts that actually overflow
+  // 4 lines — no point showing it on a two-line post.
+  requestAnimationFrame(() => {
+    el.querySelectorAll('.post-content.clamped').forEach(contentEl => {
+      if (contentEl.scrollHeight > contentEl.clientHeight + 1) {
+        const btn = el.querySelector(`.read-more-btn[data-target="${contentEl.id}"]`);
+        if (btn) btn.style.display = 'inline-block';
+      }
+    });
+  });
+
+  setupViewTracking();
+}
+
+// Event delegation: expand/collapse "Read more" and drive the media slider
+document.getElementById('postsContainer').addEventListener('click', (e) => {
+  const readMoreBtn = e.target.closest('.read-more-btn');
+  if (readMoreBtn) {
+    const contentEl = document.getElementById(readMoreBtn.dataset.target);
+    if (!contentEl) return;
+    const isExpanded = contentEl.classList.toggle('expanded');
+    contentEl.classList.toggle('clamped', !isExpanded);
+    readMoreBtn.textContent = isExpanded ? 'Show less' : 'Read more';
+    return;
+  }
+
+  const arrowBtn = e.target.closest('.slider-arrow');
+  if (arrowBtn) {
+    const wrap = arrowBtn.closest('.post-media-slider');
+    moveSlider(wrap, parseInt(arrowBtn.dataset.dir, 10));
+    return;
+  }
+
+  const dotBtn = e.target.closest('.slider-dot');
+  if (dotBtn) {
+    const wrap = dotBtn.closest('.post-media-slider');
+    goToSlide(wrap, parseInt(dotBtn.dataset.idx, 10));
+  }
+});
+
+function moveSlider(wrap, dir) {
+  const count = parseInt(wrap.dataset.count, 10) || 1;
+  const current = parseInt(wrap.dataset.index, 10) || 0;
+  goToSlide(wrap, Math.max(0, Math.min(count - 1, current + dir)));
+}
+
+function goToSlide(wrap, idx) {
+  const track = wrap.querySelector('.slider-track');
+  const count = parseInt(wrap.dataset.count, 10) || 1;
+  idx = Math.max(0, Math.min(count - 1, idx));
+
+  wrap.dataset.index = idx;
+  track.style.transform = `translateX(-${idx * 100}%)`;
+
+  wrap.querySelectorAll('.slider-dot').forEach((d, i) => d.classList.toggle('active', i === idx));
+
+  const prevArrow = wrap.querySelector('.slider-arrow.prev');
+  const nextArrow = wrap.querySelector('.slider-arrow.next');
+  if (prevArrow) prevArrow.classList.toggle('disabled', idx === 0);
+  if (nextArrow) nextArrow.classList.toggle('disabled', idx === count - 1);
+
+  const counter = wrap.querySelector('.slider-counter');
+  if (counter) counter.textContent = `${idx + 1} / ${count}`;
+}
+
+/* ═══════════════════════════════════════════════════════
+   VIEW TRACKING — count a view once per post per page load,
+   only once it's actually scrolled into view.
+   ═══════════════════════════════════════════════════════ */
+function setupViewTracking() {
+  if (!('IntersectionObserver' in window)) return;
+
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (!entry.isIntersecting) return;
+      const postId = entry.target.dataset.postId;
+      if (!postId || viewedPostIds.has(postId)) return;
+      viewedPostIds.add(postId);
+      fetch(`/api/posts/${postId}/view`, { method: 'POST' }).catch(() => {});
+      observer.unobserve(entry.target);
+    });
+  }, { threshold: 0.5 });
+
+  document.querySelectorAll('.post-card[data-post-id]').forEach(card => {
+    if (card.dataset.postId) observer.observe(card);
+  });
 }
 
 /* ═══════════════════════════════════════════════════════
@@ -526,7 +849,6 @@ function showMsg(msg, type) {
 function hideMsg() {
   document.getElementById('profile-msg').style.display = 'none';
 }
-
 
 document.addEventListener('DOMContentLoaded', loadProfile);
 </script>

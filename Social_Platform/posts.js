@@ -5,9 +5,10 @@ const fs       = require('fs');
 const multer   = require('multer');
 
 const verifyToken = require('../middle/middleware');
-const { SocialProfile, Post, Follow, Like } = require('./social_models');
+const { SocialProfile, Post, Follow, Like, Hashtag, SENTIMENT_TYPES } = require('./social_models');
 
 const PAGE_SIZE = 5;
+const MAX_HASHTAGS_PER_POST = 10;
 
 function sendResponse(res, statusCode, success, message, data = null) {
     return res.status(statusCode).json({ success, message, data });
@@ -50,10 +51,8 @@ const upload = multer({
  * HELPERS
  * ==========================================================================*/
 
-// Batch-attaches author info (displayName/avatarUrl/followersCount) to a
-// list of plain post objects, and flags each post with isLiked / isSelf /
-// isFollowingAuthor for the requesting user — all in a constant number of
-// extra queries regardless of how many posts are in the page.
+// Batch-attaches author info + per-user flags to a list of plain post
+// objects in a constant number of extra queries regardless of page size.
 async function enrichPosts(posts, myUsername) {
     if (!posts.length) return [];
 
@@ -86,6 +85,47 @@ async function enrichPosts(posts, myUsername) {
     });
 }
 
+// Normalizes the raw "sentiment" field from the composer into either
+// "bullish", "bearish", or null (anything else is silently dropped).
+function parseSentiment(raw) {
+    const val = String(raw || '').trim().toLowerCase();
+    return SENTIMENT_TYPES.includes(val) ? val : null;
+}
+
+// Splits a free-typed hashtag string ("#btc, eth  #trading") into a clean,
+// deduplicated, lowercase array with no leading '#' — capped so one post
+// can't spam hundreds of tags.
+function parseHashtags(raw) {
+    if (!raw) return [];
+    const tags = String(raw)
+        .split(/[\s,]+/)
+        .map(t => t.replace(/^#/, '').trim().toLowerCase())
+        .filter(t => t.length > 0 && t.length <= 30 && /^[a-z0-9_]+$/i.test(t));
+    return [...new Set(tags)].slice(0, MAX_HASHTAGS_PER_POST);
+}
+
+// Upserts the Hashtag registry (postsCount / trendScore / lastUsedAt) for
+// every tag used on a new post. Fire-and-forget from the caller's
+// perspective is fine here, but we await it so trending numbers are never
+// stale immediately after a post goes live.
+async function registerHashtags(tags) {
+    if (!tags.length) return;
+    const ops = tags.map(tag => ({
+        updateOne: {
+            filter: { tag },
+            update: {
+                $inc: { postsCount: 1, trendScore: 1 },
+                $set: { lastUsedAt: new Date() },
+                $setOnInsert: { tag },
+            },
+            upsert: true,
+        },
+    }));
+    await Hashtag.bulkWrite(ops, { ordered: false }).catch(err =>
+        console.error('⚠️ registerHashtags bulkWrite error:', err)
+    );
+}
+
 /* ============================================================================
  * CREATE POST PAGE
  * ==========================================================================*/
@@ -111,7 +151,7 @@ router.post('/api/posts', verifyToken, upload.fields([
         if (title.length > 100)
             return sendResponse(res, 400, false, 'Title must be 100 characters or fewer');
 
-        // The Post schema (as given) has no `title` field, so an optional
+        // The Post schema has no dedicated `title` field, so an optional
         // title is folded into `content` as a leading "## Title" line and
         // split back out again on the frontend for display.
         const bodyWithTitle = title ? `## ${title}\n${content}` : content;
@@ -119,17 +159,25 @@ router.post('/api/posts', verifyToken, upload.fields([
         if (bodyWithTitle.length > 2000)
             return sendResponse(res, 400, false, 'Post is too long (max 2000 characters, including the title line)');
 
+        const sentiment = parseSentiment(req.body.sentiment);
+        const hashtags  = parseHashtags(req.body.hashtags);
+
         const media = [];
-        (req.files?.images || []).forEach(f => media.push({ url: `/uploads/posts/${f.filename}`, type: 'image' }));
-        (req.files?.videos || []).forEach(f => media.push({ url: `/uploads/posts/${f.filename}`, type: 'video' }));
+        (req.files?.images || []).forEach((f, i) => media.push({ url: `/uploads/posts/${f.filename}`, type: 'image', order: i }));
+        (req.files?.videos || []).forEach((f, i) => media.push({ url: `/uploads/posts/${f.filename}`, type: 'video', order: media.length + i }));
 
         const newPost = await Post.create({
             username: myUsername,
             content: bodyWithTitle,
             media,
+            sentiment,
+            hashtags,
         });
 
-        await SocialProfile.findOneAndUpdate({ username: myUsername }, { $inc: { postsCount: 1 } });
+        await Promise.all([
+            SocialProfile.findOneAndUpdate({ username: myUsername }, { $inc: { postsCount: 1 } }),
+            registerHashtags(hashtags),
+        ]);
 
         return sendResponse(res, 201, true, 'Post created successfully', { post: newPost });
 
@@ -145,21 +193,20 @@ router.post('/api/posts', verifyToken, upload.fields([
  * ----------------------------------------------------------------------------
  * Ranked with a "hot" score in the style of Reddit/Hacker News: a
  * log10-scaled popularity term (author's followersCount) added to a linear
- * recency term (post age in seconds, scaled). Logarithmic scaling means an
- * order-of-magnitude jump in followers only buys a fixed head start, so a
- * brand-new post from a small account still surfaces near the top and ages
- * out gradually — rather than the feed being permanently dominated by
- * whoever already has the most followers.
+ * recency term (post age in seconds, scaled). A brand-new post from a small
+ * account still surfaces near the top and ages out gradually rather than
+ * the feed being permanently dominated by the biggest accounts.
  * ==========================================================================*/
 router.get('/api/posts/discover', verifyToken, async (req, res) => {
 
     try {
         const myUsername = req.user.username;
-
         const baseMatch = { isDeleted: false };
 
-        // "after" is used only by the New-Posts banner lookahead — fetch
-        // anything newer than the last-seen post without touching pagination.
+        if (req.query.hashtag) {
+            baseMatch.hashtags = String(req.query.hashtag).toLowerCase().replace(/^#/, '');
+        }
+
         if (req.query.after) {
             const afterDate = new Date(req.query.after);
             const posts = await Post.aggregate([
@@ -203,9 +250,7 @@ router.get('/api/posts/discover', verifyToken, async (req, res) => {
 });
 
 /* ============================================================================
- * FOLLOWING FEED
- * ----------------------------------------------------------------------------
- * Pure chronological order (newest first) among people the user follows.
+ * FOLLOWING FEED — pure chronological order among people the user follows.
  * ==========================================================================*/
 router.get('/api/posts/following', verifyToken, async (req, res) => {
 
@@ -253,11 +298,6 @@ router.get('/api/posts/following', verifyToken, async (req, res) => {
 
 /* ============================================================================
  * NEW-POSTS COUNT (for the "N new posts" banner)
- * ----------------------------------------------------------------------------
- * Keyset/cursor lookahead: rather than re-fetching and re-sorting the whole
- * feed to see if anything changed, we just count documents newer than the
- * timestamp of the newest post the client already has. O(matching docs),
- * no re-scan of pages already loaded.
  * ==========================================================================*/
 router.get('/api/posts/new-count', verifyToken, async (req, res) => {
 
@@ -328,6 +368,35 @@ router.post('/api/posts/:id/like', verifyToken, async (req, res) => {
 });
 
 /* ============================================================================
+ * REGISTER A VIEW
+ * ----------------------------------------------------------------------------
+ * Called once per post per page load (frontend uses an IntersectionObserver
+ * + an in-memory "already counted" Set so a post isn't double-counted while
+ * scrolling back and forth). A single atomic $inc keeps this cheap even
+ * under heavy traffic — no read-modify-write race like the like counter.
+ * ==========================================================================*/
+router.post('/api/posts/:id/view', verifyToken, async (req, res) => {
+
+    try {
+        const postId = req.params.id;
+        const post = await Post.findOneAndUpdate(
+            { _id: postId, isDeleted: false },
+            { $inc: { viewsCount: 1 } },
+            { new: true, projection: { viewsCount: 1 } }
+        );
+
+        if (!post)
+            return sendResponse(res, 404, false, 'Post not found');
+
+        return sendResponse(res, 200, true, 'View registered', { viewsCount: post.viewsCount });
+
+    } catch (err) {
+        console.error('⚠️ POST /api/posts/:id/view error:', err);
+        return sendResponse(res, 500, false, 'Failed to register view');
+    }
+});
+
+/* ============================================================================
  * MULTER ERROR HANDLER (router-level)
  * ==========================================================================*/
 router.use((err, req, res, next) => {
@@ -348,6 +417,7 @@ module.exports = router;
  * 1. npm install multer
  * 2. Serve the uploads folder as static files, e.g.:
  *      const path = require('path');
+ *      app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
  * 3. Mount this router alongside your others:
  *      app.use(require('./Social_Platform/posts'));
  * ==========================================================================*/

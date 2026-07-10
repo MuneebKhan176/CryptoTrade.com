@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Create Post — CryptoTrade</title>
+  <style>
+    *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+
+    :root {
+      --bg:        #000000;
+      --surface:   #0a0a0a;
+      --surface2:  #111111;
+      --surface3:  #161616;
+      --border:    #1a1a1a;
+      --border2:   #222222;
+      --text:      #ffffff;
+      --text-2:    #888888;
+      --text-3:    #444444;
+      --blue:      #3b82f6;
+      --blue-dim:  rgba(59,130,246,0.12);
+      --green:     #22c55e;
+      --green-dim: rgba(34,197,94,0.12);
+      --red:       #ef4444;
+      --red-dim:   rgba(239,68,68,0.12);
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    /* ── Topnav ── */
+    .topnav {
+      height: 60px;
+      background: rgba(0,0,0,0.9);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      padding: 0 24px;
+      gap: 16px;
+      position: sticky;
+      top: 0;
+      z-index: 200;
+      backdrop-filter: blur(12px);
+    }
+    .topnav-logo {
+      font-size: 1.15rem;
+      font-weight: 800;
+      letter-spacing: -0.5px;
+      background: linear-gradient(90deg,#fff 0%,#93c5fd 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      text-decoration: none;
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      flex-shrink: 0;
+    }
+    .topnav-logo-dot {
+      width: 7px; height: 7px;
+      background: var(--blue);
+      border-radius: 50%;
+      -webkit-text-fill-color: initial;
+      flex-shrink: 0;
+    }
+    .topnav-right { margin-left: auto; display:flex; align-items:center; gap:10px; }
+    .nav-pill {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 6px 14px; border-radius: 7px;
+      font-size: .82rem; font-weight: 600; text-decoration: none;
+      border: 1px solid var(--border2); color: var(--text-2);
+      background: transparent; cursor: pointer; transition: all .18s;
+    }
+    .nav-pill:hover { color:#fff; border-color:#444; background: var(--surface2); }
+
+    /* ── Page ── */
+    .page {
+      max-width: 640px;
+      margin: 0 auto;
+      padding: 32px 24px 64px;
+    }
+    .page-title { font-size: 1.4rem; font-weight: 700; letter-spacing: -.5px; margin-bottom: 4px; }
+    .page-sub { font-size: .83rem; color: var(--text-2); margin-bottom: 26px; }
+
+    /* ── Composer card ── */
+    .composer-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 28px;
+      position: relative;
+      overflow: hidden;
+    }
+    .composer-card::before {
+      content:''; position:absolute; top:-60px; right:-60px;
+      width:260px; height:260px;
+      background: radial-gradient(circle, rgba(59,130,246,.08) 0%, transparent 70%);
+      pointer-events: none;
+    }
+
+    .form-group { margin-bottom:18px; position:relative; z-index:1; }
+    .form-group label { display:block; font-size:.78rem; color:var(--text-2); margin-bottom:6px; font-weight:500; }
+    .form-input, textarea.form-input {
+      width:100%; background: var(--surface2); border: 1px solid var(--border2);
+      border-radius:7px; color: var(--text); font-size:.88rem;
+      padding: 10px 13px; outline:none; transition: border-color .2s; font-family:inherit;
+      resize: vertical;
+    }
+    .form-input:focus { border-color:#444; }
+    textarea.form-input { min-height: 140px; line-height:1.6; }
+    .char-count { font-size:.7rem; color:var(--text-3); margin-top:4px; text-align:right; }
+    .char-count.warn { color: var(--red); }
+
+    /* ── Sentiment (Bullish / Bearish) buttons ── */
+    .sentiment-section { position:relative; z-index:1; }
+    .sentiment-buttons { display:flex; gap:10px; }
+    .sentiment-btn {
+      flex: 1; display:flex; align-items:center; justify-content:center; gap:7px;
+      padding: 11px 14px; border-radius: 9px; cursor:pointer;
+      font-size:.85rem; font-weight:700; letter-spacing:.01em;
+      background: var(--surface2); border: 1px solid var(--border2); color: var(--text-2);
+      transition: all .15s;
+    }
+    .sentiment-btn svg { width:15px; height:15px; }
+    .sentiment-btn:hover { border-color:#444; color:var(--text); }
+
+    .sentiment-btn.bullish.active {
+      background: var(--green-dim); border-color: var(--green); color: var(--green);
+    }
+    .sentiment-btn.bearish.active {
+      background: var(--red-dim); border-color: var(--red); color: var(--red);
+    }
+    .sentiment-hint { font-size:.72rem; color: var(--text-3); margin-top:8px; }
+
+    /* ── Hashtags ── */
+    .hashtags-section { position:relative; z-index:1; }
+    .hashtag-preview {
+      display:flex; flex-wrap:wrap; gap:6px; margin-top:8px;
+    }
+    .hashtag-preview .tag {
+      font-size:.76rem; font-weight:600; color: var(--blue);
+      background: var(--blue-dim); border: 1px solid rgba(59,130,246,.25);
+      padding: 3px 10px; border-radius: 999px;
+    }
+
+    /* ── Image attach ── */
+    .image-section { position:relative; z-index:1; }
+    .image-section-head { display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; }
+    .image-section-head label { font-size:.78rem; color:var(--text-2); font-weight:500; }
+    .image-count-badge { font-size:.7rem; color:var(--text-3); }
+
+    .image-slots { display:grid; grid-template-columns: repeat(2, 1fr); gap:10px; }
+    .image-slot {
+      aspect-ratio: 1 / 1;
+      border: 1px dashed var(--border2);
+      border-radius: 10px;
+      display:flex; align-items:center; justify-content:center;
+      cursor:pointer; transition: all .18s;
+      background: var(--surface2);
+      position: relative;
+      overflow:hidden;
+    }
+    .image-slot:hover { border-color: var(--blue); background: var(--blue-dim); }
+    .image-slot.has-image { border-style: solid; border-color: var(--border2); cursor:default; }
+    .image-slot .placeholder { display:flex; flex-direction:column; align-items:center; gap:6px; color: var(--text-3); pointer-events:none; }
+    .image-slot .placeholder .plus { font-size:1.6rem; line-height:1; color: var(--text-2); }
+    .image-slot .placeholder .hint { font-size:.68rem; }
+    /* object-fit: contain so the picked photo previews in full, uncropped,
+       matching the "show the complete picture" behaviour on the profile page */
+    .image-slot img { width:100%; height:100%; object-fit:contain; background:#000; }
+    .image-slot .remove-btn {
+      position:absolute; top:6px; right:6px;
+      width:24px; height:24px; border-radius:50%;
+      background: rgba(0,0,0,0.65); border: 1px solid var(--border2);
+      color:#fff; font-size:.78rem; cursor:pointer;
+      display:flex; align-items:center; justify-content:center;
+      backdrop-filter: blur(4px);
+    }
+    .image-slot .remove-btn:hover { background: rgba(239,68,68,0.75); border-color: var(--red); }
+    .image-hint-text { font-size:.72rem; color: var(--text-3); margin-top:8px; }
+
+    /* ── Actions ── */
+    .composer-actions {
+      display:flex; align-items:center; justify-content:flex-end; gap:10px;
+      margin-top: 24px; position:relative; z-index:1;
+    }
+    .btn-post, .btn-cancel-post {
+      padding: 10px 20px; border-radius: 7px; font-size: .85rem; font-weight: 600;
+      cursor:pointer; border:none; transition:.15s;
+    }
+    .btn-post { background: var(--blue); color:#fff; }
+    .btn-post:hover { opacity:.88; }
+    .btn-post:disabled { opacity:.4; cursor:not-allowed; }
+    .btn-cancel-post { background: var(--surface2); border:1px solid var(--border2); color: var(--text-2); }
+    .btn-cancel-post:hover { color:#fff; border-color:#444; }
+
+    .msg-box { padding:10px 13px; border-radius:7px; font-size:.82rem; margin-top:16px; position:relative; z-index:1; }
+    .msg-box.success { background:rgba(34,197,94,.1); border:1px solid rgba(34,197,94,.2); color:var(--green); }
+    .msg-box.error   { background:rgba(239,68,68,.1);  border:1px solid rgba(239,68,68,.2);  color:var(--red); }
+
+    ::-webkit-scrollbar { width:5px; }
+    ::-webkit-scrollbar-track { background:transparent; }
+    ::-webkit-scrollbar-thumb { background:var(--border2); border-radius:99px; }
+  </style>
+</head>
+<body>
+
+<header class="topnav">
+  <a href="/dashboard" class="topnav-logo">
+    <span class="topnav-logo-dot"></span>CryptoTrade
+  </a>
+  <div class="topnav-right">
+    <a href="/profile" class="nav-pill">← Back to Profile</a>
+  </div>
+</header>
+
+<div class="page">
+  <div class="page-title">Create Post</div>
+  <div class="page-sub">Share an update. A title is optional — pictures are optional too.</div>
+
+  <div class="composer-card">
+
+    <div class="form-group">
+      <label for="postTitle">Title <span style="color:var(--text-3);">(optional)</span></label>
+      <input class="form-input" type="text" id="postTitle" maxlength="100" placeholder="Give your post a title…" oninput="updateCharCount('postTitle','titleCount',100)"/>
+      <div class="char-count" id="titleCount">0 / 100</div>
+    </div>
+
+    <div class="form-group">
+      <label for="postContent">What's on your mind?</label>
+      <textarea class="form-input" id="postContent" maxlength="2000" placeholder="Share your thoughts on the market, a trade, or anything else…" oninput="updateCharCount('postContent','contentCount',2000)"></textarea>
+      <div class="char-count" id="contentCount">0 / 2000</div>
+    </div>
+
+    <div class="form-group sentiment-section">
+      <label>Market sentiment <span style="color:var(--text-3);">(optional)</span></label>
+      <div class="sentiment-buttons">
+        <button type="button" class="sentiment-btn bullish" id="bullishBtn" onclick="toggleSentiment('bullish')">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 4l8 10h-5v6h-6v-6H4z"/></svg>
+          Bullish
+        </button>
+        <button type="button" class="sentiment-btn bearish" id="bearishBtn" onclick="toggleSentiment('bearish')">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 20l-8-10h5V4h6v6h5z"/></svg>
+          Bearish
+        </button>
+      </div>
+      <div class="sentiment-hint">Shown as a badge right next to your name on the post.</div>
+    </div>
+
+    <div class="form-group hashtags-section">
+      <label for="postHashtags">Hashtags <span style="color:var(--text-3);">(optional)</span></label>
+      <input class="form-input" type="text" id="postHashtags" placeholder="e.g. btc, trading, bullmarket" oninput="renderHashtagPreview()"/>
+      <div class="char-count">Separate with commas or spaces — shown at the end of your post.</div>
+      <div class="hashtag-preview" id="hashtagPreview"></div>
+    </div>
+
+    <div class="image-section">
+      <div class="image-section-head">
+        <label>Photos <span style="color:var(--text-3);">(optional)</span></label>
+        <span class="image-count-badge" id="imageCountBadge">0 / 2</span>
+      </div>
+      <div class="image-slots" id="imageSlots">
+        <div class="image-slot" data-slot="0" onclick="triggerSlotPick(0)">
+          <div class="placeholder"><span class="plus">+</span><span class="hint">Add photo</span></div>
+        </div>
+        <div class="image-slot" data-slot="1" onclick="triggerSlotPick(1)">
+          <div class="placeholder"><span class="plus">+</span><span class="hint">Add photo</span></div>
+        </div>
+      </div>
+      <input type="file" id="hiddenFileInput" accept="image/*" style="display:none;"/>
+      <div class="image-hint-text">JPG, PNG or GIF. Up to 2 photos, max 8MB each. Two photos will show as a swipeable slider on your profile.</div>
+    </div>
+
+    <div class="composer-actions">
+      <button class="btn-cancel-post" onclick="window.location.href='/profile'">Cancel</button>
+      <button class="btn-post" id="postBtn" onclick="submitPost()">Post</button>
+    </div>
+
+    <div id="post-msg" class="msg-box" style="display:none;"></div>
+  </div>
+</div>
+
+<script>
+/* ═══════════════════════════════════════════════════════
+   STATE
+   ═══════════════════════════════════════════════════════
+   Backend: Social_Platform/posts.js
+     POST /api/posts  (multipart/form-data)
+       fields: title (optional), content (required),
+               sentiment (optional: "bullish" | "bearish"),
+               hashtags (optional: comma/space separated string)
+       files:  images[] — up to 2 used here (backend allows up to 4)
+   ═══════════════════════════════════════════════════════ */
+const MAX_IMAGES = 2;
+const MAX_IMAGE_BYTES = 8 * 1024 * 1024; // 8MB per photo
+
+// slotFiles[0] / slotFiles[1] hold the File object for each slot, or null
+let slotFiles = [null, null];
+let activeSlot = null;
+let selectedSentiment = null; // null | 'bullish' | 'bearish'
+
+function updateCharCount(fieldId, countId, max) {
+  const val = document.getElementById(fieldId).value || '';
+  const countEl = document.getElementById(countId);
+  countEl.textContent = `${val.length} / ${max}`;
+  countEl.classList.toggle('warn', val.length > max * 0.95);
+}
+
+/* ═══════════════════════════════════════════════════════
+   SENTIMENT TOGGLE (Bullish / Bearish — mutually exclusive,
+   tap the active one again to clear it)
+   ═══════════════════════════════════════════════════════ */
+function toggleSentiment(value) {
+  selectedSentiment = (selectedSentiment === value) ? null : value;
+  document.getElementById('bullishBtn').classList.toggle('active', selectedSentiment === 'bullish');
+  document.getElementById('bearishBtn').classList.toggle('active', selectedSentiment === 'bearish');
+}
+
+/* ═══════════════════════════════════════════════════════
+   HASHTAG PREVIEW
+   ═══════════════════════════════════════════════════════ */
+function parseHashtagInput(raw) {
+  return [...new Set(
+    (raw || '')
+      .split(/[\s,]+/)
+      .map(t => t.replace(/^#/, '').trim().toLowerCase())
+      .filter(t => t.length > 0 && /^[a-z0-9_]+$/i.test(t))
+  )].slice(0, 10);
+}
+
+function renderHashtagPreview() {
+  const raw = document.getElementById('postHashtags').value;
+  const tags = parseHashtagInput(raw);
+  const el = document.getElementById('hashtagPreview');
+  el.innerHTML = tags.map(t => `<span class="tag">#${t}</span>`).join('');
+}
+
+/* ═══════════════════════════════════════════════════════
+   IMAGE SLOTS
+   ═══════════════════════════════════════════════════════ */
+function triggerSlotPick(slotIndex) {
+  if (slotFiles[slotIndex]) return; // slot already filled — use the remove button instead
+  activeSlot = slotIndex;
+  document.getElementById('hiddenFileInput').click();
+}
+
+document.getElementById('hiddenFileInput').addEventListener('change', function (e) {
+  const file = e.target.files[0];
+  e.target.value = ''; // reset so picking the same file twice still fires 'change'
+  if (!file || activeSlot === null) return;
+
+  if (!file.type.startsWith('image/')) {
+    showMsg('⚠ Please select an image file (JPG, PNG, GIF, etc).', 'error');
+    return;
+  }
+  if (file.size > MAX_IMAGE_BYTES) {
+    showMsg('⚠ That image is too large. Max size is 8MB per photo.', 'error');
+    return;
+  }
+
+  slotFiles[activeSlot] = file;
+  renderSlot(activeSlot);
+  updateImageCountBadge();
+  hideMsg();
+});
+
+function renderSlot(slotIndex) {
+  const slotEl = document.querySelector(`.image-slot[data-slot="${slotIndex}"]`);
+  const file = slotFiles[slotIndex];
+
+  if (!file) {
+    slotEl.classList.remove('has-image');
+    slotEl.innerHTML = `<div class="placeholder"><span class="plus">+</span><span class="hint">Add photo</span></div>`;
+    return;
+  }
+
+  const reader = new FileReader();
+  reader.onload = (ev) => {
+    slotEl.classList.add('has-image');
+    slotEl.innerHTML = `
+      <img src="${ev.target.result}" alt="preview"/>
+      <button type="button" class="remove-btn" onclick="removeSlot(event, ${slotIndex})" title="Remove">✕</button>
+    `;
+  };
+  reader.readAsDataURL(file);
+}
+
+function removeSlot(evt, slotIndex) {
+  evt.stopPropagation();
+  slotFiles[slotIndex] = null;
+  renderSlot(slotIndex);
+  updateImageCountBadge();
+}
+
+function updateImageCountBadge() {
+  const count = slotFiles.filter(Boolean).length;
+  document.getElementById('imageCountBadge').textContent = `${count} / ${MAX_IMAGES}`;
+}
+
+/* ═══════════════════════════════════════════════════════
+   SUBMIT
+   ═══════════════════════════════════════════════════════ */
+async function submitPost() {
+  const title   = document.getElementById('postTitle').value.trim();
+  const content = document.getElementById('postContent').value.trim();
+  const hashtagsRaw = document.getElementById('postHashtags').value.trim();
+  const btn     = document.getElementById('postBtn');
+
+  if (!content) {
+    showMsg('⚠ Post content is required.', 'error');
+    return;
+  }
+  if (content.length > 2000) {
+    showMsg('⚠ Post is too long (max 2000 characters).', 'error');
+    return;
+  }
+
+  const formData = new FormData();
+  if (title) formData.append('title', title);
+  formData.append('content', content);
+  if (selectedSentiment) formData.append('sentiment', selectedSentiment);
+  if (hashtagsRaw) formData.append('hashtags', hashtagsRaw);
+  slotFiles.forEach(file => { if (file) formData.append('images', file); });
+
+  btn.disabled = true;
+  btn.textContent = 'Posting…';
+  hideMsg();
+
+  try {
+    const r = await fetch('/api/posts', { method: 'POST', body: formData });
+    const d = await r.json();
+
+    if (d.success) {
+      showMsg('✓ Post created successfully. Redirecting…', 'success');
+      setTimeout(() => { window.location.href = '/profile'; }, 700);
+    } else {
+      showMsg(d.message || '✕ Failed to create post.', 'error');
+      btn.disabled = false;
+      btn.textContent = 'Post';
+    }
+  } catch (e) {
+    console.error('submitPost error:', e);
+    showMsg('✕ Network error while posting. Please try again.', 'error');
+    btn.disabled = false;
+    btn.textContent = 'Post';
+  }
+}
+
+/* ═══════════════════════════════════════════════════════
+   MESSAGE HELPERS
+   ═══════════════════════════════════════════════════════ */
+function showMsg(msg, type) {
+  const el = document.getElementById('post-msg');
+  el.textContent = msg;
+  el.className = 'msg-box ' + type;
+  el.style.display = 'block';
+}
+function hideMsg() {
+  document.getElementById('post-msg').style.display = 'none';
+}
+</script>
+</body>
+</html>
