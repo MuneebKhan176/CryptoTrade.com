@@ -115,6 +115,87 @@
     .char-count { font-size:.7rem; color:var(--text-3); margin-top:4px; text-align:right; }
     .char-count.warn { color: var(--red); }
 
+    /* ── Composer toolbar: add-photo + emoji icon buttons, directly under
+       the content textarea. Attached photo thumbnails render in their own
+       row below this toolbar (see .image-thumbs). ── */
+    .composer-toolbar {
+      display: flex;
+      align-items: center;
+      gap: 8px;                 /* "half-finger" spacing between controls */
+      margin-top: 10px;
+      position: relative;
+      z-index: 2;
+    }
+    .tool-btn {
+      width: 34px; height: 34px; flex-shrink: 0;
+      border-radius: 8px;
+      background: var(--surface2); border: 1px solid var(--border2);
+      color: var(--text-2);
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer; transition: all .15s; padding: 0;
+    }
+    .tool-btn svg { width: 18px; height: 18px; display: block; }
+    .tool-btn:hover { color: #fff; border-color: var(--blue); background: var(--blue-dim); }
+    .tool-btn.active { color: var(--blue); border-color: var(--blue); background: var(--blue-dim); }
+    .tool-btn:disabled { opacity: .35; cursor: not-allowed; }
+    .tool-btn:disabled:hover { color: var(--text-2); border-color: var(--border2); background: var(--surface2); }
+
+    .toolbar-spacer { flex: 1; }
+    .toolbar-hint { font-size: .7rem; color: var(--text-3); }
+
+    /* Attached photo thumbnails ≈ 1.5cm × 2.2cm (portrait) — sit in their
+       own row below the toolbar, only taking up space once a photo is added. */
+    .image-thumbs { display: flex; gap: 8px; flex-wrap: wrap; }
+    .image-thumbs.has-items { margin-top: 10px; }
+    .image-thumb {
+      position: relative;
+      width: 57px; height: 83px;
+      border-radius: 6px;
+      overflow: hidden;
+      border: 1px solid var(--border2);
+      background: var(--surface2);
+      flex-shrink: 0;
+    }
+    .image-thumb img { width: 100%; height: 100%; object-fit: cover; }
+    .image-thumb .remove-btn {
+      position: absolute; top: 2px; right: 2px;
+      width: 17px; height: 17px; border-radius: 50%;
+      background: rgba(0,0,0,0.7); border: none;
+      color: #fff; font-size: .6rem; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      line-height: 1;
+    }
+    .image-thumb .remove-btn:hover { background: rgba(239,68,68,0.85); }
+
+    /* ── Emoji picker popover ── */
+    .emoji-picker-wrap { position: relative; }
+    .emoji-picker {
+      display: none;
+      position: absolute;
+      bottom: calc(100% + 8px);
+      left: 0;
+      background: var(--surface3);
+      border: 1px solid var(--border2);
+      border-radius: 10px;
+      padding: 8px;
+      box-shadow: 0 8px 28px rgba(0,0,0,.55);
+      z-index: 20;
+    }
+    .emoji-picker.open { display: block; }
+    .emoji-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 2px;
+    }
+    .emoji-opt {
+      width: 34px; height: 34px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.15rem; border-radius: 6px;
+      background: none; border: none; cursor: pointer;
+      transition: background .12s;
+    }
+    .emoji-opt:hover { background: var(--surface2); }
+
     /* ── Sentiment (Bullish / Bearish) buttons ── */
     .sentiment-section { position:relative; z-index:1; }
     .sentiment-buttons { display:flex; gap:10px; }
@@ -146,42 +227,6 @@
       background: var(--blue-dim); border: 1px solid rgba(59,130,246,.25);
       padding: 3px 10px; border-radius: 999px;
     }
-
-    /* ── Image attach ── */
-    .image-section { position:relative; z-index:1; }
-    .image-section-head { display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; }
-    .image-section-head label { font-size:.78rem; color:var(--text-2); font-weight:500; }
-    .image-count-badge { font-size:.7rem; color:var(--text-3); }
-
-    .image-slots { display:grid; grid-template-columns: repeat(2, 1fr); gap:10px; }
-    .image-slot {
-      aspect-ratio: 1 / 1;
-      border: 1px dashed var(--border2);
-      border-radius: 10px;
-      display:flex; align-items:center; justify-content:center;
-      cursor:pointer; transition: all .18s;
-      background: var(--surface2);
-      position: relative;
-      overflow:hidden;
-    }
-    .image-slot:hover { border-color: var(--blue); background: var(--blue-dim); }
-    .image-slot.has-image { border-style: solid; border-color: var(--border2); cursor:default; }
-    .image-slot .placeholder { display:flex; flex-direction:column; align-items:center; gap:6px; color: var(--text-3); pointer-events:none; }
-    .image-slot .placeholder .plus { font-size:1.6rem; line-height:1; color: var(--text-2); }
-    .image-slot .placeholder .hint { font-size:.68rem; }
-    /* object-fit: contain so the picked photo previews in full, uncropped,
-       matching the "show the complete picture" behaviour on the profile page */
-    .image-slot img { width:100%; height:100%; object-fit:contain; background:#000; }
-    .image-slot .remove-btn {
-      position:absolute; top:6px; right:6px;
-      width:24px; height:24px; border-radius:50%;
-      background: rgba(0,0,0,0.65); border: 1px solid var(--border2);
-      color:#fff; font-size:.78rem; cursor:pointer;
-      display:flex; align-items:center; justify-content:center;
-      backdrop-filter: blur(4px);
-    }
-    .image-slot .remove-btn:hover { background: rgba(239,68,68,0.75); border-color: var(--red); }
-    .image-hint-text { font-size:.72rem; color: var(--text-3); margin-top:8px; }
 
     /* ── Actions ── */
     .composer-actions {
@@ -234,6 +279,39 @@
       <label for="postContent">What's on your mind?</label>
       <textarea class="form-input" id="postContent" maxlength="2000" placeholder="Share your thoughts on the market, a trade, or anything else…" oninput="updateCharCount('postContent','contentCount',2000)"></textarea>
       <div class="char-count" id="contentCount">0 / 2000</div>
+
+      <!-- Action icons row: photo + emoji, both plain white outline icons -->
+      <div class="composer-toolbar">
+        <button type="button" class="tool-btn" id="addPhotoBtn" onclick="triggerFilePick()" title="Add photo">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="4" width="18" height="16" rx="2.5"/>
+            <circle cx="8.5" cy="9.5" r="1.5"/>
+            <path d="M21 15.5l-5.2-5.2a1.5 1.5 0 0 0-2.1 0L4.5 19.5"/>
+          </svg>
+        </button>
+
+        <div class="emoji-picker-wrap">
+          <button type="button" class="tool-btn" id="emojiBtn" onclick="toggleEmojiPicker()" title="Add emoji">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="9"/>
+              <path d="M8.3 14.2c1 1.15 2.2 1.7 3.7 1.7s2.7-.55 3.7-1.7"/>
+              <line x1="9" y1="9.5" x2="9.01" y2="9.5"/>
+              <line x1="15" y1="9.5" x2="15.01" y2="9.5"/>
+            </svg>
+          </button>
+          <div class="emoji-picker" id="emojiPicker">
+            <div class="emoji-grid" id="emojiGrid"></div>
+          </div>
+        </div>
+
+        <div class="toolbar-spacer"></div>
+        <span class="toolbar-hint" id="imageCountBadge">0 / 2 photos</span>
+      </div>
+
+      <!-- Attached photo previews — their own row, below the icon row -->
+      <div class="image-thumbs" id="imageThumbs"></div>
+
+      <input type="file" id="hiddenFileInput" accept="image/*" style="display:none;"/>
     </div>
 
     <div class="form-group sentiment-section">
@@ -258,23 +336,6 @@
       <div class="hashtag-preview" id="hashtagPreview"></div>
     </div>
 
-    <div class="image-section">
-      <div class="image-section-head">
-        <label>Photos <span style="color:var(--text-3);">(optional)</span></label>
-        <span class="image-count-badge" id="imageCountBadge">0 / 2</span>
-      </div>
-      <div class="image-slots" id="imageSlots">
-        <div class="image-slot" data-slot="0" onclick="triggerSlotPick(0)">
-          <div class="placeholder"><span class="plus">+</span><span class="hint">Add photo</span></div>
-        </div>
-        <div class="image-slot" data-slot="1" onclick="triggerSlotPick(1)">
-          <div class="placeholder"><span class="plus">+</span><span class="hint">Add photo</span></div>
-        </div>
-      </div>
-      <input type="file" id="hiddenFileInput" accept="image/*" style="display:none;"/>
-      <div class="image-hint-text">JPG, PNG or GIF. Up to 2 photos, max 8MB each. Two photos will show as a swipeable slider on your profile.</div>
-    </div>
-
     <div class="composer-actions">
       <button class="btn-cancel-post" onclick="window.location.href='/profile'">Cancel</button>
       <button class="btn-post" id="postBtn" onclick="submitPost()">Post</button>
@@ -290,7 +351,8 @@
    ═══════════════════════════════════════════════════════
    Backend: Social_Platform/posts.js
      POST /api/posts  (multipart/form-data)
-       fields: title (optional), content (required),
+       fields: title (optional), content (required — emojis picked
+               below are inserted directly into this text),
                sentiment (optional: "bullish" | "bearish"),
                hashtags (optional: comma/space separated string)
        files:  images[] — up to 2 used here (backend allows up to 4)
@@ -300,8 +362,11 @@ const MAX_IMAGE_BYTES = 8 * 1024 * 1024; // 8MB per photo
 
 // slotFiles[0] / slotFiles[1] hold the File object for each slot, or null
 let slotFiles = [null, null];
-let activeSlot = null;
 let selectedSentiment = null; // null | 'bullish' | 'bearish'
+
+// 12 quick-pick emojis: the crypto shorthand + face reactions most
+// commonly seen on Binance Square posts/comments.
+const QUICK_EMOJIS = ['🚀', '📈', '📉', '💎', '🔥', '💰', '🐂', '🐻', '😂', '😭', '🤔', '🙌'];
 
 function updateCharCount(fieldId, countId, max) {
   const val = document.getElementById(fieldId).value || '';
@@ -309,6 +374,48 @@ function updateCharCount(fieldId, countId, max) {
   countEl.textContent = `${val.length} / ${max}`;
   countEl.classList.toggle('warn', val.length > max * 0.95);
 }
+
+/* ═══════════════════════════════════════════════════════
+   EMOJI PICKER
+   ═══════════════════════════════════════════════════════ */
+function buildEmojiGrid() {
+  const grid = document.getElementById('emojiGrid');
+  grid.innerHTML = QUICK_EMOJIS.map(e =>
+    `<button type="button" class="emoji-opt" onclick="insertEmoji('${e}')">${e}</button>`
+  ).join('');
+}
+
+function toggleEmojiPicker() {
+  const picker = document.getElementById('emojiPicker');
+  const btn = document.getElementById('emojiBtn');
+  const opening = !picker.classList.contains('open');
+  picker.classList.toggle('open', opening);
+  btn.classList.toggle('active', opening);
+}
+
+function insertEmoji(emoji) {
+  const textarea = document.getElementById('postContent');
+  const start = textarea.selectionStart ?? textarea.value.length;
+  const end = textarea.selectionEnd ?? textarea.value.length;
+  const before = textarea.value.slice(0, start);
+  const after = textarea.value.slice(end);
+
+  textarea.value = before + emoji + after;
+  const cursorPos = start + emoji.length;
+  textarea.focus();
+  textarea.setSelectionRange(cursorPos, cursorPos);
+
+  updateCharCount('postContent', 'contentCount', 2000);
+}
+
+// Close the emoji popover when clicking anywhere outside it
+document.addEventListener('click', (e) => {
+  const wrap = document.querySelector('.emoji-picker-wrap');
+  if (wrap && !wrap.contains(e.target)) {
+    document.getElementById('emojiPicker').classList.remove('open');
+    document.getElementById('emojiBtn').classList.remove('active');
+  }
+});
 
 /* ═══════════════════════════════════════════════════════
    SENTIMENT TOGGLE (Bullish / Bearish — mutually exclusive,
@@ -340,18 +447,22 @@ function renderHashtagPreview() {
 }
 
 /* ═══════════════════════════════════════════════════════
-   IMAGE SLOTS
+   PHOTOS — icon button opens the file picker; thumbnails
+   render in their own row below the toolbar.
    ═══════════════════════════════════════════════════════ */
-function triggerSlotPick(slotIndex) {
-  if (slotFiles[slotIndex]) return; // slot already filled — use the remove button instead
-  activeSlot = slotIndex;
+function triggerFilePick() {
+  const filledCount = slotFiles.filter(Boolean).length;
+  if (filledCount >= MAX_IMAGES) return;
   document.getElementById('hiddenFileInput').click();
 }
 
 document.getElementById('hiddenFileInput').addEventListener('change', function (e) {
   const file = e.target.files[0];
   e.target.value = ''; // reset so picking the same file twice still fires 'change'
-  if (!file || activeSlot === null) return;
+  if (!file) return;
+
+  const emptySlot = slotFiles.findIndex(f => !f);
+  if (emptySlot === -1) return; // both slots already filled
 
   if (!file.type.startsWith('image/')) {
     showMsg('⚠ Please select an image file (JPG, PNG, GIF, etc).', 'error');
@@ -362,43 +473,40 @@ document.getElementById('hiddenFileInput').addEventListener('change', function (
     return;
   }
 
-  slotFiles[activeSlot] = file;
-  renderSlot(activeSlot);
-  updateImageCountBadge();
+  slotFiles[emptySlot] = file;
+  renderThumbs();
   hideMsg();
 });
 
-function renderSlot(slotIndex) {
-  const slotEl = document.querySelector(`.image-slot[data-slot="${slotIndex}"]`);
-  const file = slotFiles[slotIndex];
+function renderThumbs() {
+  const wrap = document.getElementById('imageThumbs');
+  const filled = slotFiles.map((file, idx) => ({ file, idx })).filter(x => x.file);
 
-  if (!file) {
-    slotEl.classList.remove('has-image');
-    slotEl.innerHTML = `<div class="placeholder"><span class="plus">+</span><span class="hint">Add photo</span></div>`;
-    return;
-  }
+  wrap.innerHTML = ''; // rebuilt below via FileReader (async), so clear first
+  wrap.classList.toggle('has-items', filled.length > 0); // only reserve spacing once a photo is attached
 
-  const reader = new FileReader();
-  reader.onload = (ev) => {
-    slotEl.classList.add('has-image');
-    slotEl.innerHTML = `
-      <img src="${ev.target.result}" alt="preview"/>
-      <button type="button" class="remove-btn" onclick="removeSlot(event, ${slotIndex})" title="Remove">✕</button>
-    `;
-  };
-  reader.readAsDataURL(file);
+  filled.forEach(({ file, idx }) => {
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const div = document.createElement('div');
+      div.className = 'image-thumb';
+      div.innerHTML = `
+        <img src="${ev.target.result}" alt="preview"/>
+        <button type="button" class="remove-btn" onclick="removeSlot(${idx})" title="Remove">✕</button>
+      `;
+      wrap.appendChild(div);
+    };
+    reader.readAsDataURL(file);
+  });
+
+  const count = filled.length;
+  document.getElementById('imageCountBadge').textContent = `${count} / ${MAX_IMAGES} photos`;
+  document.getElementById('addPhotoBtn').disabled = count >= MAX_IMAGES;
 }
 
-function removeSlot(evt, slotIndex) {
-  evt.stopPropagation();
+function removeSlot(slotIndex) {
   slotFiles[slotIndex] = null;
-  renderSlot(slotIndex);
-  updateImageCountBadge();
-}
-
-function updateImageCountBadge() {
-  const count = slotFiles.filter(Boolean).length;
-  document.getElementById('imageCountBadge').textContent = `${count} / ${MAX_IMAGES}`;
+  renderThumbs();
 }
 
 /* ═══════════════════════════════════════════════════════
@@ -462,6 +570,11 @@ function showMsg(msg, type) {
 function hideMsg() {
   document.getElementById('post-msg').style.display = 'none';
 }
+
+/* ═══════════════════════════════════════════════════════
+   INIT
+   ═══════════════════════════════════════════════════════ */
+buildEmojiGrid();
 </script>
 </body>
 </html>

@@ -201,19 +201,3 @@ router.post('/api/insights/posts/:id/like', verifyToken, async (req, res) => {
 });
 
 module.exports = router;
-
-/* ============================================================================
- * ONE-TIME SETUP NEEDED IN server.js
- * ----------------------------------------------------------------------------
- * Mount this router alongside your other Social_Platform routers:
- *
- *   app.use(require('./Social_Platform/insights'));
- *
- * That single line registers all three API routes above plus the
- * GET /crypto-square page route. No other server.js changes are required —
- * this file reuses the existing verifyToken middleware and the existing
- * SocialProfile / Post / Follow / Like models, and calls the existing
- * POST /api/follow and POST /api/unfollow endpoints from
- * Social_Platform/top-creators.js from the frontend directly (that router
- * must already be mounted, which it should be if /top-creators works today).
- * ==========================================================================*/
