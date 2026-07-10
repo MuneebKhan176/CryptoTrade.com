@@ -410,7 +410,7 @@
   <div class="topnav-right">
     <button class="nav-pill" onclick="showPanel('trade')">📈 Trade</button>
     <button class="nav-pill" onclick="showPanel('transfer')">💸 Transfer</button>
-    <button class="nav-pill" onclick="showPanel('insights')">📝 Insights</button>
+    <a href="/crypto-square" class="nav-pill">🟦 Crypto Square</a>
     <a href="/chat" class="nav-pill">💬 Live Chat</a>
     <button class="nav-pill blue" onclick="showPanel('demo')">🎁 Get Demo Funds</button>
     <a href="/profile" class="avatar" id="avatarEl" title="Social Profile">?</a>
@@ -442,9 +442,9 @@
     <hr class="sidebar-divider"/>
     <div class="sidebar-section">
       <div class="sidebar-label">Social</div>
-      <button class="sidebar-link" onclick="showPanel('insights')">
-        <span class="icon">📝</span> Insights
-      </button>
+      <a href="/crypto-square" class="sidebar-link">
+        <span class="icon">🟦</span> Crypto Square
+      </a>
       <a href="/chat" class="sidebar-link">
         <span class="icon">💬</span> Live Chat
       </a>
@@ -734,24 +734,6 @@
         <button class="form-submit" id="demoRequestBtn" onclick="requestDemoFunds()">Request $50,000 Demo Funds</button>
         <div id="demo-msg" class="msg-box" style="display:none;"></div>
       </div>
-    </div>
-
-    <!-- ══════════════════════════════════════
-         INSIGHTS
-         ══════════════════════════════════════ -->
-    <div id="panel-insights" class="panel fade-in">
-      <div class="page-title">Insights Feed</div>
-      <div class="page-sub">Share your market analysis with the community.</div>
-      <div class="form-card" style="max-width:600px;margin-bottom:24px;">
-        <h3>Post an Insight</h3>
-        <div class="form-group">
-          <textarea class="form-input" id="insight-text" rows="4"
-                    placeholder="Share your trade analysis, market outlook, or tips…"
-                    style="resize:vertical;"></textarea>
-        </div>
-        <button class="form-submit" onclick="postInsight()">Publish Insight</button>
-      </div>
-      <div id="insights-feed"></div>
     </div>
 
     <!-- ══════════════════════════════════════
@@ -1362,37 +1344,6 @@ async function requestDemoFunds() {
 }
 
 /* ═══════════════════════════════════════════════════════
-   INSIGHTS
-   ═══════════════════════════════════════════════════════ */
-const insightsFeed = [
-  { user: 'CryptoKing', time: '2m ago',  text: 'BTC looking strong at key support. Watching for a bounce above $65k.' },
-  { user: 'EthMaxi',    time: '15m ago', text: 'ETH/BTC ratio still favoring ETH. Accumulation zone active.' },
-  { user: 'TraderJoe',  time: '1h ago',  text: 'SOL breaking out of consolidation. Target $200 if volume holds.' },
-];
-
-function renderInsights() {
-  const feed = document.getElementById('insights-feed');
-  if (!feed) return;
-  feed.innerHTML = insightsFeed.map(i => `
-    <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px 20px;margin-bottom:12px;">
-      <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
-        <div class="avatar" style="width:30px;height:30px;font-size:.72rem;">${i.user.slice(0, 2).toUpperCase()}</div>
-        <span style="font-size:.88rem;font-weight:600;">${i.user}</span>
-        <span style="font-size:.75rem;color:var(--text-3);margin-left:auto;">${i.time}</span>
-      </div>
-      <p style="font-size:.85rem;color:var(--text-2);line-height:1.6;">${i.text}</p>
-    </div>`).join('');
-}
-
-function postInsight() {
-  const txt = document.getElementById('insight-text').value.trim();
-  if (!txt) return;
-  insightsFeed.unshift({ user: userData?.username || 'You', time: 'Just now', text: txt });
-  document.getElementById('insight-text').value = '';
-  renderInsights();
-}
-
-/* ═══════════════════════════════════════════════════════
    AI CHATBOT
    ═══════════════════════════════════════════════════════
    Backend: POST /api/ai-chatbot/message (see AI_chatbot/
@@ -1472,7 +1423,6 @@ document.addEventListener('DOMContentLoaded', () => {
   fetchUser();
   connectMarketSocket();
   loadChart();
-  renderInsights();
   // Re-render the tables from the latest WebSocket data once per second —
   // the socket itself pushes updates continuously, this just paints them.
   setInterval(renderMarketTables, 1000);

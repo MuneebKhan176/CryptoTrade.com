@@ -13,11 +13,12 @@ mongoConnection();
 const authRoutes = require('./routes/authRoutes');
 const homeRoutes = require('./routes/homeRoutes');
 const transferRoutes = require('./routes/bankingAuth');
-const chatRoutes = require('./routes/chatRoutes');
+const chatRoutes = require('./routes/chatRoom_Routes');
 const aiChatbotRoutes = require('./AI_chatbot/chatbotController');
 const socialProfile = require('./Social_Platform/profile');
 const follow_Unfollow = require('./Social_Platform/follow_unfollow');
 const create_Post = require('./Social_Platform/posts');
+const crypto_square=require('./Social_Platform/insights')
 
 // ---------------- Managers ----------------
 
@@ -54,7 +55,7 @@ app.use(aiChatbotRoutes);
 app.use(socialProfile);
 app.use(follow_Unfollow);
 app.use(create_Post);
-
+app.use(crypto_square);
 // ---------------- 404 ----------------
 
 app.use((req, res) => {

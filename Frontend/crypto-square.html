@@ -1,0 +1,679 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Crypto Square — CryptoTrade</title>
+  <style>
+    *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+
+    :root {
+      --bg:        #000000;
+      --surface:   #0a0a0a;
+      --surface2:  #111111;
+      --surface3:  #161616;
+      --border:    #1a1a1a;
+      --border2:   #222222;
+      --text:      #ffffff;
+      --text-2:    #888888;
+      --text-3:    #444444;
+      --blue:      #3b82f6;
+      --blue-dim:  rgba(59,130,246,0.12);
+      --green:     #22c55e;
+      --green-dim: rgba(34,197,94,0.12);
+      --red:       #ef4444;
+      --red-dim:   rgba(239,68,68,0.12);
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    /* ── Topnav ── */
+    .topnav {
+      height: 60px;
+      background: rgba(0,0,0,0.9);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      padding: 0 24px;
+      gap: 16px;
+      position: sticky;
+      top: 0;
+      z-index: 200;
+      backdrop-filter: blur(12px);
+    }
+    .topnav-logo {
+      font-size: 1.15rem;
+      font-weight: 800;
+      letter-spacing: -0.5px;
+      background: linear-gradient(90deg,#fff 0%,#93c5fd 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      text-decoration: none;
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      flex-shrink: 0;
+    }
+    .topnav-logo-dot {
+      width: 7px; height: 7px;
+      background: var(--blue);
+      border-radius: 50%;
+      -webkit-text-fill-color: initial;
+      flex-shrink: 0;
+    }
+    .topnav-right { margin-left: auto; display:flex; align-items:center; gap:10px; }
+    .nav-pill {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 6px 14px; border-radius: 7px;
+      font-size: .82rem; font-weight: 600; text-decoration: none;
+      border: 1px solid var(--border2); color: var(--text-2);
+      background: transparent; cursor: pointer; transition: all .18s;
+    }
+    .nav-pill:hover { color:#fff; border-color:#444; background: var(--surface2); }
+
+    /* ── Page ── */
+    .page {
+      max-width: 640px;
+      margin: 0 auto;
+      padding: 32px 24px 64px;
+    }
+    .page-title { font-size: 1.4rem; font-weight: 700; letter-spacing: -.5px; margin-bottom: 4px; }
+    .page-sub { font-size: .83rem; color: var(--text-2); margin-bottom: 22px; }
+
+    /* ── Tabs ── */
+    .tabs {
+      display: flex; gap: 4px;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 10px; padding: 4px; margin-bottom: 22px;
+    }
+    .tab-btn {
+      flex: 1; padding: 9px 14px; border-radius: 7px;
+      font-size: .85rem; font-weight: 600; text-align:center;
+      background: none; border: none; color: var(--text-2);
+      cursor: pointer; transition: all .15s;
+    }
+    .tab-btn.active { background: var(--blue); color: #fff; }
+    .tab-btn:not(.active):hover { color: #fff; background: var(--surface2); }
+
+    /* ── Post card ── */
+    .post-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 12px; padding: 18px 20px; margin-bottom: 12px;
+      position: relative;
+    }
+    .post-header {
+      display: flex; gap: 10px; align-items:flex-start;
+      padding-right: 96px; /* reserve room for the absolutely-positioned follow button */
+      margin-bottom: 8px;
+    }
+    .post-header .mini-avatar {
+      width:36px; height:36px; border-radius:50%; overflow:hidden;
+      background: linear-gradient(135deg,#3b82f6,#1d4ed8);
+      display:flex; align-items:center; justify-content:center;
+      font-size:.76rem; font-weight:700; color:#fff; flex-shrink:0;
+    }
+    .post-header .mini-avatar img { width:100%; height:100%; object-fit:cover; }
+    .post-header-text { min-width:0; flex:1; }
+    .post-header .who-row { display:flex; align-items:center; gap:7px; flex-wrap:wrap; }
+    .post-header .who { font-size:.88rem; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:220px; }
+    .post-header .meta-row { font-size:.75rem; color:var(--text-3); margin-top:2px; }
+
+    /* Bullish / Bearish sentiment pill */
+    .sentiment-pill {
+      display: inline-flex; align-items: center; gap: 3px; flex-shrink:0;
+      padding: 2px 8px; border-radius: 999px;
+      font-size: .66rem; font-weight: 700; letter-spacing: .02em;
+      text-transform: uppercase;
+    }
+    .sentiment-pill.bullish { color: var(--green); background: var(--green-dim); border: 1px solid rgba(34,197,94,.3); }
+    .sentiment-pill.bearish { color: var(--red);   background: var(--red-dim);   border: 1px solid rgba(239,68,68,.3); }
+    .sentiment-pill svg { width: 10px; height: 10px; }
+
+    /* Follow / Following button — top-right corner of the card */
+    .follow-btn {
+      position: absolute; top: 16px; right: 18px;
+      padding: 6px 14px; border-radius: 999px;
+      font-size: .76rem; font-weight: 700;
+      cursor: pointer; transition: all .15s;
+      background: var(--blue); border: 1px solid var(--blue); color: #fff;
+    }
+    .follow-btn:hover { opacity: .88; }
+    .follow-btn.following {
+      background: transparent; border-color: var(--border2); color: var(--text-2);
+    }
+    .follow-btn.following:hover { border-color: var(--red); color: var(--red); background: var(--red-dim); }
+    .follow-btn:disabled { opacity: .5; cursor: not-allowed; }
+
+    .post-title {
+      font-size: 1rem; font-weight: 700; letter-spacing: -.2px;
+      color: var(--text); margin-bottom: 6px; line-height: 1.35;
+    }
+    .post-content {
+      font-size:.86rem; color:var(--text-2); line-height:1.65;
+      white-space:pre-wrap; word-break:break-word;
+    }
+    .post-content.clamped {
+      display: -webkit-box; line-clamp: 4; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden;
+    }
+    .post-content.expanded { line-clamp: unset; -webkit-line-clamp: unset; overflow: visible; }
+    .read-more-btn {
+      display: inline-block; background: none; border: none; padding: 0;
+      margin-top: 6px; color: var(--blue); font-size: .78rem; font-weight: 600; cursor: pointer;
+    }
+    .read-more-btn:hover { text-decoration: underline; }
+
+    /* ── Full-picture media slider (same model as the profile page) ── */
+    .post-media-slider {
+      margin-top: 12px; position: relative; border-radius: 14px; overflow: hidden;
+      border: 1px solid var(--border2); background: #000;
+    }
+    .slider-stage { height: 380px; display: flex; overflow: hidden; }
+    .slider-track { display: flex; width: 100%; height: 100%; transition: transform .32s cubic-bezier(.4,0,.2,1); }
+    .slider-slide { flex: 0 0 100%; height: 100%; display: flex; align-items: center; justify-content: center; background: var(--surface2); }
+    .slider-slide img, .slider-slide video { max-width: 100%; max-height: 100%; width: auto; height: auto; object-fit: contain; }
+    .slider-arrow {
+      position: absolute; top: 50%; transform: translateY(-50%);
+      width: 34px; height: 34px; border-radius: 50%;
+      background: rgba(0,0,0,0.55); border: 1px solid rgba(255,255,255,.15);
+      color: #fff; font-size: 1.1rem; line-height: 1;
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer; backdrop-filter: blur(4px); transition: background .15s; user-select: none;
+    }
+    .slider-arrow:hover { background: rgba(0,0,0,0.8); }
+    .slider-arrow.prev { left: 10px; }
+    .slider-arrow.next { right: 10px; }
+    .slider-arrow.disabled { opacity: .25; pointer-events: none; }
+    .slider-dots { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; gap: 6px; }
+    .slider-dot { width: 6px; height: 6px; border-radius: 50%; background: rgba(255,255,255,.35); border: none; cursor: pointer; padding: 0; transition: background .15s, transform .15s; }
+    .slider-dot.active { background: #fff; transform: scale(1.25); }
+    .slider-counter { position: absolute; top: 10px; right: 12px; background: rgba(0,0,0,0.55); color: #fff; font-size: .68rem; font-weight: 600; padding: 3px 8px; border-radius: 999px; }
+
+    /* Hashtags */
+    .post-hashtags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+    .hashtag-pill {
+      font-size: .76rem; font-weight: 600; color: var(--blue);
+      background: var(--blue-dim); border: 1px solid rgba(59,130,246,.25);
+      padding: 3px 10px; border-radius: 999px;
+    }
+
+    /* Like button */
+    .post-footer { display:flex; align-items:center; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border); }
+    .like-btn {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 7px 14px; border-radius: 8px;
+      background: var(--surface2); border: 1px solid var(--border2); color: var(--text-2);
+      font-size: .82rem; font-weight: 600; cursor: pointer; transition: all .15s;
+    }
+    .like-btn:hover { border-color: #444; color: #fff; }
+    .like-btn svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.8; transition: fill .15s; }
+    .like-btn.liked { color: var(--red); border-color: rgba(239,68,68,.35); background: var(--red-dim); }
+    .like-btn.liked svg { fill: currentColor; }
+
+    .empty-state {
+      background: var(--surface); border: 1px dashed var(--border2);
+      border-radius: 10px; padding: 40px 20px; text-align:center;
+      color: var(--text-3); font-size:.86rem; line-height:1.7;
+    }
+    .empty-state a { color: var(--blue); text-decoration:none; font-weight:600; }
+    .empty-state a:hover { text-decoration:underline; }
+
+    .loading-state { text-align:center; padding:30px; color:var(--text-3); font-size:.85rem; }
+    .spinner-inline {
+      display:inline-block; width:14px; height:14px;
+      border:2px solid var(--border2); border-top-color: var(--blue);
+      border-radius:50%; animation: spin .7s linear infinite;
+      vertical-align:middle; margin-right:6px;
+    }
+    @keyframes spin { to { transform:rotate(360deg); } }
+
+    .load-more-wrap { text-align:center; margin-top: 8px; }
+    .load-more-btn {
+      padding: 9px 22px; border-radius: 8px; font-size: .82rem; font-weight: 600;
+      background: var(--surface2); border: 1px solid var(--border2); color: var(--text-2);
+      cursor: pointer; transition: all .15s;
+    }
+    .load-more-btn:hover { color:#fff; border-color:#444; }
+    .load-more-btn:disabled { opacity:.5; cursor:not-allowed; }
+
+    ::-webkit-scrollbar { width:5px; }
+    ::-webkit-scrollbar-track { background:transparent; }
+    ::-webkit-scrollbar-thumb { background:var(--border2); border-radius:99px; }
+
+    @media(max-width:640px){
+      .slider-stage { height: 280px; }
+      .post-header .who { max-width: 140px; }
+    }
+  </style>
+</head>
+<body>
+
+<header class="topnav">
+  <a href="/dashboard" class="topnav-logo">
+    <span class="topnav-logo-dot"></span>CryptoTrade
+  </a>
+  <div class="topnav-right">
+    <a href="/create-post" class="nav-pill">+ Create Post</a>
+    <a href="/dashboard" class="nav-pill">← Back to Dashboard</a>
+  </div>
+</header>
+
+<div class="page">
+  <div class="page-title">Crypto Square</div>
+  <div class="page-sub">See what the community is trading and thinking.</div>
+
+  <div class="tabs">
+    <button class="tab-btn active" id="tab-discover" onclick="switchTab('discover')">Discover</button>
+    <button class="tab-btn" id="tab-following" onclick="switchTab('following')">Following</button>
+  </div>
+
+  <div id="feedContainer">
+    <div class="loading-state"><span class="spinner-inline"></span>Loading posts…</div>
+  </div>
+
+  <div class="load-more-wrap" id="loadMoreWrap" style="display:none;">
+    <button class="load-more-btn" id="loadMoreBtn" onclick="loadMore()">Load more</button>
+  </div>
+</div>
+
+<script>
+/* ═══════════════════════════════════════════════════════
+   STATE
+   ═══════════════════════════════════════════════════════
+   Backend: Social_Platform/insights.js
+     GET  /api/insights/discover?page=N   -> { posts, page, hasMore }
+     GET  /api/insights/following?page=N  -> { posts, page, hasMore }
+     POST /api/insights/posts/:id/like    -> { liked, likesCount }
+   Follow/unfollow reuses the existing endpoints:
+     POST /api/follow    { username }
+     POST /api/unfollow  { username }
+   ═══════════════════════════════════════════════════════ */
+let currentTab = 'discover';
+
+const tabState = {
+  discover:  { posts: [], page: 0, hasMore: true, loaded: false },
+  following: { posts: [], page: 0, hasMore: true, loaded: false },
+};
+
+function escapeHtml(str) {
+  const div = document.createElement('div');
+  div.textContent = str ?? '';
+  return div.innerHTML;
+}
+
+/* ═══════════════════════════════════════════════════════
+   TAB SWITCHING
+   ═══════════════════════════════════════════════════════ */
+function switchTab(tab) {
+  if (tab === currentTab && tabState[tab].loaded) return;
+  currentTab = tab;
+
+  document.getElementById('tab-discover').classList.toggle('active', tab === 'discover');
+  document.getElementById('tab-following').classList.toggle('active', tab === 'following');
+
+  if (tabState[tab].loaded) {
+    renderFeed(tab);
+  } else {
+    fetchFeed(tab);
+  }
+}
+
+/* ═══════════════════════════════════════════════════════
+   FETCH FEED (Discover / Following)
+   ═══════════════════════════════════════════════════════ */
+async function fetchFeed(tab) {
+  const state = tabState[tab];
+  const container = document.getElementById('feedContainer');
+
+  if (state.page === 0) {
+    container.innerHTML = `<div class="loading-state"><span class="spinner-inline"></span>Loading posts…</div>`;
+    document.getElementById('loadMoreWrap').style.display = 'none';
+  }
+
+  try {
+    const nextPage = state.page + 1;
+    const r = await fetch(`/api/insights/${tab}?page=${nextPage}`);
+    const d = await r.json();
+
+    if (!d.success) {
+      if (r.status === 401) { window.location.href = '/login'; return; }
+      container.innerHTML = `<div class="empty-state">${escapeHtml(d.message || 'Failed to load posts.')}</div>`;
+      return;
+    }
+
+    state.posts = state.posts.concat(d.data.posts || []);
+    state.page = d.data.page || nextPage;
+    state.hasMore = !!d.data.hasMore;
+    state.loaded = true;
+
+    if (tab === currentTab) renderFeed(tab);
+
+  } catch (e) {
+    console.error(`fetchFeed(${tab}) error:`, e);
+    if (tab === currentTab) {
+      container.innerHTML = `<div class="empty-state">Network error while loading posts.</div>`;
+    }
+  }
+}
+
+function loadMore() {
+  const btn = document.getElementById('loadMoreBtn');
+  btn.disabled = true;
+  btn.textContent = 'Loading…';
+  fetchFeed(currentTab).finally(() => {
+    btn.disabled = false;
+    btn.textContent = 'Load more';
+  });
+}
+
+/* ═══════════════════════════════════════════════════════
+   POST RENDER HELPERS (same model as the profile page)
+   ═══════════════════════════════════════════════════════ */
+function parsePostContent(raw) {
+  const text = raw || '';
+  const match = text.match(/^##[ \t]+(.+?)(?:\r?\n)([\s\S]*)$/);
+  if (match) return { title: match[1].trim(), body: match[2].replace(/^\r?\n+/, '') };
+  return { title: null, body: text };
+}
+
+function formatCount(n) {
+  n = Number(n) || 0;
+  if (n >= 1e6) return (n / 1e6).toFixed(1).replace(/\.0$/, '') + 'M';
+  if (n >= 1e3) return (n / 1e3).toFixed(1).replace(/\.0$/, '') + 'k';
+  return String(n);
+}
+
+function formatPostDate(dateInput) {
+  if (!dateInput) return { short: '', full: '' };
+  const d = new Date(dateInput);
+  const sameYear = d.getFullYear() === new Date().getFullYear();
+  const short = d.toLocaleDateString('en-US', sameYear
+    ? { month: 'short', day: 'numeric' }
+    : { month: 'short', day: 'numeric', year: 'numeric' });
+  const full = d.toLocaleString();
+  return { short, full };
+}
+
+const ICON_LIKE = '<svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21l7.8-7.8 1-1a5.5 5.5 0 0 0 0-7.6z"/></svg>';
+const ICON_UP   = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 4l8 10h-5v6h-6v-6H4z"/></svg>';
+const ICON_DOWN = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 20l-8-10h5V4h6v6h5z"/></svg>';
+
+function sentimentPillHtml(sentiment) {
+  if (sentiment === 'bullish') return `<span class="sentiment-pill bullish">${ICON_UP}Bullish</span>`;
+  if (sentiment === 'bearish') return `<span class="sentiment-pill bearish">${ICON_DOWN}Bearish</span>`;
+  return '';
+}
+
+function hashtagsHtml(hashtags) {
+  if (!hashtags || !hashtags.length) return '';
+  return `<div class="post-hashtags">${hashtags.map(h => `<span class="hashtag-pill">#${escapeHtml(h)}</span>`).join('')}</div>`;
+}
+
+function mediaTag(m) {
+  return m.type === 'video'
+    ? `<video src="${m.url}" controls playsinline></video>`
+    : `<img src="${m.url}" alt="post media" loading="lazy"/>`;
+}
+
+// Full-picture slider — object-fit:contain so images are never cropped.
+// Single image: no controls. 2+ images: prev/next arrows, dots, counter.
+function mediaSliderHtml(media, uid) {
+  if (!media || !media.length) return '';
+  const slides = media.map(m => `<div class="slider-slide">${mediaTag(m)}</div>`).join('');
+
+  if (media.length === 1) {
+    return `<div class="post-media-slider" id="slider-${uid}">
+      <div class="slider-stage"><div class="slider-track">${slides}</div></div>
+    </div>`;
+  }
+
+  const dots = media.map((_, i) => `<button class="slider-dot${i === 0 ? ' active' : ''}" data-idx="${i}"></button>`).join('');
+  return `<div class="post-media-slider" id="slider-${uid}" data-index="0" data-count="${media.length}">
+    <div class="slider-stage"><div class="slider-track">${slides}</div></div>
+    <button class="slider-arrow prev disabled" data-dir="-1" title="Previous photo">‹</button>
+    <button class="slider-arrow next" data-dir="1" title="Next photo">›</button>
+    <div class="slider-dots">${dots}</div>
+    <div class="slider-counter">1 / ${media.length}</div>
+  </div>`;
+}
+
+/* ═══════════════════════════════════════════════════════
+   RENDER FEED
+   ═══════════════════════════════════════════════════════ */
+function renderFeed(tab) {
+  const state = tabState[tab];
+  const container = document.getElementById('feedContainer');
+  const loadMoreWrap = document.getElementById('loadMoreWrap');
+
+  if (!state.posts.length) {
+    container.innerHTML = tab === 'following'
+      ? `<div class="empty-state">You're not following anyone yet, or the creators you follow haven't posted.<br/><a href="/top-creators">Discover top creators →</a></div>`
+      : `<div class="empty-state">No posts yet. Once people start posting, they'll show up here.</div>`;
+    loadMoreWrap.style.display = 'none';
+    return;
+  }
+
+  container.innerHTML = state.posts.map((post, idx) => {
+    const avatarHtml = post.author?.avatarUrl
+      ? `<img src="${post.author.avatarUrl}" alt="avatar"/>`
+      : (post.author?.displayName || post.username || '?').slice(0, 2).toUpperCase();
+
+    const { title, body } = parsePostContent(post.content);
+    const { short: whenShort, full: whenFull } = formatPostDate(post.createdAt);
+    const contentId = `sq-content-${tab}-${idx}`;
+    const sliderUid = `${tab}-${post._id || idx}`;
+
+    const followBtnHtml = post.isSelf ? '' : `
+      <button type="button"
+              class="follow-btn${post.isFollowing ? ' following' : ''}"
+              data-username="${escapeHtml(post.username)}"
+              data-following="${post.isFollowing ? '1' : '0'}"
+              onclick="toggleFollow(this)">
+        ${post.isFollowing ? 'Following' : 'Follow'}
+      </button>`;
+
+    return `
+      <div class="post-card" data-post-id="${post._id || ''}" data-author="${escapeHtml(post.username)}">
+        <div class="post-header">
+          <div class="mini-avatar">${avatarHtml}</div>
+          <div class="post-header-text">
+            <div class="who-row">
+              <span class="who">${escapeHtml(post.author?.displayName || post.username)}</span>
+              ${sentimentPillHtml(post.sentiment)}
+            </div>
+            <div class="meta-row" title="${escapeHtml(whenFull)}">@${escapeHtml(post.username)} · ${escapeHtml(whenShort)}</div>
+          </div>
+        </div>
+        ${followBtnHtml}
+        ${title ? `<div class="post-title">${escapeHtml(title)}</div>` : ''}
+        <div class="post-content clamped" id="${contentId}">${escapeHtml(body)}</div>
+        <button class="read-more-btn" data-target="${contentId}" style="display:none;">Read more</button>
+        ${mediaSliderHtml(post.media, sliderUid)}
+        ${hashtagsHtml(post.hashtags)}
+        <div class="post-footer">
+          <button type="button"
+                  class="like-btn${post.isLiked ? ' liked' : ''}"
+                  data-post-id="${post._id}"
+                  onclick="toggleLike(this)">
+            ${ICON_LIKE}<span class="like-count">${formatCount(post.likesCount || 0)}</span>
+          </button>
+        </div>
+      </div>`;
+  }).join('');
+
+  requestAnimationFrame(() => {
+    container.querySelectorAll('.post-content.clamped').forEach(contentEl => {
+      if (contentEl.scrollHeight > contentEl.clientHeight + 1) {
+        const btn = container.querySelector(`.read-more-btn[data-target="${contentEl.id}"]`);
+        if (btn) btn.style.display = 'inline-block';
+      }
+    });
+  });
+
+  loadMoreWrap.style.display = state.hasMore ? 'block' : 'none';
+}
+
+/* ═══════════════════════════════════════════════════════
+   EVENT DELEGATION — read more + media slider controls
+   ═══════════════════════════════════════════════════════ */
+document.getElementById('feedContainer').addEventListener('click', (e) => {
+  const readMoreBtn = e.target.closest('.read-more-btn');
+  if (readMoreBtn) {
+    const contentEl = document.getElementById(readMoreBtn.dataset.target);
+    if (!contentEl) return;
+    const isExpanded = contentEl.classList.toggle('expanded');
+    contentEl.classList.toggle('clamped', !isExpanded);
+    readMoreBtn.textContent = isExpanded ? 'Show less' : 'Read more';
+    return;
+  }
+
+  const arrowBtn = e.target.closest('.slider-arrow');
+  if (arrowBtn) {
+    const wrap = arrowBtn.closest('.post-media-slider');
+    moveSlider(wrap, parseInt(arrowBtn.dataset.dir, 10));
+    return;
+  }
+
+  const dotBtn = e.target.closest('.slider-dot');
+  if (dotBtn) {
+    const wrap = dotBtn.closest('.post-media-slider');
+    goToSlide(wrap, parseInt(dotBtn.dataset.idx, 10));
+  }
+});
+
+function moveSlider(wrap, dir) {
+  const count = parseInt(wrap.dataset.count, 10) || 1;
+  const current = parseInt(wrap.dataset.index, 10) || 0;
+  goToSlide(wrap, Math.max(0, Math.min(count - 1, current + dir)));
+}
+
+function goToSlide(wrap, idx) {
+  const track = wrap.querySelector('.slider-track');
+  const count = parseInt(wrap.dataset.count, 10) || 1;
+  idx = Math.max(0, Math.min(count - 1, idx));
+
+  wrap.dataset.index = idx;
+  track.style.transform = `translateX(-${idx * 100}%)`;
+  wrap.querySelectorAll('.slider-dot').forEach((d, i) => d.classList.toggle('active', i === idx));
+
+  const prevArrow = wrap.querySelector('.slider-arrow.prev');
+  const nextArrow = wrap.querySelector('.slider-arrow.next');
+  if (prevArrow) prevArrow.classList.toggle('disabled', idx === 0);
+  if (nextArrow) nextArrow.classList.toggle('disabled', idx === count - 1);
+
+  const counter = wrap.querySelector('.slider-counter');
+  if (counter) counter.textContent = `${idx + 1} / ${count}`;
+}
+
+/* ═══════════════════════════════════════════════════════
+   FOLLOW / UNFOLLOW — reuses the existing /api/follow and
+   /api/unfollow endpoints. Updates every card by that same
+   author across BOTH cached tabs so state stays consistent
+   if the user switches tabs. Unfollowing while on the
+   Following tab removes that author's posts from the feed
+   immediately, since they no longer belong there.
+   ═══════════════════════════════════════════════════════ */
+async function toggleFollow(btn) {
+  const username = btn.dataset.username;
+  const isFollowing = btn.dataset.following === '1';
+  const endpoint = isFollowing ? '/api/unfollow' : '/api/follow';
+
+  btn.disabled = true;
+
+  try {
+    const r = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username }),
+    });
+    const d = await r.json();
+
+    if (!d.success) {
+      btn.disabled = false;
+      return;
+    }
+
+    const nowFollowing = !isFollowing;
+
+    // Update every follow button for this author on the currently rendered tab.
+    document.querySelectorAll(`.follow-btn[data-username="${cssEscape(username)}"]`).forEach(b => {
+      b.dataset.following = nowFollowing ? '1' : '0';
+      b.classList.toggle('following', nowFollowing);
+      b.textContent = nowFollowing ? 'Following' : 'Follow';
+      b.disabled = false;
+    });
+
+    // Keep the in-memory cache for both tabs in sync so switching tabs
+    // shows correct Follow/Following state without a refetch.
+    ['discover', 'following'].forEach(tab => {
+      tabState[tab].posts.forEach(p => {
+        if (p.username === username) p.isFollowing = nowFollowing;
+      });
+    });
+
+    // If we just unfollowed someone while viewing the Following tab, their
+    // posts no longer belong here — drop them from view right away.
+    if (currentTab === 'following' && !nowFollowing) {
+      tabState.following.posts = tabState.following.posts.filter(p => p.username !== username);
+      renderFeed('following');
+    }
+
+  } catch (e) {
+    console.error('toggleFollow error:', e);
+    btn.disabled = false;
+  }
+}
+
+// Minimal CSS.escape fallback (usernames are alphanumeric/underscore in
+// this app, but escaping defensively costs nothing).
+function cssEscape(str) {
+  return window.CSS && CSS.escape ? CSS.escape(str) : String(str).replace(/["\\]/g, '\\$&');
+}
+
+/* ═══════════════════════════════════════════════════════
+   LIKE / UNLIKE
+   ═══════════════════════════════════════════════════════ */
+async function toggleLike(btn) {
+  const postId = btn.dataset.postId;
+  if (!postId) return;
+
+  btn.disabled = true;
+
+  try {
+    const r = await fetch(`/api/insights/posts/${postId}/like`, { method: 'POST' });
+    const d = await r.json();
+
+    if (!d.success) { btn.disabled = false; return; }
+
+    const liked = !!d.data.liked;
+    const likesCount = d.data.likesCount ?? 0;
+
+    btn.classList.toggle('liked', liked);
+    btn.querySelector('.like-count').textContent = formatCount(likesCount);
+
+    ['discover', 'following'].forEach(tab => {
+      const p = tabState[tab].posts.find(p => String(p._id) === String(postId));
+      if (p) { p.isLiked = liked; p.likesCount = likesCount; }
+    });
+
+  } catch (e) {
+    console.error('toggleLike error:', e);
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════
+   INIT
+   ═══════════════════════════════════════════════════════ */
+document.addEventListener('DOMContentLoaded', () => {
+  fetchFeed('discover');
+});
+</script>
+</body>
+</html>

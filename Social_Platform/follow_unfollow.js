@@ -196,7 +196,7 @@ router.post('/api/unfollow', verifyToken, async (req, res) => {
             SocialProfile.findOneAndUpdate(
                 { username: targetUsername, followersCount: { $gt: 0 } },
                 { $inc: { followersCount: -1 } },
-                { new: true }
+                { returnDocument: 'after' }
             ),
             SocialProfile.findOneAndUpdate(
                 { username: myUsername, followingCount: { $gt: 0 } },
