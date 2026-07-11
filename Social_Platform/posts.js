@@ -24,6 +24,7 @@ function sendResponse(res, statusCode, success, message, data = null) {
  * Requires `express.static` for /uploads to be registered in web.js (see the
  * setup note at the bottom of this file).
  * ==========================================================================*/
+
 const uploadDir = path.join(__dirname, '../uploads/posts');
 fs.mkdirSync(uploadDir, { recursive: true });
 
@@ -411,13 +412,3 @@ router.use((err, req, res, next) => {
 
 module.exports = router;
 
-/* ============================================================================
- * ONE-TIME SETUP NEEDED IN web.js
- * ----------------------------------------------------------------------------
- * 1. npm install multer
- * 2. Serve the uploads folder as static files, e.g.:
- *      const path = require('path');
- *      app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
- * 3. Mount this router alongside your others:
- *      app.use(require('./Social_Platform/posts'));
- * ==========================================================================*/

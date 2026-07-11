@@ -5,6 +5,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 
 const { conn, jwtSecret } = require('../db_connection');
+const { createUserWallets } = require('../Wallets/walletServices');
 const sendVerificationEmail = require('../mailer');
 const verifyToken = require('../middle/middleware');
 
@@ -37,7 +38,7 @@ function setAuthCookie(res, token) {
 // ================= SOCIAL PROFILE HELPER =================
 
 async function ensureSocialProfile(userId, username, email) {
-    
+
     const profile = await SocialProfile.findOneAndUpdate(
         { userId },
         {
@@ -131,22 +132,26 @@ router.get('/verify-email', (req, res) => {
 });
 
 // ================= VERIFY EMAIL =================
-// Note the flow: 1) users row created  2) accounts row created (ledger-style
-// defaults on the SQL side)  3) transaction committed  4) ONLY THEN, once the
-// SQL account is guaranteed to exist, do we create the Mongo SocialProfile.
-// Nothing on the Mongo side ever runs before the SQL commit succeeds.
+// Flow: 1) users row created  2) accounts row created  3) spot + futures
+// wallets created (all SQL, all in ONE transaction)  4) transaction
+// committed  5) ONLY THEN, once everything on the SQL side is guaranteed
+// to exist, do we create the Mongo SocialProfile. Nothing on the Mongo
+// side ever runs before the SQL commit succeeds.
 router.post('/verify-email', (req, res) => {
 
     const email = req.body.email?.trim();
-    const code  = req.body.code?.trim();
+    const code = req.body.code?.trim();
 
     if (!email || !code)
         return sendResponse(res, 400, false, 'Email and code required');
 
     conn.query('SELECT * FROM pending_users WHERE email = ?', [email], (err, result) => {
 
-        if (err)              return sendResponse(res, 500, false, 'Database error');
-        if (!result.length)   return sendResponse(res, 404, false, 'No pending user found');
+        if (err)
+            return sendResponse(res, 500, false, 'Database error');
+
+        if (!result.length)
+            return sendResponse(res, 404, false, 'No pending user found');
 
         const pending = result[0];
 
@@ -160,61 +165,129 @@ router.post('/verify-email', (req, res) => {
 
         conn.beginTransaction((err) => {
 
-            if (err) return sendResponse(res, 500, false, 'Transaction failed');
+            if (err)
+                return sendResponse(res, 500, false, 'Transaction failed');
 
             conn.query(
                 'INSERT INTO users (username, email, password) VALUES (?, ?, ?)',
                 [pending.username, pending.email, pending.password],
                 (userErr, userResult) => {
 
-                    if (userErr) return conn.rollback(() => sendResponse(res, 500, false, 'User creation failed'));
+                    if (userErr) {
+                        return conn.rollback(() =>
+                            sendResponse(res, 500, false, 'User creation failed')
+                        );
+                    }
 
                     const userId = userResult.insertId;
                     const accountNumber = 'ACC' + String(userId).padStart(9, '0');
 
                     conn.query(
-                        'INSERT INTO accounts(user_id, account_number, balance, status) VALUES (?, ?, ?, ?)',
+                        'INSERT INTO accounts (user_id, account_number, balance, status) VALUES (?, ?, ?, ?)',
                         [userId, accountNumber, 0, 'ACTIVE'],
                         (accountErr) => {
 
-                            if (accountErr) return conn.rollback(() => sendResponse(res, 500, false, 'Account creation failed'));
+                            if (accountErr) {
+                                return conn.rollback(() =>
+                                    sendResponse(res, 500, false, 'Account creation failed: ' + accountErr.message)
+                                );
+                            }
 
-                            conn.query('DELETE FROM pending_users WHERE email = ?', [email], (deleteErr) => {
+                            // Create Spot & Futures wallets
+                            createUserWallets(conn, userId, (walletErr, wallets) => {
 
-                                if (deleteErr) return conn.rollback(() => sendResponse(res, 500, false, 'Cleanup failed'));
+                                if (walletErr) {
+                                    console.error('⚠️ Wallet creation failed:', walletErr);
 
-                                conn.commit(async (commitErr) => {
-
-                                    if (commitErr) return conn.rollback(() => sendResponse(res, 500, false, 'Commit failed'));
-
-                                    // ---- SQL side is fully committed at this point ----
-                                    // MySQL and MongoDB can't share one atomic transaction,
-                                    // so this can't be rolled back together with the SQL insert.
-                                    // If it fails, we log it and let /api/dashboard's
-                                    // self-healing check (see below) create it on next visit —
-                                    // we do NOT fail the registration over a Mongo hiccup, since
-                                    // the user's actual account already exists in SQL.
-                                    try {
-                                        await ensureSocialProfile(userId, pending.username, pending.email);
-                                    } catch (profileErr) {
-                                        console.error('⚠️ Social profile creation failed for', pending.username, profileErr);
-                                    }
-
-                                    const token = jwt.sign(
-                                        { id: userId, email: pending.email, username: pending.username },
-                                        jwtSecret,
-                                        { expiresIn: '3d' }
+                                    return conn.rollback(() =>
+                                        sendResponse(res, 500, false, 'Wallet creation failed: ' + walletErr.message)
                                     );
+                                }
 
-                                    setAuthCookie(res, token);
+                                // Create default USDT holding for the Spot wallet
+                                conn.query(
+                                    `INSERT INTO spot_holdings
+                                    (
+                                        wallet_id,
+                                        symbol,
+                                        available_quantity,
+                                        locked_quantity,
+                                        average_buy_price,
+                                        total_cost
+                                    )
+                                    VALUES (?, 'USDT', 0.00, 0.00, 1.00, 0.00)`,
+                                    [wallets.spotWalletId],
+                                    (holdingErr) => {
 
-                                    // ✅ Redirect to dashboard after account creation
-                                    return sendResponse(res, 200, true, 'Email verified and account created successfully!', {
-                                        userId,
-                                        accountNumber,
-                                        redirectTo: '/dashboard'
-                                    });
-                                });
+                                        if (holdingErr) {
+                                            return conn.rollback(() =>
+                                                sendResponse(res, 500, false, 'Spot holding creation failed: ' + holdingErr.message)
+                                            );
+                                        }
+
+                                        // Remove pending user
+                                        conn.query(
+                                            'DELETE FROM pending_users WHERE email = ?',
+                                            [email],
+                                            (deleteErr) => {
+
+                                                if (deleteErr) {
+                                                    return conn.rollback(() =>
+                                                        sendResponse(res, 500, false, 'Cleanup failed')
+                                                    );
+                                                }
+
+                                                conn.commit(async (commitErr) => {
+
+                                                    if (commitErr) {
+                                                        return conn.rollback(() =>
+                                                            sendResponse(res, 500, false, 'Commit failed')
+                                                        );
+                                                    }
+
+                                                    // Create MongoDB social profile (outside SQL transaction)
+                                                    try {
+                                                        await ensureSocialProfile(
+                                                            userId,
+                                                            pending.username,
+                                                            pending.email
+                                                        );
+                                                    } catch (profileErr) {
+                                                        console.error(
+                                                            '⚠️ Social profile creation failed:',
+                                                            profileErr
+                                                        );
+                                                    }
+
+                                                    const token = jwt.sign(
+                                                        {
+                                                            id: userId,
+                                                            email: pending.email,
+                                                            username: pending.username
+                                                        },
+                                                        jwtSecret,
+                                                        { expiresIn: '3d' }
+                                                    );
+
+                                                    setAuthCookie(res, token);
+
+                                                    return sendResponse(
+                                                        res,
+                                                        200,
+                                                        true,
+                                                        'Email verified and account created successfully!',
+                                                        {
+                                                            userId,
+                                                            accountNumber,
+                                                            wallets,
+                                                            redirectTo: '/dashboard'
+                                                        }
+                                                    );
+                                                });
+                                            }
+                                        );
+                                    }
+                                );
                             });
                         }
                     );

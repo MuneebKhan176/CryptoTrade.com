@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const path = require('path');
+const mongoose = require('mongoose');
 
 const verifyToken = require('../middle/middleware');
 const { SocialProfile, Post } = require('./social_models');
@@ -125,6 +126,51 @@ router.post('/api/profile/avatar', verifyToken, async (req, res) => {
     } catch (err) {
         console.error('⚠️ POST /api/profile/avatar error:', err);
         return sendResponse(res, 500, false, 'Failed to update profile photo');
+    }
+});
+
+// ================= DELETE OWN POST =================
+// Soft-deletes a post (isDeleted = true) so it disappears from feeds/profile
+// but stays in the DB for auditing, same convention already used elsewhere
+// in Post. Only the post's own author (matched via their SocialProfile
+// username, not just userId) can delete it. Also keeps SocialProfile.postsCount
+// in sync so the "Posts" stat on the profile page stays accurate without a
+// full reload.
+router.delete('/api/posts/:id', verifyToken, async (req, res) => {
+
+    try {
+        const userId = req.user.id;
+        const { id } = req.params;
+
+        if (!mongoose.Types.ObjectId.isValid(id))
+            return sendResponse(res, 400, false, 'Invalid post id');
+
+        const profile = await SocialProfile.findOne({ userId });
+
+        if (!profile)
+            return sendResponse(res, 404, false, 'Social profile not found for this account');
+
+        const post = await Post.findById(id);
+
+        if (!post || post.isDeleted)
+            return sendResponse(res, 404, false, 'Post not found');
+
+        if (post.username !== profile.username)
+            return sendResponse(res, 403, false, 'You can only delete your own posts');
+
+        post.isDeleted = true;
+        await post.save();
+
+        await SocialProfile.updateOne(
+            { userId },
+            { $inc: { postsCount: -1 } }
+        );
+
+        return sendResponse(res, 200, true, 'Post deleted successfully', { postId: post._id });
+
+    } catch (err) {
+        console.error('⚠️ DELETE /api/posts/:id error:', err);
+        return sendResponse(res, 500, false, 'Failed to delete post');
     }
 });
 

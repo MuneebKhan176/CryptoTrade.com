@@ -9,7 +9,7 @@
   :root{
     --bg:#000000; --surface:#0a0a0a; --surface2:#111111; --surface3:#161616;
     --border:#1a1a1a; --border2:#222222; --text:#ffffff; --text-2:#888888; --text-3:#444444;
-    --blue:#3b82f6; --blue-dim:rgba(59,130,246,.12); --green:#22c55e; --red:#ef4444;
+    --blue:#3b82f6; --blue-dim:rgba(59,130,246,.12); --green:#22c55e; --red:#ef4444; --red-dim:rgba(239,68,68,.12);
   }
   html,body{height:100%;}
   body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:var(--bg);color:var(--text);display:flex;flex-direction:column;}
@@ -42,11 +42,36 @@
 
   .sys-row{align-self:center;font-size:.74rem;color:var(--text-3);background:var(--surface2);padding:5px 12px;border-radius:100px;margin:4px 0;}
 
-  .input-row{display:flex;gap:10px;padding:14px 20px;border-top:1px solid var(--border);background:var(--surface);flex-shrink:0;}
+  .input-row{display:flex;gap:10px;padding:14px 20px;border-top:1px solid var(--border);background:var(--surface);flex-shrink:0;position:relative;}
   .chat-input{flex:1;background:var(--surface2);border:1px solid var(--border2);border-radius:8px;color:#fff;font-size:.87rem;padding:11px 14px;outline:none;}
   .chat-input:focus{border-color:#444;}
   .chat-send{background:var(--blue);border:none;border-radius:8px;padding:0 20px;color:#fff;font-size:.86rem;font-weight:600;cursor:pointer;}
   .chat-send:disabled{opacity:.4;cursor:not-allowed;}
+
+  .emoji-btn{
+    flex-shrink:0;width:42px;height:42px;border-radius:8px;border:1px solid var(--border2);
+    background:var(--surface2);color:var(--text-2);cursor:pointer;
+    display:flex;align-items:center;justify-content:center;transition:all .18s;
+  }
+  .emoji-btn svg{width:20px;height:20px;stroke:currentColor;}
+  .emoji-btn:hover{color:#fff;border-color:#444;background:var(--surface3);}
+  .emoji-btn.active{color:var(--blue);border-color:var(--blue);background:var(--blue-dim);}
+  .emoji-btn:disabled{opacity:.4;cursor:not-allowed;}
+
+  .emoji-picker{
+    position:absolute;bottom:64px;left:20px;width:290px;max-height:260px;overflow-y:auto;
+    background:var(--surface2);border:1px solid var(--border2);border-radius:10px;
+    padding:10px;display:none;flex-direction:column;gap:8px;
+    box-shadow:0 8px 24px rgba(0,0,0,.5);z-index:20;
+  }
+  .emoji-picker.open{display:flex;}
+  .emoji-group-label{font-size:.65rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text-3);padding:2px 2px 0;}
+  .emoji-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:2px;}
+  .emoji-grid button{
+    background:none;border:none;font-size:1.25rem;line-height:1;padding:6px 0;
+    border-radius:6px;cursor:pointer;transition:background .15s;
+  }
+  .emoji-grid button:hover{background:var(--surface3);}
 
   .sidebar{width:220px;flex-shrink:0;border-left:1px solid var(--border);background:var(--surface);display:flex;flex-direction:column;padding:18px 16px;}
   .sidebar h4{font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text-3);margin-bottom:12px;}
@@ -59,7 +84,40 @@
 
   ::-webkit-scrollbar{width:5px;} ::-webkit-scrollbar-track{background:transparent;} ::-webkit-scrollbar-thumb{background:var(--border2);border-radius:99px;}
 
-  @media(max-width:700px){ .sidebar{display:none;} .msg-row{max-width:82%;} }
+  /* ── Delete-room confirmation modal ── */
+  .modal-overlay{
+    position:fixed;inset:0;background:rgba(0,0,0,0.65);backdrop-filter:blur(3px);
+    display:flex;align-items:center;justify-content:center;z-index:1000;
+    opacity:0;pointer-events:none;transition:opacity .18s ease;
+  }
+  .modal-overlay.open{opacity:1;pointer-events:auto;}
+  .modal-card{
+    width:100%;max-width:380px;margin:0 20px;
+    background:var(--surface2);border:1px solid var(--border2);border-radius:16px;
+    padding:26px 26px 22px;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,0.5);
+    transform:translateY(8px) scale(.97);transition:transform .18s ease;
+  }
+  .modal-overlay.open .modal-card{transform:translateY(0) scale(1);}
+  .modal-icon{
+    width:52px;height:52px;margin:0 auto 16px;border-radius:50%;
+    background:var(--red-dim);border:1px solid rgba(239,68,68,.3);
+    display:flex;align-items:center;justify-content:center;color:var(--red);
+  }
+  .modal-icon svg{width:24px;height:24px;}
+  .modal-title{font-size:1.05rem;font-weight:700;letter-spacing:-.2px;margin-bottom:8px;}
+  .modal-text{font-size:.85rem;color:var(--text-2);line-height:1.55;margin-bottom:22px;}
+  .modal-actions{display:flex;gap:10px;}
+  .modal-btn{
+    flex:1;padding:11px 0;border-radius:9px;font-size:.86rem;font-weight:700;
+    cursor:pointer;border:1px solid var(--border2);transition:all .15s;
+  }
+  .modal-btn-cancel{background:var(--surface3);color:var(--text-2);}
+  .modal-btn-cancel:hover{background:#ffffff;color:#000000;border-color:#ffffff;}
+  .modal-btn-delete{background:var(--red);color:#fff;border-color:var(--red);}
+  .modal-btn-delete:hover{background:#dc2626;border-color:#dc2626;}
+  .modal-btn:disabled{opacity:.5;cursor:not-allowed;}
+
+  @media(max-width:700px){ .sidebar{display:none;} .msg-row{max-width:82%;} .emoji-picker{width:250px;left:12px;} }
 </style>
 </head>
 <body>
@@ -80,6 +138,15 @@
   <div class="chat-col">
     <div class="msgs" id="msgs"></div>
     <div class="input-row">
+      <button class="emoji-btn" id="emojiBtn" type="button" title="Insert emoji" disabled>
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="9"/>
+          <path d="M8.5 14.5c1 1.2 2.2 1.8 3.5 1.8s2.5-.6 3.5-1.8"/>
+          <line x1="8.5" y1="9.5" x2="8.5" y2="9.51"/>
+          <line x1="15.5" y1="9.5" x2="15.5" y2="9.51"/>
+        </svg>
+     </button>
+      <div class="emoji-picker" id="emojiPicker"></div>
       <input class="chat-input" id="msgInput" type="text" placeholder="Type a message…" maxlength="2000" disabled/>
       <button class="chat-send" id="sendBtn" onclick="sendMessage()" disabled>Send</button>
     </div>
@@ -95,6 +162,27 @@
   <div>Connecting to the room…</div>
 </div>
 
+<!-- ── Delete-room confirmation modal (replaces window.confirm) ── -->
+<div class="modal-overlay" id="deleteModalOverlay">
+  <div class="modal-card">
+    <div class="modal-icon">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="3 6 5 6 21 6"/>
+        <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+        <path d="M10 11v6"/>
+        <path d="M14 11v6"/>
+        <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
+      </svg>
+    </div>
+    <div class="modal-title">Delete this room?</div>
+    <div class="modal-text">Are you sure you want to permanently delete this room for everyone? This action cannot be undone.</div>
+    <div class="modal-actions">
+      <button class="modal-btn modal-btn-cancel" id="modalCancelBtn">Cancel</button>
+      <button class="modal-btn modal-btn-delete" id="modalDeleteBtn">Delete</button>
+    </div>
+  </div>
+</div>
+
 <script>
 const roomId = window.location.pathname.split('/').pop();
 let ws = null;
@@ -103,6 +191,96 @@ let isOwner = false;
 let manualLeave = false;
 
 function $(id) { return document.getElementById(id); }
+
+/* ═══════════════════════════════════════════════════════
+   DELETE CONFIRMATION MODAL
+   Promise-based replacement for window.confirm(). Resolves
+   true if the user clicks Delete, false for Cancel/backdrop/Esc.
+   ═══════════════════════════════════════════════════════ */
+const deleteModalOverlay = document.getElementById('deleteModalOverlay');
+const modalCancelBtn      = document.getElementById('modalCancelBtn');
+const modalDeleteBtn      = document.getElementById('modalDeleteBtn');
+let modalResolver = null;
+
+function openDeleteModal() {
+  return new Promise((resolve) => {
+    modalResolver = resolve;
+    deleteModalOverlay.classList.add('open');
+    modalDeleteBtn.disabled = false;
+    modalDeleteBtn.textContent = 'Delete';
+  });
+}
+
+function closeDeleteModal(result) {
+  deleteModalOverlay.classList.remove('open');
+  if (modalResolver) {
+    modalResolver(result);
+    modalResolver = null;
+  }
+}
+
+modalCancelBtn.addEventListener('click', () => closeDeleteModal(false));
+modalDeleteBtn.addEventListener('click', () => closeDeleteModal(true));
+deleteModalOverlay.addEventListener('click', (e) => {
+  if (e.target === deleteModalOverlay) closeDeleteModal(false);
+});
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && deleteModalOverlay.classList.contains('open')) closeDeleteModal(false);
+});
+
+// ---------- Emoji Picker ----------
+const EMOJI_GROUPS = [
+  {
+    label: 'Crypto & Trading',
+    emojis: ['🪙','💰','💸','📈','📉','💹','🚀','⚡','🔥','💎','🏦','💳','⚖️','🔒','🔓','🌕','🐂','🐻','⛏️','🧾']
+  },
+  {
+    label: 'Faces',
+    emojis: ['😀','😁','😂','🤣','😊','😍','😘','😎','🤔','😅','🙂','😢','😭','😡','😱','🥳','😴','😇','🤯','🥶']
+  },
+  {
+    label: 'Tasks & Important',
+    emojis: ['✅','❌','⚠️','📌','📝','🕒','⏰','🔔','📢','❗','❓','💡','🔧','📊','🎯','🚩','👍','👎','🙌','🙏']
+  }
+];
+
+function buildEmojiPicker() {
+  const picker = $('emojiPicker');
+  picker.innerHTML = EMOJI_GROUPS.map(group => `
+    <div class="emoji-group">
+      <div class="emoji-group-label">${group.label}</div>
+      <div class="emoji-grid">
+        ${group.emojis.map(e => `<button type="button" data-emoji="${e}">${e}</button>`).join('')}
+      </div>
+    </div>
+  `).join('');
+
+  picker.addEventListener('click', (e) => {
+    const btn = e.target.closest('button[data-emoji]');
+    if (!btn) return;
+    insertEmoji(btn.dataset.emoji);
+  });
+}
+
+function insertEmoji(emoji) {
+  const input = $('msgInput');
+  if (input.disabled) return;
+  const start = input.selectionStart ?? input.value.length;
+  const end = input.selectionEnd ?? input.value.length;
+  input.value = input.value.slice(0, start) + emoji + input.value.slice(end);
+  const newPos = start + emoji.length;
+  input.focus();
+  input.setSelectionRange(newPos, newPos);
+}
+
+function toggleEmojiPicker(force) {
+  const picker = $('emojiPicker');
+  const btn = $('emojiBtn');
+  const open = force !== undefined ? force : !picker.classList.contains('open');
+  picker.classList.toggle('open', open);
+  btn.classList.toggle('active', open);
+}
+// -----------------------------------
 
 function setConn(state, label) {
   const dot = $('connDot');
@@ -206,6 +384,7 @@ function connect() {
         $('deleteBtn').style.display = isOwner ? 'inline-flex' : 'none';
         $('msgInput').disabled = false;
         $('sendBtn').disabled = false;
+        $('emojiBtn').disabled = false;
         updateUsersList(msg.users || []);
         showChatUI();
         $('msgInput').focus();
@@ -238,6 +417,8 @@ function connect() {
     setConn('bad', 'Disconnected');
     $('msgInput').disabled = true;
     $('sendBtn').disabled = true;
+    $('emojiBtn').disabled = true;
+    toggleEmojiPicker(false);
     if (!manualLeave) {
       appendSystem('Connection lost. Returning to the room list…');
       setTimeout(() => { window.location.href = '/chat'; }, 2000);
@@ -255,11 +436,27 @@ function sendMessage() {
   input.value = '';
 }
 
-$('msgInput')?.addEventListener?.('keydown', () => {}); // no-op safeguard before layout exists
 document.addEventListener('DOMContentLoaded', () => {
+  buildEmojiPicker();
+
   document.getElementById('msgInput').addEventListener('keydown', (e) => {
     if (e.key === 'Enter') sendMessage();
   });
+
+  $('emojiBtn').addEventListener('click', (e) => {
+    e.stopPropagation();
+    toggleEmojiPicker();
+  });
+
+  document.addEventListener('click', (e) => {
+    const picker = $('emojiPicker');
+    if (picker.classList.contains('open') &&
+        !picker.contains(e.target) &&
+        e.target !== $('emojiBtn')) {
+      toggleEmojiPicker(false);
+    }
+  });
+
   init();
 });
 
@@ -272,8 +469,13 @@ function leaveRoom() {
   window.location.href = '/chat';
 }
 
-function confirmDelete() {
-  if (!confirm('Permanently delete this room for everyone? This cannot be undone.')) return;
+async function confirmDelete() {
+  const confirmed = await openDeleteModal();
+  if (!confirmed) return;
+
+  modalDeleteBtn.disabled = true;
+  modalDeleteBtn.textContent = 'Deleting…';
+
   if (ws && ws.readyState === WebSocket.OPEN) {
     manualLeave = true;
     ws.send(JSON.stringify({ type: 'delete_room' }));

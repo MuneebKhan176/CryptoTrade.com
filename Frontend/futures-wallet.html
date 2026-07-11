@@ -1,0 +1,489 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Futures Wallet — CryptoTrade</title>
+  <style>
+    *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+
+    :root {
+      --bg:        #000000;
+      --surface:   #0a0a0a;
+      --surface2:  #111111;
+      --surface3:  #161616;
+      --border:    #1a1a1a;
+      --border2:   #222222;
+      --text:      #ffffff;
+      --text-2:    #888888;
+      --text-3:    #444444;
+      --blue:      #3b82f6;
+      --blue-dim:  rgba(59,130,246,0.12);
+      --green:     #22c55e;
+      --red:       #ef4444;
+      --sidebar-w: 220px;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
+    }
+
+    /* ── Topnav (shared with dashboard) ── */
+    .topnav {
+      height: 60px;
+      background: rgba(0,0,0,0.9);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      padding: 0 24px;
+      gap: 16px;
+      position: sticky;
+      top: 0;
+      z-index: 200;
+      backdrop-filter: blur(12px);
+    }
+    .topnav-logo {
+      font-size: 1.15rem;
+      font-weight: 800;
+      letter-spacing: -0.5px;
+      background: linear-gradient(90deg,#fff 0%,#93c5fd 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      text-decoration: none;
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      flex-shrink: 0;
+      width: var(--sidebar-w);
+    }
+    .topnav-logo-dot {
+      width: 7px; height: 7px;
+      background: var(--blue);
+      border-radius: 50%;
+      -webkit-text-fill-color: initial;
+      flex-shrink: 0;
+      animation: pdot 2s infinite;
+    }
+    @keyframes pdot {
+      0%,100%{opacity:1;transform:scale(1)}
+      50%{opacity:.4;transform:scale(.7)}
+    }
+    .topnav-right {
+      margin-left: auto;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .nav-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 14px;
+      border-radius: 7px;
+      font-size: .82rem;
+      font-weight: 600;
+      text-decoration: none;
+      border: 1px solid var(--border2);
+      color: var(--text-2);
+      background: transparent;
+      cursor: pointer;
+      transition: all .18s;
+    }
+    .nav-pill:hover { color:#fff; border-color:#444; background: var(--surface2); }
+    .nav-pill.blue { background: var(--blue); border-color: var(--blue); color:#fff; }
+    .nav-pill.blue:hover { opacity:.88; }
+    .avatar {
+      width: 34px; height: 34px;
+      border-radius: 50%;
+      background: linear-gradient(135deg,#3b82f6,#1d4ed8);
+      display: flex; align-items: center; justify-content: center;
+      font-size: .78rem; font-weight: 700; color:#fff;
+      cursor: pointer; flex-shrink: 0;
+      border: 2px solid var(--border2);
+      overflow: hidden;
+    }
+    .avatar img { width:100%; height:100%; object-fit:cover; }
+
+    /* ── Layout ── */
+    .layout { display: flex; flex: 1; }
+
+    /* ── Sidebar (shared with dashboard) ── */
+    .sidebar {
+      width: var(--sidebar-w);
+      background: var(--surface);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      padding: 16px 0;
+      position: sticky;
+      top: 60px;
+      height: calc(100vh - 60px);
+      overflow-y: auto;
+      flex-shrink: 0;
+    }
+    .sidebar-section { padding: 0 10px; margin-bottom: 8px; }
+    .sidebar-label {
+      font-size: .67rem; font-weight: 700; letter-spacing: .1em;
+      text-transform: uppercase; color: var(--text-3);
+      padding: 0 10px; margin-bottom: 6px;
+    }
+    .sidebar-link {
+      display: flex; align-items: center; gap: 10px;
+      padding: 9px 12px; border-radius: 7px;
+      font-size: .85rem; font-weight: 500;
+      color: var(--text-2); text-decoration: none;
+      transition: all .15s; cursor: pointer;
+      border: none; background: none; width: 100%; text-align: left;
+    }
+    .sidebar-link:hover { background: var(--surface2); color: #fff; }
+    .sidebar-link.active { background: var(--blue-dim); color: var(--blue); }
+    .sidebar-link .icon { font-size: 1rem; width: 20px; text-align: center; flex-shrink: 0; }
+    .sidebar-divider { border: none; border-top: 1px solid var(--border); margin: 8px 10px; }
+    .sidebar-logout { margin-top: auto; padding: 0 10px 8px; }
+
+    /* ── Main ── */
+    .main { flex: 1; overflow-x: hidden; }
+    .panel { padding: 28px 32px; }
+    .page-title { font-size: 1.4rem; font-weight: 700; letter-spacing: -.5px; color: #fff; margin-bottom: 4px; }
+    .page-sub { font-size: .83rem; color: var(--text-2); margin-bottom: 22px; }
+
+    /* ── Wallet sub-tabs ── */
+    .wallet-tabs { display: flex; gap: 8px; margin-bottom: 24px; border-bottom: 1px solid var(--border); }
+    .wallet-tab {
+      padding: 10px 18px; font-size: .84rem; font-weight: 600;
+      color: var(--text-2); text-decoration: none; border-radius: 7px 7px 0 0;
+      border: 1px solid transparent; border-bottom: none;
+      transition: all .15s; position: relative; top: 1px;
+    }
+    .wallet-tab:hover { color: #fff; }
+    .wallet-tab.active {
+      color: var(--blue); background: var(--surface);
+      border-color: var(--border); border-bottom: 1px solid var(--surface);
+    }
+
+    /* ── Balance card ── */
+    .balance-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 12px; padding: 24px 28px; margin-bottom: 24px;
+      display: flex; align-items: center; gap: 32px;
+      position: relative; overflow: hidden; flex-wrap: wrap;
+    }
+    .balance-card::before {
+      content:''; position:absolute; top:-40px; left:-40px;
+      width:220px; height:220px;
+      background: radial-gradient(circle, rgba(59,130,246,.07) 0%, transparent 70%);
+      pointer-events: none;
+    }
+    .balance-main { flex: 1; min-width: 200px; }
+    .balance-label { font-size: .72rem; color: var(--text-3); text-transform: uppercase; letter-spacing: .08em; margin-bottom: 6px; }
+    .balance-value {
+      font-size: 2.2rem; font-weight: 800; letter-spacing: -1px;
+      background: linear-gradient(90deg,#fff 0%,#93c5fd 80%);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+    }
+    .balance-account { font-size: .78rem; color: var(--text-3); margin-top: 4px; }
+    .balance-actions { display: flex; gap: 10px; }
+    .btn-sm {
+      padding: 8px 16px; border-radius: 7px; font-size: .8rem; font-weight: 600;
+      cursor: pointer; text-decoration: none; border: none; transition: all .15s;
+      display: inline-flex; align-items: center; gap: 5px;
+    }
+    .btn-sm.primary { background: var(--blue); color:#fff; }
+    .btn-sm.primary:hover { opacity:.88; }
+    .btn-sm.ghost { background: var(--surface2); border: 1px solid var(--border2); color: var(--text-2); }
+    .btn-sm.ghost:hover { color:#fff; border-color:#444; }
+    .badge-active { background:rgba(34,197,94,.12); color:var(--green); font-size:.7rem; font-weight:700; padding:2px 8px; border-radius:100px; border:1px solid rgba(34,197,94,.2); }
+
+    /* ── Section head ── */
+    .sec-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+    .sec-head h3 { font-size: .95rem; font-weight: 700; }
+
+    /* ── Tables ── */
+    .table-wrap { border: 1px solid var(--border); border-radius: 10px; overflow: hidden; background: var(--surface); }
+    table { width:100%; border-collapse: collapse; }
+    thead { background: var(--surface2); }
+    th { padding: 11px 16px; font-size: .7rem; font-weight: 700; text-transform: uppercase; letter-spacing: .07em; color: var(--text-3); text-align: left; }
+    th:not(:first-child) { text-align: right; }
+    td { padding: 13px 16px; font-size: .86rem; border-bottom: 1px solid var(--border); vertical-align: middle; }
+    td:not(:first-child) { text-align: right; }
+    tbody tr:last-child td { border-bottom: none; }
+    tbody tr:hover td { background: rgba(255,255,255,.015); }
+
+    .coin-cell { display:flex; align-items:center; gap:10px; }
+    .coin-icon { width:32px; height:32px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:.85rem; font-weight:700; flex-shrink:0; }
+    .coin-icon.btc  { background:rgba(247,147,26,.15); color:#f7931a; }
+    .coin-icon.eth  { background:rgba(98,126,234,.15); color:#627eea; }
+    .coin-icon.sol  { background:rgba(153,69,255,.15); color:#9945ff; }
+    .coin-icon.xrp  { background:rgba(0,170,228,.15); color:#00aae4; }
+    .coin-icon.bnb  { background:rgba(240,185,11,.15); color:#f0b90b; }
+    .coin-icon.usdt { background:rgba(38,161,123,.15); color:#26a17b; }
+    .coin-icon.usdc { background:rgba(39,117,202,.15); color:#2775ca; }
+    .coin-icon.default { background:rgba(136,136,136,.15); color:#aaaaaa; }
+    .coin-name { font-weight:600; font-size:.88rem; }
+    .coin-sym  { font-size:.72rem; color:var(--text-3); }
+
+    .empty-state { text-align:center; padding: 46px 20px; color: var(--text-3); }
+    .empty-state .icon { font-size: 1.8rem; margin-bottom: 10px; }
+    .empty-state p { font-size: .84rem; }
+
+    .spinner-inline {
+      display:inline-block; width:14px; height:14px;
+      border:2px solid var(--border2); border-top-color: var(--blue);
+      border-radius:50%; animation: spin .7s linear infinite;
+      vertical-align:middle; margin-right:6px;
+    }
+    @keyframes spin { to { transform:rotate(360deg); } }
+
+    footer {
+      border-top: 1px solid var(--border); background: var(--surface);
+      padding: 18px 32px; display: flex; align-items: center;
+      justify-content: space-between; flex-wrap: wrap; gap: 10px;
+      margin-left: var(--sidebar-w);
+    }
+    footer p { font-size:.75rem; color:var(--text-3); }
+    .footer-links { display:flex; gap:16px; }
+    .footer-links a { font-size:.75rem; color:var(--text-3); text-decoration:none; transition:color .15s; }
+    .footer-links a:hover { color:var(--text-2); }
+
+    ::-webkit-scrollbar { width:5px; }
+    ::-webkit-scrollbar-track { background:transparent; }
+    ::-webkit-scrollbar-thumb { background:var(--border2); border-radius:99px; }
+    .fade-in { animation: fadeIn .35s ease forwards; }
+    @keyframes fadeIn { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
+
+    @media(max-width:768px) {
+      :root { --sidebar-w: 0px; }
+      .sidebar { display:none; }
+      footer { margin-left:0; }
+      .panel { padding:20px 16px; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ── Topnav ── -->
+<header class="topnav">
+  <a href="/" class="topnav-logo">
+    <span class="topnav-logo-dot"></span>CryptoTrade
+  </a>
+  <div class="topnav-right">
+    <a href="/dashboard" class="nav-pill">⊞ Dashboard</a>
+    <a href="/crypto-square" class="nav-pill">🟦 Crypto Square</a>
+    <a href="/chat" class="nav-pill">💬 Live Chat</a>
+    <a href="/profile" class="avatar" id="avatarEl" title="Social Profile">?</a>
+  </div>
+</header>
+
+<div class="layout">
+
+  <!-- ── Sidebar ── -->
+  <aside class="sidebar">
+    <div class="sidebar-section">
+      <div class="sidebar-label">Main</div>
+      <a href="/dashboard" class="sidebar-link">
+        <span class="icon">⊞</span> Overview
+      </a>
+      <a href="/futures-wallet" class="sidebar-link active">
+        <span class="icon">👛</span> Wallets
+      </a>
+      <a href="/dashboard#trade" class="sidebar-link">
+        <span class="icon">📈</span> Trade
+      </a>
+      <a href="/dashboard#account" class="sidebar-link">
+        <span class="icon">👤</span> Account
+      </a>
+      <a href="/dashboard#market" class="sidebar-link">
+        <span class="icon">🌐</span> Markets
+      </a>
+    </div>
+    <hr class="sidebar-divider"/>
+    <div class="sidebar-section">
+      <div class="sidebar-label">Social</div>
+      <a href="/crypto-square" class="sidebar-link">
+        <span class="icon">🟦</span> Crypto Square
+      </a>
+      <a href="/chat" class="sidebar-link">
+        <span class="icon">💬</span> Live Chat
+      </a>
+      <a href="/profile" class="sidebar-link">
+        <span class="icon">🪪</span> Social Profile
+      </a>
+      <a href="/top-creators" class="sidebar-link">
+        <span class="icon">🏆</span> Follow Top Creators
+      </a>
+    </div>
+    <hr class="sidebar-divider"/>
+    <div class="sidebar-section">
+      <div class="sidebar-label">Finance</div>
+      <a href="/dashboard#transfer" class="sidebar-link">
+        <span class="icon">↔</span> Send
+      </a>
+      <a href="/dashboard#demo" class="sidebar-link">
+        <span class="icon">🎁</span> Demo Funds
+      </a>
+    </div>
+    <hr class="sidebar-divider"/>
+    <div class="sidebar-section">
+      <div class="sidebar-label">Help</div>
+      <a href="/dashboard#support" class="sidebar-link">
+        <span class="icon">🛡</span> Support
+      </a>
+    </div>
+    <div class="sidebar-logout">
+      <hr class="sidebar-divider"/>
+      <a href="http://localhost:7070/logout" class="sidebar-link">
+        <span class="icon">⬡</span> Log out
+      </a>
+    </div>
+  </aside>
+
+  <main class="main">
+    <div class="panel fade-in">
+      <div class="page-title">Futures Wallet</div>
+      <div class="page-sub" id="pageSub">Manage the Futures Positions(LONG/SHORT) through your Futures wallet.</div>
+
+      <div class="wallet-tabs">
+        <a href="/funding-wallet" class="wallet-tab">💰 Funding</a>
+        <a href="/spot-wallet" class="wallet-tab">📊 Spot</a>
+        <a href="/futures-wallet" class="wallet-tab active">📉 Futures</a>
+      </div>
+
+      <div class="balance-card">
+        <div class="balance-main">
+          <div class="balance-label">Futures Wallet — Available Margin</div>
+          <div class="balance-value" id="balanceDisplay">$0.00</div>
+          <div class="balance-account" id="accountNum">Wallet ID: —</div>
+        </div>
+        <div class="balance-actions">
+          <span class="badge-active" id="statusBadge">ACTIVE</span>
+        </div>
+      </div>
+
+      <div class="quick-stats" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:28px;">
+        <div class="stat-chip" style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px 18px;">
+          <div style="font-size:.7rem;color:var(--text-3);text-transform:uppercase;letter-spacing:.07em;margin-bottom:6px;">Wallet Balance</div>
+          <div style="font-size:1.1rem;font-weight:700;color:#fff;" id="stat-walletBalance">—</div>
+        </div>
+        <div class="stat-chip" style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px 18px;">
+          <div style="font-size:.7rem;color:var(--text-3);text-transform:uppercase;letter-spacing:.07em;margin-bottom:6px;">Available Margin</div>
+          <div style="font-size:1.1rem;font-weight:700;color:var(--green);" id="stat-availableMargin">—</div>
+        </div>
+        <div class="stat-chip" style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px 18px;">
+          <div style="font-size:.7rem;color:var(--text-3);text-transform:uppercase;letter-spacing:.07em;margin-bottom:6px;">Used Margin</div>
+          <div style="font-size:1.1rem;font-weight:700;color:#fff;" id="stat-usedMargin">—</div>
+        </div>
+      </div>
+
+      <div class="sec-head">
+        <h3>Open Positions</h3>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Symbol</th><th>Side</th><th>Quantity</th><th>Entry Price</th><th>Leverage</th><th>PnL</th>
+            </tr>
+          </thead>
+          <tbody id="positionsTable">
+            <tr><td colspan="6"><div class="empty-state"><div class="icon">📉</div><p>Position tracking is coming soon — this wallet currently shows your available margin only.</p></div></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+</div>
+
+<footer>
+  <p>© 2025 CryptoTrade · Demo trading platform · Created by Muneeb</p>
+  <div class="footer-links">
+    <a href="/">Home</a>
+    <a href="/contact">Support</a>
+    <a href="#">Privacy</a>
+    <a href="#">Terms</a>
+  </div>
+</footer>
+
+<script>
+/* Icon/colour mapping shared across all three wallet pages */
+const ASSET_META = {
+  BTC:  { name:'Bitcoin',  icon:'₿', cls:'btc'  },
+  ETH:  { name:'Ethereum', icon:'Ξ', cls:'eth'  },
+  SOL:  { name:'Solana',   icon:'◎', cls:'sol'  },
+  XRP:  { name:'XRP',      icon:'✕', cls:'xrp'  },
+  BNB:  { name:'BNB',      icon:'B', cls:'bnb'  },
+  USDT: { name:'Tether',   icon:'₮', cls:'usdt' },
+  USDC: { name:'USD Coin', icon:'$', cls:'usdc' },
+};
+function assetMeta(symbol) {
+  return ASSET_META[symbol] || { name: symbol, icon: (symbol || '?')[0], cls: 'default' };
+}
+function fmtUsd(n) {
+  n = parseFloat(n) || 0;
+  return '$' + n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+function fmtQty(n) {
+  n = parseFloat(n) || 0;
+  return n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 8 });
+}
+
+/* Topnav avatar + username, reusing the same /api/dashboard payload the
+   main dashboard uses (contains user, account, socialProfile). */
+async function loadIdentity() {
+  try {
+    const r = await fetch('/api/dashboard');
+    const d = await r.json();
+    if (!d.success) { window.location.href = '/login'; return; }
+    const avatarEl = document.getElementById('avatarEl');
+    const initials = (d.data.user.username || '?').slice(0, 2).toUpperCase();
+    const socialAvatarUrl = d.data.socialProfile && d.data.socialProfile.avatarUrl;
+    if (socialAvatarUrl) avatarEl.innerHTML = `<img src="${socialAvatarUrl}" alt="avatar"/>`;
+    else avatarEl.textContent = initials;
+  } catch (e) { console.error('loadIdentity error:', e); }
+}
+
+/* Futures wallet = margin balances straight from the futures_wallet table (one row per user). */
+async function loadFuturesWallet() {
+  try {
+    const r = await fetch('/api/wallets/futures');
+    const d = await r.json();
+
+    if (!d.success) {
+      document.getElementById('balanceDisplay').textContent = '—';
+      document.getElementById('pageSub').textContent = d.message || 'Could not load futures wallet.';
+      return;
+    }
+
+    const { walletId, status, walletBalance, availableMargin, usedMargin } = d.data;
+
+    document.getElementById('balanceDisplay').textContent = fmtUsd(availableMargin);
+    document.getElementById('accountNum').textContent = 'Wallet ID: ' + (walletId != null ? walletId : '—');
+    document.getElementById('stat-walletBalance').textContent = fmtUsd(walletBalance);
+    document.getElementById('stat-availableMargin').textContent = fmtUsd(availableMargin);
+    document.getElementById('stat-usedMargin').textContent = fmtUsd(usedMargin);
+
+    const badge = document.getElementById('statusBadge');
+    badge.textContent = status || 'ACTIVE';
+    badge.style.color = status === 'BLOCKED' ? 'var(--red)' : 'var(--green)';
+    badge.style.background = status === 'BLOCKED' ? 'rgba(239,68,68,.12)' : 'rgba(34,197,94,.12)';
+    badge.style.borderColor = status === 'BLOCKED' ? 'rgba(239,68,68,.2)' : 'rgba(34,197,94,.2)';
+  } catch (e) {
+    console.error('loadFuturesWallet error:', e);
+    document.getElementById('pageSub').textContent = 'Network error loading wallet.';
+  }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  loadIdentity();
+  loadFuturesWallet();
+});
+</script>
+</body>
+</html>
