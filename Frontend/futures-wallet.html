@@ -190,7 +190,7 @@
       -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
     }
     .balance-account { font-size: .78rem; color: var(--text-3); margin-top: 4px; }
-    .balance-actions { display: flex; gap: 10px; }
+    .balance-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
     .btn-sm {
       padding: 8px 16px; border-radius: 7px; font-size: .8rem; font-weight: 600;
       cursor: pointer; text-decoration: none; border: none; transition: all .15s;
@@ -241,6 +241,48 @@
       vertical-align:middle; margin-right:6px;
     }
     @keyframes spin { to { transform:rotate(360deg); } }
+
+    /* ── Modal (Internal Transfer) ── */
+    .modal-overlay {
+      display:none; position:fixed; inset:0; background:rgba(0,0,0,.6);
+      z-index:500; align-items:center; justify-content:center; padding:20px;
+    }
+    .modal-overlay.open { display:flex; }
+    .modal-card {
+      width:100%; max-width:420px; background:var(--surface); border:1px solid var(--border);
+      border-radius:12px; overflow:hidden; box-shadow:0 20px 60px rgba(0,0,0,.6);
+    }
+    .modal-header {
+      display:flex; align-items:center; justify-content:space-between;
+      padding:16px 20px; border-bottom:1px solid var(--border);
+    }
+    .modal-header h3 { font-size:1rem; font-weight:700; }
+    .modal-close { background:none; border:none; color:var(--text-2); font-size:1.1rem; cursor:pointer; }
+    .modal-close:hover { color:#fff; }
+    .modal-body { padding:20px; }
+
+    /* ── Forms (used inside the transfer modal) ── */
+    .form-group { margin-bottom:16px; }
+    .form-group label { display:block; font-size:.78rem; color:var(--text-2); margin-bottom:6px; font-weight:500; }
+    .form-input {
+      width:100%; background: var(--surface2); border: 1px solid var(--border2);
+      border-radius:7px; color: var(--text); font-size:.88rem;
+      padding: 10px 13px; outline:none; transition: border-color .2s;
+    }
+    .form-input:focus { border-color:#444; }
+    .form-input:disabled { color: var(--text-3); cursor:not-allowed; }
+    .form-input::placeholder { color:var(--text-3); }
+    .form-note { font-size:.73rem; color:var(--text-3); margin-top:5px; }
+    .form-submit {
+      width:100%; padding:11px; background: var(--blue); color:#fff;
+      border:none; border-radius:7px; font-size:.9rem; font-weight:600;
+      cursor:pointer; transition:.15s; margin-top:4px;
+    }
+    .form-submit:hover { opacity:.88; }
+    .form-submit:disabled { opacity:.4; cursor:not-allowed; }
+    .msg-box { padding:10px 13px; border-radius:7px; font-size:.82rem; margin-top:12px; }
+    .msg-box.success { background:rgba(34,197,94,.1); border:1px solid rgba(34,197,94,.2); color:var(--green); }
+    .msg-box.error   { background:rgba(239,68,68,.1);  border:1px solid rgba(239,68,68,.2);  color:var(--red); }
 
     footer {
       border-top: 1px solid var(--border); background: var(--surface);
@@ -363,6 +405,7 @@
           <div class="balance-account" id="accountNum">Wallet ID: —</div>
         </div>
         <div class="balance-actions">
+          <button class="btn-sm ghost" onclick="openTransferModal()">Transfer</button>
           <span class="badge-active" id="statusBadge">ACTIVE</span>
         </div>
       </div>
@@ -410,6 +453,45 @@
     <a href="#">Terms</a>
   </div>
 </footer>
+
+<!-- ── Internal Transfer Modal ── -->
+<div class="modal-overlay" id="transferModalOverlay" onclick="if(event.target===this)closeTransferModal()">
+  <div class="modal-card">
+    <div class="modal-header">
+      <h3>Internal Transfer</h3>
+      <button class="modal-close" onclick="closeTransferModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label>From Wallet</label>
+        <select class="form-input" id="tr-from" onchange="updateFromBalanceHint()">
+          <option value="funding">Funding</option>
+          <option value="spot">Spot</option>
+          <option value="futures" selected>Futures</option>
+        </select>
+        <div class="form-note" id="tr-from-balance">Available: —</div>
+      </div>
+      <div class="form-group">
+        <label>To Wallet</label>
+        <select class="form-input" id="tr-to">
+          <option value="funding" selected>Funding</option>
+          <option value="spot">Spot</option>
+          <option value="futures">Futures</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Currency</label>
+        <input class="form-input" type="text" value="USDT" disabled/>
+      </div>
+      <div class="form-group">
+        <label>Amount</label>
+        <input class="form-input" type="number" id="tr-amount" placeholder="0.00" min="0" step="0.01"/>
+      </div>
+      <button class="form-submit" id="tr-submit-btn" onclick="submitTransfer()">Transfer</button>
+      <div id="tr-msg" class="msg-box" style="display:none;"></div>
+    </div>
+  </div>
+</div>
 
 <script>
 /* Icon/colour mapping shared across all three wallet pages */
@@ -479,6 +561,87 @@ async function loadFuturesWallet() {
     document.getElementById('pageSub').textContent = 'Network error loading wallet.';
   }
 }
+
+/* ═══════════════════════════════════════════════════════
+   INTERNAL TRANSFER — between this user's own wallets
+   ═══════════════════════════════════════════════════════
+   Backend: POST /api/wallets/transfer (see Wallets/walletTransferService.js)
+   ═══════════════════════════════════════════════════════ */
+const WALLET_ENDPOINTS = {
+  funding: '/api/wallets/funding',
+  spot: '/api/wallets/spot',
+  futures: '/api/wallets/futures',
+};
+
+function openTransferModal() {
+  document.getElementById('transferModalOverlay').classList.add('open');
+  document.getElementById('tr-amount').value = '';
+  document.getElementById('tr-msg').style.display = 'none';
+  updateFromBalanceHint();
+}
+function closeTransferModal() {
+  document.getElementById('transferModalOverlay').classList.remove('open');
+}
+
+async function updateFromBalanceHint() {
+  const type = document.getElementById('tr-from').value;
+  const hint = document.getElementById('tr-from-balance');
+  hint.textContent = 'Available: —';
+  try {
+    const r = await fetch(WALLET_ENDPOINTS[type]);
+    const d = await r.json();
+    if (!d.success) return;
+    const bal = type === 'futures' ? d.data.availableMargin : d.data.totalValue;
+    hint.textContent = 'Available: ' + fmtUsd(bal);
+  } catch (e) { /* leave the dash */ }
+}
+
+function showTrMsg(msg, type) {
+  const msgBox = document.getElementById('tr-msg');
+  msgBox.textContent = msg;
+  msgBox.className = 'msg-box ' + type;
+  msgBox.style.display = 'block';
+}
+
+async function submitTransfer() {
+  const fromType = document.getElementById('tr-from').value;
+  const toType   = document.getElementById('tr-to').value;
+  const amount   = parseFloat(document.getElementById('tr-amount').value);
+  const btn      = document.getElementById('tr-submit-btn');
+
+  if (fromType === toType) return showTrMsg('⚠ Choose two different wallets.', 'error');
+  if (!amount || isNaN(amount) || amount <= 0) return showTrMsg('⚠ Enter a valid amount greater than $0.', 'error');
+
+  btn.disabled = true;
+  btn.textContent = 'Transferring…';
+
+  try {
+    const r = await fetch('/api/wallets/transfer', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ fromWallet: fromType, toWallet: toType, amount }),
+    });
+    const d = await r.json();
+
+    if (d.success) {
+      showTrMsg('✓ ' + d.message, 'success');
+      document.getElementById('tr-amount').value = '';
+      updateFromBalanceHint();
+      refreshCurrentWallet();
+      setTimeout(closeTransferModal, 1200);
+    } else {
+      showTrMsg('✕ ' + (d.message || 'Transfer failed.'), 'error');
+    }
+  } catch (e) {
+    showTrMsg('✕ Network error. Please try again.', 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Transfer';
+  }
+}
+
+/* This page shows the Futures wallet, so refresh that after a transfer. */
+function refreshCurrentWallet() { loadFuturesWallet(); }
 
 document.addEventListener('DOMContentLoaded', () => {
   loadIdentity();
