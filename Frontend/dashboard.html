@@ -254,8 +254,10 @@
     .trade-btn {
       padding: 5px 14px; border-radius: 5px; font-size: .75rem; font-weight: 600;
       background: var(--blue-dim); border: 1px solid rgba(59,130,246,.25);
-      color: var(--blue); cursor: not-allowed; opacity: .7;
+      color: var(--blue); cursor: pointer;
+      text-decoration: none; display: inline-block;
     }
+    .trade-btn:hover { background: var(--blue); color: #fff; }
     .table-footer {
       padding: 10px 16px; border-top: 1px solid var(--border);
       font-size: .72rem; color: var(--text-3); display: flex; align-items:center; gap:6px;
@@ -408,7 +410,8 @@
   </a>
   <input class="topnav-search" type="text" placeholder="Search coins, features…"/>
   <div class="topnav-right">
-    <button class="nav-pill" onclick="showPanel('trade')">📈 Trade</button>
+    <!-- Trade now routes to the dedicated Spot Trade page instead of an in-page panel -->
+    <a href="/spot-trade" class="nav-pill">📈 Trade</a>
     <button class="nav-pill" onclick="showPanel('transfer')">💸 Transfer</button>
     <a href="/crypto-square" class="nav-pill">🟦 Crypto Square</a>
     <a href="/chat" class="nav-pill">💬 Live Chat</a>
@@ -429,9 +432,10 @@
       <a href="/funding-wallet" class="sidebar-link">
         <span class="icon">👛</span> Wallets
       </a>
-      <button class="sidebar-link" onclick="showPanel('trade')">
+      <!-- Trade now routes to the dedicated Spot Trade page instead of an in-page panel -->
+      <a href="/spot-trade" class="sidebar-link">
         <span class="icon">📈</span> Trade
-      </button>
+      </a>
       <button class="sidebar-link" onclick="showPanel('account')">
         <span class="icon">👤</span> Account
       </button>
@@ -574,55 +578,6 @@
     </div>
 
     <!-- ══════════════════════════════════════
-         TRADE
-         ══════════════════════════════════════ -->
-    <div id="panel-trade" class="panel fade-in">
-      <div class="page-title">Trade</div>
-      <div class="page-sub">Live prices — trade button coming soon.</div>
-      <div class="chart-card">
-        <div class="chart-header">
-          <select class="chart-coin-select" id="tradeCoinSelect" onchange="loadTradeChart()">
-            <option value="bitcoin">BTC / USD</option>
-            <option value="ethereum">ETH / USD</option>
-            <option value="solana">SOL / USD</option>
-            <option value="ripple">XRP / USD</option>
-            <option value="binancecoin">BNB / USD</option>
-            <option value="tether">USDT / USD</option>
-            <option value="usd-coin">USDC / USD</option>
-          </select>
-          <div style="display:flex;gap:6px;margin-left:auto;">
-            <button class="chart-range-btn active" onclick="setTradeRange(1,this)">1D</button>
-            <button class="chart-range-btn" onclick="setTradeRange(7,this)">7D</button>
-            <button class="chart-range-btn" onclick="setTradeRange(30,this)">30D</button>
-          </div>
-        </div>
-        <canvas id="tradeChartCanvas" style="width:100%!important;height:260px!important;display:block;"></canvas>
-        <div class="chart-info">
-          <div class="chart-info-item"><label>Current Price</label><span id="tci-price">—</span></div>
-          <div class="chart-info-item"><label>24h Change</label><span id="tci-change">—</span></div>
-          <div class="chart-info-item"><label>24h Volume</label><span id="tci-mcap">—</span></div>
-        </div>
-      </div>
-      <div class="sec-head"><h3>All Markets</h3></div>
-      <div class="table-wrap">
-        <table>
-          <thead>
-            <tr><th>Coin</th><th>Rank</th><th>Price</th><th>24h Change</th><th>24h Volume</th><th>Action</th></tr>
-          </thead>
-          <tbody id="tradeTable">
-            <tr><td colspan="6" style="text-align:center;padding:30px;color:var(--text-3)">
-              <span class="spinner-inline"></span>Connecting to WebSocket…
-            </td></tr>
-          </tbody>
-        </table>
-        <div class="table-footer">
-          <span class="live-dot"></span>
-          <span id="tradeTableUpdated">Connecting…</span>
-        </div>
-      </div>
-    </div>
-
-    <!-- ══════════════════════════════════════
          ACCOUNT
          ══════════════════════════════════════ -->
     <div id="panel-account" class="panel fade-in">
@@ -679,7 +634,7 @@
          ══════════════════════════════════════ -->
     <div id="panel-transfer" class="panel fade-in">
       <div class="page-title">[Funding Wallet] -> Transfer Funds</div>
-      <div class="page-sub">Send demo funds to another user's account instantly. Funds can only Be send through Funding Wallet</div>
+      <div class="page-sub">Send demo funds to another user's account instantly. Funds can only be transferred through Funding Wallet</div>
       <div class="form-card">
         <h3>New Transfer</h3>
 
@@ -809,9 +764,7 @@
    ═══════════════════════════════════════════════════════ */
 let userData    = null;
 let chartDays   = 1;
-let tradeDays   = 1;
-let chartInstance      = null;
-let tradeChartInstance = null;
+let chartInstance = null;
 let chatHistory = []; // [{role:'user'|'bot', text:string}] — sent to /api/ai-chatbot/message for context
 
 /* Live price state populated directly from the Binance WebSocket stream.
@@ -837,6 +790,9 @@ const CHART_INTERVALS = {
 
 /* ═══════════════════════════════════════════════════════
    PANEL NAVIGATION
+   ═══════════════════════════════════════════════════════
+   Trade is no longer one of these panels — it's a full page
+   at /spot-trade (see the Trade links in the topnav/sidebar).
    ═══════════════════════════════════════════════════════ */
 function showPanel(name) {
   document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
@@ -853,7 +809,6 @@ function showPanel(name) {
   const sideBtn = document.querySelector(`.sidebar-link[onclick*="'${name}'"]`);
   if (sideBtn) sideBtn.classList.add('active');
 
-  if (name === 'trade')    loadTradeChart();
   if (name === 'demo')     refreshDemoBalance();
   if (name === 'transfer') refreshTransferPanel();
 }
@@ -897,7 +852,7 @@ async function fetchUser() {
     const hr = new Date().getHours();
     const greet = hr < 12 ? 'Good morning' : hr < 17 ? 'Good afternoon' : 'Good evening';
     document.getElementById('greetUser').textContent =
-      greet + ', ' + userData.username + ' — here\'s your market snapshot.';
+      greet + ', ' + userData.username + ' — here\'s your Live Market snapshot.';
 
     const bal = parseFloat(acc?.balance || 0);
     const balFmt = '$' + bal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -975,7 +930,7 @@ function connectMarketSocket() {
 function setStatus(text) {
   const now = new Date().toLocaleTimeString();
   const full = text + ' · ' + now;
-  ['tableUpdated', 'tradeTableUpdated', 'mktUpdated'].forEach(id => {
+  ['tableUpdated', 'mktUpdated'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.textContent = full;
   });
@@ -1009,7 +964,7 @@ function buildRow(coin, d) {
     <td style="font-weight:600;font-variant-numeric:tabular-nums;">${fmtPrice(d.price)}</td>
     <td class="${cls}" style="font-weight:600;font-size:.82rem;">${arrow} ${sign}${pct.toFixed(2)}%</td>
     <td style="color:var(--text-2);font-size:.82rem;">${fmtVol(d.quoteVol)}</td>
-    <td><button class="trade-btn" title="Trading coming soon">Trade</button></td>
+    <td><a href="/spot-trade" class="trade-btn">Trade</a></td>
   </tr>`;
 }
 
@@ -1021,7 +976,7 @@ function renderMarketTables() {
   });
   if (!html) return;
 
-  ['overviewTable', 'tradeTable', 'marketTable'].forEach(id => {
+  ['overviewTable', 'marketTable'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.innerHTML = html;
   });
@@ -1054,13 +1009,10 @@ function updateChartInfo(coinId) {
   document.getElementById('ci-price').textContent  = fmtPrice(d.price);
   document.getElementById('ci-change').innerHTML   = `<span class="${cls}">${sign}${pct.toFixed(2)}%</span>`;
   document.getElementById('ci-mcap').textContent   = fmtVol(d.quoteVol);
-  document.getElementById('tci-price').textContent = fmtPrice(d.price);
-  document.getElementById('tci-change').innerHTML  = `<span class="${cls}">${sign}${pct.toFixed(2)}%</span>`;
-  document.getElementById('tci-mcap').textContent  = fmtVol(d.quoteVol);
 }
 
 /* ═══════════════════════════════════════════════════════
-   CHARTS — Binance klines (historical candles)
+   CHART — Binance klines (historical candles)
    ═══════════════════════════════════════════════════════
    Historical chart data isn't something a live ticker stream
    carries, so a single REST call to Binance's public klines
@@ -1070,12 +1022,6 @@ function updateChartInfo(coinId) {
 async function loadChart() {
   const coinId = document.getElementById('chartCoinSelect').value;
   await renderChart(coinId, chartDays, 'chartCanvas', chartInstance, inst => chartInstance = inst);
-  updateChartInfo(coinId);
-}
-
-async function loadTradeChart() {
-  const coinId = document.getElementById('tradeCoinSelect').value;
-  await renderChart(coinId, tradeDays, 'tradeChartCanvas', tradeChartInstance, inst => tradeChartInstance = inst);
   updateChartInfo(coinId);
 }
 
@@ -1171,13 +1117,6 @@ function setRange(days, btn) {
   document.querySelectorAll('#panel-overview .chart-range-btn').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
   loadChart();
-}
-
-function setTradeRange(days, btn) {
-  tradeDays = days;
-  document.querySelectorAll('#panel-trade .chart-range-btn').forEach(b => b.classList.remove('active'));
-  btn.classList.add('active');
-  loadTradeChart();
 }
 
 /* ═══════════════════════════════════════════════════════

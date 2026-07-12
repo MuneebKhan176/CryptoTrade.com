@@ -9,7 +9,7 @@ const { conn } = require("../db_connection");
 const verifyToken = require("../middle/middleware");
 
 // Wallet-to-wallet internal transfer logic lives in its own file.
-const { transferBetweenWallets } = require("../Wallets/walletTransfer");
+const { transferBetweenWallets } = require("../Wallets_Config/walletTransfer");
 
 function sendResponse(res, statusCode, success, message, data = null) {
     return res.status(statusCode).json({ success, message, data });

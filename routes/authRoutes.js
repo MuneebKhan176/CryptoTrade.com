@@ -5,7 +5,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 
 const { conn, jwtSecret } = require('../db_connection');
-const { createUserWallets } = require('../Wallets/walletServices');
+const { createUserWallets } = require('../Wallets_Config/walletServices');
 const sendVerificationEmail = require('../mailer');
 const verifyToken = require('../middle/middleware');
 
