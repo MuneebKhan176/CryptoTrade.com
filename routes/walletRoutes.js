@@ -19,18 +19,18 @@ function sendResponse(res, statusCode, success, message, data = null) {
 // PAGES
 // ═══════════════════════════════════════════════════════
 router.get("/funding-wallet", verifyToken, (req, res) => {
-    res.sendFile(path.join(__dirname, "../Frontend/funding-wallet.html"));
+    res.sendFile(path.join(__dirname, "../Frontend/Wallets_UI/funding-wallet.html"));
 });
 router.get("/spot-wallet", verifyToken, (req, res) => {
-    res.sendFile(path.join(__dirname, "../Frontend/spot-wallet.html"));
+    res.sendFile(path.join(__dirname, "../Frontend/Wallets_UI/spot-wallet.html"));
 });
 router.get("/futures-wallet", verifyToken, (req, res) => {
-    res.sendFile(path.join(__dirname, "../Frontend/futures-wallet.html"));
+    res.sendFile(path.join(__dirname, "../Frontend/Wallets_UI/futures-wallet.html"));
 });
 
 // ═══════════════════════════════════════════════════════
 // FUNDING WALLET DATA
-// ═══════════════════════════════════════════════════════
+// ════════════════════════════════════════════════╗
 // There's no separate funding_wallet table — the Funding wallet IS the
 // accounts row, held entirely as a single USDT balance. This is what
 // funding-wallet.html's loadFundingWallet() is fetching.

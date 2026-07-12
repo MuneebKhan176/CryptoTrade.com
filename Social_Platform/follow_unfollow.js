@@ -79,9 +79,9 @@ function quickSelectTopK(items, k) {
 }
 
 // ================= TOP CREATORS PAGE =================
-// Serves the standalone top-creators.html page (Frontend/top-creators.html).
+// Serves the standalone top-creators.html page (Frontend/Square_UI/top-creators.html).
 router.get('/top-creators', verifyToken, (req, res) => {
-    res.sendFile(path.join(__dirname, '../Frontend/top-creators.html'));
+    res.sendFile(path.join(__dirname, '../Frontend/Square_UI/top-creators.html'));
 });
 
 // ================= GET TOP 10 CREATORS (by followersCount, via Quickselect) =================

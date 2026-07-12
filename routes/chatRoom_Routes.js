@@ -12,15 +12,15 @@ const RoomManager = require('../chat/managers/RoomManager');
    three new pages sit alongside them there.
    ──────────────────────────────────────────────────────────── */
 router.get('/chat', verifyToken, (req, res) => {
-  res.sendFile(path.join(__dirname, '..', 'Frontend', 'chat-lobby.html'));
+  res.sendFile(path.join(__dirname, '..', 'Frontend', '/ChatRoom_UI/chat-lobby.html'));
 });
 
 router.get('/chat/create', verifyToken, (req, res) => {
-  res.sendFile(path.join(__dirname, '..', 'Frontend', 'chat-create.html'));
+  res.sendFile(path.join(__dirname, '..', 'Frontend', '/ChatRoom_UI/chat-create.html'));
 });
 
 router.get('/chat/room/:roomId', verifyToken, (req, res) => {
-  res.sendFile(path.join(__dirname, '..', 'Frontend', 'chat-room.html'));
+  res.sendFile(path.join(__dirname, '..', 'Frontend', '/ChatRoom_UI/chat-room.html'));
 });
 
 /* ────────────────────────────────────────────────────────────

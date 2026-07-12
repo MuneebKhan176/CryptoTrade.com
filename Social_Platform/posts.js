@@ -131,7 +131,7 @@ async function registerHashtags(tags) {
  * CREATE POST PAGE
  * ==========================================================================*/
 router.get('/create-post', verifyToken, (req, res) => {
-    res.sendFile(path.join(__dirname, '../Frontend/create-post.html'));
+    res.sendFile(path.join(__dirname, '../Frontend/Square_UI/create-post.html'));
 });
 
 /* ============================================================================

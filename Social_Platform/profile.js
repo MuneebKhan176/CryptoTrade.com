@@ -17,7 +17,7 @@ function sendResponse(res, statusCode, success, message, data = null) {
 // ================= SOCIAL PROFILE PAGE =================
 // Serves the standalone profile.html page (Frontend/profile.html).
 router.get('/profile', verifyToken, (req, res) => {
-    res.sendFile(path.join(__dirname, '../Frontend/profile.html'));
+    res.sendFile(path.join(__dirname, '../Frontend/Square_UI/profile.html'));
 });
 
 // ================= GET CURRENT USER'S PROFILE + POSTS =================

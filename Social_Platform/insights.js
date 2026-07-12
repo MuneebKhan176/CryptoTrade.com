@@ -36,7 +36,7 @@ function sendResponse(res, statusCode, success, message, data = null) {
  * CRYPTO SQUARE PAGE
  * ==========================================================================*/
 router.get('/crypto-square', verifyToken, (req, res) => {
-    res.sendFile(path.join(__dirname, '../Frontend/crypto-square.html'));
+    res.sendFile(path.join(__dirname, '../Frontend/Square_UI/crypto-square.html'));
 });
 
 /* ============================================================================

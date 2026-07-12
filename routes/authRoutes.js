@@ -71,7 +71,7 @@ const DEMO_AMOUNT = 50000.00;
 
 // ================= REGISTER PAGE =================
 router.get('/register', (req, res) => {
-    res.sendFile(path.join(__dirname, '../Frontend/register.html'));
+    res.sendFile(path.join(__dirname, '../Frontend/Auth_UI/register.html'));
 });
 
 // ================= REGISTER USER =================
@@ -128,7 +128,7 @@ router.post('/register', (req, res) => {
 
 // ================= VERIFY EMAIL PAGE =================
 router.get('/verify-email', (req, res) => {
-    res.sendFile(path.join(__dirname, '../Frontend/verify-email.html'));
+    res.sendFile(path.join(__dirname, '../Frontend/Auth_UI/verify-email.html'));
 });
 
 // ================= VERIFY EMAIL =================
@@ -299,7 +299,7 @@ router.post('/verify-email', (req, res) => {
 
 // ================= LOGIN PAGE =================
 router.get('/login', (req, res) => {
-    res.sendFile(path.join(__dirname, '../Frontend/login.html'));
+    res.sendFile(path.join(__dirname, '../Frontend/Auth_UI/login.html'));
 });
 
 // ================= LOGIN USER =================
