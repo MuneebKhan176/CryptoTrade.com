@@ -62,7 +62,6 @@
     padding:6px 12px; border-radius:7px; border:1px solid var(--border2); transition:.15s;
   }
   .back-link:hover { color:#fff; border-color:#444; background:var(--surface2); }
-  /* Dashboard link now lives on the right, alongside the avatar. */
   .topnav-right { margin-left:auto; display:flex; align-items:center; gap:10px; }
   .avatar {
     width:32px; height:32px; border-radius:50%;
@@ -72,8 +71,6 @@
   }
   .avatar img { width:100%; height:100%; object-fit:cover; }
 
-  /* ── Market type selector (Spot / Futures) ──
-     Same look as .tf-btn, sitting centered on the topnav's own row. */
   .market-type-bar {
     position: absolute;
     left: 50%;
@@ -115,7 +112,7 @@
   /* ── Layout ── */
   .spot-grid {
     display:grid;
-    grid-template-columns: 270px 1fr 320px;
+    grid-template-columns: 320px 1fr 300px;
     gap:1px;
     background: var(--border);
   }
@@ -127,18 +124,24 @@
     display:flex; align-items:center; justify-content:space-between;
   }
 
-  /* ── Order book ── */
-  .ob-labels { display:flex; padding:6px 14px; font-size:.66rem; color:var(--text-3); text-transform:uppercase; letter-spacing:.05em; }
-  .ob-labels span { flex:1; }
+  /* ── Order book ──
+     Header labels and rows share the exact same grid so columns always
+     line up: price left-aligned, amount + total right-aligned with
+     generous breathing room between them. */
+  .ob-labels {
+    display:grid; grid-template-columns: 1fr 1fr 1fr; column-gap:26px;
+    padding:9px 10px 9px 10px; font-size:.66rem; color:var(--text-3); text-transform:uppercase; letter-spacing:.06em;
+  }
   .ob-labels span:nth-child(2), .ob-labels span:nth-child(3) { text-align:right; }
-  .ob-side { display:flex; flex-direction:column-reverse; padding:2px 0; }
+  .ob-side { display:flex; flex-direction:column-reverse; padding:3px 0; }
   .ob-side.bids { flex-direction:column; }
   .ob-row {
-    position:relative; display:flex; padding:2.5px 14px; font-size:.76rem;
+    position:relative; display:grid; grid-template-columns: 1fr 1fr 1fr; column-gap:26px; align-items:center;
+    padding:4.5px 10px 4.5px 10px; font-size:.78rem;
     font-variant-numeric:tabular-nums; cursor:default;
   }
   .ob-row .depth-bar { position:absolute; top:0; right:0; bottom:0; z-index:0; }
-  .ob-row .ob-cell { position:relative; z-index:1; flex:1; }
+  .ob-row .ob-cell { position:relative; z-index:1; }
   .ob-row .ob-cell:nth-child(2), .ob-row .ob-cell:nth-child(3) { text-align:right; color:var(--text-2); }
   .ob-row.ask .ob-cell:first-child { color:var(--red); }
   .ob-row.bid .ob-cell:first-child { color:var(--green); }
@@ -194,7 +197,25 @@
     font-variant-numeric:tabular-nums;
   }
   .field-input:focus { border-color:#444; }
+  .field-input.invalid { border-color: var(--red); }
   .field-suffix { position:absolute; right:11px; top:50%; transform:translateY(-50%); font-size:.72rem; color:var(--text-3); font-weight:600; }
+
+  /* ── TP/SL toggle + fields ── */
+  .tpsl-toggle {
+    display:flex; align-items:center; gap:9px; font-size:.8rem; font-weight:600; color:var(--text);
+    cursor:pointer; user-select:none; margin-bottom:10px; padding:2px 0;
+  }
+  .tpsl-toggle input[type="checkbox"] {
+    width:16px; height:16px; accent-color:var(--blue); cursor:pointer; flex-shrink:0;
+  }
+  .tpsl-fields {
+    border:1px dashed var(--border2); border-radius:9px; padding:12px 12px 2px;
+    margin-bottom:12px; background:var(--surface2);
+  }
+  .field-error {
+    font-size:.68rem; color:var(--red); margin-top:5px; display:none; line-height:1.35;
+  }
+  .field-error.show { display:block; }
 
   .pct-row { display:flex; gap:6px; margin-bottom:12px; }
   .pct-slider { flex:1; -webkit-appearance:none; appearance:none; height:4px; border-radius:99px; background:var(--border2); outline:none; }
@@ -226,7 +247,15 @@
     background:none; border:none; color:var(--text-2); cursor:pointer; border-bottom:2px solid transparent; transition:.15s;
   }
   .rt-tab.active { color:#fff; border-bottom-color:var(--blue); }
-  .rt-body { flex:1; overflow-y:auto; max-height:640px; }
+  .rt-body { flex:1; overflow-y:auto; max-height:300px; }
+
+  .asset-icon {
+    width:28px; height:28px; border-radius:50%; background:var(--surface3); flex-shrink:0;
+    display:flex; align-items:center; justify-content:center; font-size:.85rem; color:var(--text-2);
+    border:1px solid var(--border2);
+  }
+  .asset-cell { display:flex; align-items:center; gap:10px; }
+  .asset-cell .asset-name { font-size:.65rem; color:var(--text-3); font-weight:500; }
 
   .mini-table { width:100%; border-collapse:collapse; }
   .mini-table th {
@@ -239,6 +268,10 @@
   .side-pill { font-size:.68rem; font-weight:700; padding:2px 7px; border-radius:5px; display:inline-block; }
   .side-pill.buy { background:var(--green-dim); color:var(--green); }
   .side-pill.sell { background:var(--red-dim); color:var(--red); }
+  .tpsl-pill {
+    font-size:.62rem; font-weight:700; padding:1px 6px; border-radius:4px; display:inline-block;
+    margin-left:4px; background:var(--surface3); color:var(--text-2); border:1px solid var(--border2);
+  }
   .cancel-btn {
     font-size:.68rem; font-weight:600; color:var(--text-2); background:var(--surface2);
     border:1px solid var(--border2); border-radius:5px; padding:3px 8px; cursor:pointer; transition:.15s;
@@ -270,11 +303,9 @@
 <header class="topnav">
   <a href="/" class="topnav-logo"><span class="topnav-logo-dot"></span>CryptoTrade</a>
 
-  <!-- Spot / Futures selector — Spot is the default/active market. Futures has
-       no backend route yet, so following that link will 404 until it's built. -->
   <div class="market-type-bar">
     <a href="/spot-trade" class="market-type-btn active">Spot</a>
-    <a href="/futures-trade" class="market-type-btn disabled-hint" title="Coming soon">Futures</a>
+    <a href="/futures-trade" class="market-type-btn">Futures</a>
   </div>
 
   <div class="topnav-right">
@@ -296,41 +327,10 @@
 
 <div class="spot-grid">
 
-  <!-- ═══ LEFT: ORDER BOOK ═══ -->
+  <!-- ═══ LEFT: TRADE PANEL ═══ -->
   <div class="col">
-    <div class="col-head">
-      <span>Order Book</span>
-      <span id="obStatus" style="font-weight:500;text-transform:none;letter-spacing:0;">—</span>
-    </div>
-    <div class="ob-labels"><span>Price (USDT)</span><span>Amount</span><span>Total</span></div>
-
-    <div class="ob-side asks" id="obAsks"></div>
-
-    <div class="ob-spread">
-      <span class="spread-price" id="obSpreadPrice">—</span>
-      <span class="spread-label">Last Price</span>
-    </div>
-
-    <div class="ob-side bids" id="obBids"></div>
-  </div>
-
-  <!-- ═══ CENTER: CHART + TRADE PANEL ═══ -->
-  <div class="col chart-col">
-    <div class="chart-toolbar" id="tfToolbar">
-      <button class="tf-btn" data-tf="15m">15m</button>
-      <button class="tf-btn" data-tf="1h">1H</button>
-      <button class="tf-btn" data-tf="4h">4H</button>
-      <button class="tf-btn" data-tf="12h">12H</button>
-      <button class="tf-btn active" data-tf="1d">1D</button>
-      <button class="tf-btn" data-tf="1w">1W</button>
-      <button class="tf-btn" data-tf="1M">1M</button>
-    </div>
-    <div class="chart-wrap">
-      <div class="chart-ohlc" id="chartOhlc"></div>
-      <canvas id="candleCanvas" height="360"></canvas>
-    </div>
-
-    <div class="trade-panel">
+    <div class="col-head"><span>Trade</span></div>
+    <div class="trade-panel" style="border-top:none;">
       <div class="side-tabs">
         <button class="side-tab buy active" id="tabBuy" onclick="setSide('BUY')">Buy</button>
         <button class="side-tab sell" id="tabSell" onclick="setSide('SELL')">Sell</button>
@@ -349,22 +349,49 @@
       <div class="field-row" id="limitPriceRow" style="display:none;">
         <label>Price</label>
         <div class="field-input-wrap">
-          <input class="field-input" type="number" id="limitPriceInput" placeholder="0.00" min="0" step="0.00000001" oninput="recalcTotal()"/>
+          <input class="field-input" type="number" id="limitPriceInput" placeholder="0.00" min="0" step="0.00000001" oninput="recalcTotal(); clearFieldError('limitPriceInput')"/>
           <span class="field-suffix">USDT</span>
         </div>
+        <div class="field-error" id="limitPriceInputError"></div>
       </div>
 
       <div class="field-row">
         <label>Amount</label>
         <div class="field-input-wrap">
-          <input class="field-input" type="number" id="amountInput" placeholder="0.00" min="0" step="0.00000001" oninput="recalcTotal()"/>
+          <input class="field-input" type="number" id="amountInput" placeholder="0.00" min="0" step="0.00000001" oninput="recalcTotal(); clearFieldError('amountInput')"/>
           <span class="field-suffix" id="amountSuffix">BTC</span>
         </div>
+        <div class="field-error" id="amountInputError"></div>
       </div>
 
       <div class="pct-row">
         <input type="range" class="pct-slider" id="pctSlider" min="0" max="100" step="1" value="0" oninput="applyPercent(this.value)"/>
         <span class="pct-val" id="pctVal">0%</span>
+      </div>
+
+      <!-- TP/SL — tickbox reveals the fields below when checked -->
+      <label class="tpsl-toggle" for="tpslCheckbox">
+        <input type="checkbox" id="tpslCheckbox" onchange="toggleTpSl()"/>
+        Take Profit / Stop Loss
+      </label>
+
+      <div class="tpsl-fields" id="tpslFields" style="display:none;">
+        <div class="field-row">
+          <label>Take Profit <span style="color:var(--text-3);font-weight:400;text-transform:none;">(optional)</span></label>
+          <div class="field-input-wrap">
+            <input class="field-input" type="number" id="tpInput" placeholder="0.00" min="0" step="0.00000001" oninput="clearFieldError('tpInput')"/>
+            <span class="field-suffix">USDT</span>
+          </div>
+          <div class="field-error" id="tpInputError"></div>
+        </div>
+        <div class="field-row">
+          <label>Stop Loss <span style="color:var(--text-3);font-weight:400;text-transform:none;">(optional)</span></label>
+          <div class="field-input-wrap">
+            <input class="field-input" type="number" id="slInput" placeholder="0.00" min="0" step="0.00000001" oninput="clearFieldError('slInput')"/>
+            <span class="field-suffix">USDT</span>
+          </div>
+          <div class="field-error" id="slInputError"></div>
+        </div>
       </div>
 
       <div class="total-row">
@@ -377,8 +404,22 @@
     </div>
   </div>
 
-  <!-- ═══ RIGHT: ORDERS / HOLDINGS ═══ -->
-  <div class="col">
+  <!-- ═══ CENTER: CHART + OPEN ORDERS / HOLDINGS ═══ -->
+  <div class="col chart-col">
+    <div class="chart-toolbar" id="tfToolbar">
+      <button class="tf-btn" data-tf="15m">15m</button>
+      <button class="tf-btn" data-tf="1h">1H</button>
+      <button class="tf-btn" data-tf="4h">4H</button>
+      <button class="tf-btn" data-tf="12h">12H</button>
+      <button class="tf-btn active" data-tf="1d">1D</button>
+      <button class="tf-btn" data-tf="1w">1W</button>
+      <button class="tf-btn" data-tf="1M">1M</button>
+    </div>
+    <div class="chart-wrap">
+      <div class="chart-ohlc" id="chartOhlc"></div>
+      <canvas id="candleCanvas" height="360"></canvas>
+    </div>
+
     <div class="rt-tabs">
       <button class="rt-tab active" id="rtOrdersTab" onclick="setRightTab('orders')">Open Orders</button>
       <button class="rt-tab" id="rtHoldingsTab" onclick="setRightTab('holdings')">Holdings</button>
@@ -391,27 +432,27 @@
     </div>
   </div>
 
+  <!-- ═══ RIGHT: ORDER BOOK ═══ -->
+  <div class="col">
+    <div class="col-head">
+      <span>Order Book</span>
+      <span id="obStatus" style="font-weight:500;text-transform:none;letter-spacing:0;">—</span>
+    </div>
+    <div class="ob-labels"><span>Price (USDT)</span><span>Amount</span><span>Total</span></div>
+
+    <div class="ob-side asks" id="obAsks"></div>
+
+    <div class="ob-spread">
+      <span class="spread-price" id="obSpreadPrice">—</span>
+      <span class="spread-label">Last Price</span>
+    </div>
+
+    <div class="ob-side bids" id="obBids"></div>
+  </div>
+
 </div>
 
 <script>
-/* ═══════════════════════════════════════════════════════════════════════
-   BACKEND CONTRACT
-   ───────────────────────────────────────────────────────────────────────
-   This page reuses the existing shared WebSocket (/ws/market-data) for all
-   live price + candle data, exactly like the Dashboard. No new WebSocket
-   connection is opened.
-
-   Data (read-only) is served by routes/spotTradeRoutes.js:
-     GET  /api/spot/wallet     -> { success, data: { wallet_id, status, holdings: [...] } }
-     GET  /api/spot/orders     -> { success, data: [ ...open orders... ] }
-     GET  /api/spot/orderbook?symbol=BTC -> { success, data: { symbol, bids, asks } }
-
-   Order placement/cancellation are stubbed server-side (501) until the
-   matching engine is built:
-     POST /api/spot/order
-     POST /api/spot/order/:order_id/cancel
-   ═══════════════════════════════════════════════════════════════════════ */
-
 const TRADE_COINS = [
   { id:'bitcoin',     symbol:'BTC',  name:'Bitcoin',  icon:'₿' },
   { id:'ethereum',    symbol:'ETH',  name:'Ethereum', icon:'Ξ' },
@@ -423,17 +464,15 @@ const TRADE_COINS = [
 
 let selectedCoinId = 'bitcoin';
 let selectedInterval = '1d';
-let liveData  = {};   // ticker snapshot, same shape as Dashboard's liveData
-let candles   = [];   // [{t,o,h,l,c,v}, ...] ascending by time, for the active pair/interval
-let spotHoldings = []; // [{symbol, available_quantity, locked_quantity, average_buy_price}, ...]
+let liveData  = {};
+let candles   = [];
+let spotHoldings = [];
 let openOrders   = [];
 let orderSide    = 'BUY';
 let orderType    = 'MARKET';
 let rightTab     = 'orders';
+let tpslEnabled  = false;
 
-/* ═══════════════════════════════════════════════════════
-   INIT
-   ═══════════════════════════════════════════════════════ */
 document.addEventListener('DOMContentLoaded', () => {
   populatePairSelect();
   bindTimeframeButtons();
@@ -443,9 +482,7 @@ document.addEventListener('DOMContentLoaded', () => {
   loadWallet();
   loadOrders();
   loadOrderBook();
-
   window.addEventListener('resize', drawCandles);
-
   setInterval(() => { loadOrderBook(); }, 4000);
   setInterval(() => { loadOrders(); }, 6000);
 });
@@ -477,7 +514,7 @@ async function fetchUserAvatar() {
     const socialAvatarUrl = d.data.socialProfile && d.data.socialProfile.avatarUrl;
     if (socialAvatarUrl) avatarEl.innerHTML = `<img src="${socialAvatarUrl}" alt="avatar"/>`;
     else avatarEl.textContent = initials;
-  } catch (e) { /* non-critical */ }
+  } catch (e) {}
 }
 
 function onPairChange() {
@@ -497,10 +534,6 @@ function getHoldingQty(symbol) {
   return h ? parseFloat(h.available_quantity) || 0 : 0;
 }
 
-/* ═══════════════════════════════════════════════════════
-   SHARED WEBSOCKET — same /ws/market-data endpoint used by
-   the Homepage/Dashboard. One connection, ticker + klines.
-   ═══════════════════════════════════════════════════════ */
 let marketSocket = null;
 let wsReconnectTimer = null;
 
@@ -508,7 +541,6 @@ function connectMarketSocket() {
   const proto = location.protocol === 'https:' ? 'wss' : 'ws';
   const url = `${proto}://${location.host}/ws/market-data`;
   marketSocket = new WebSocket(url);
-
   marketSocket.onopen = () => setObStatus('Live');
   marketSocket.onerror = () => setObStatus('Reconnecting…');
   marketSocket.onclose = () => {
@@ -516,17 +548,11 @@ function connectMarketSocket() {
     clearTimeout(wsReconnectTimer);
     wsReconnectTimer = setTimeout(connectMarketSocket, 3000);
   };
-
   marketSocket.onmessage = (event) => {
     let msg;
     try { msg = JSON.parse(event.data); } catch (e) { return; }
     if (msg.type !== 'snapshot') return;
-
-    if (msg.data) {
-      liveData = msg.data;
-      updatePairHeader();
-    }
-
+    if (msg.data) { liveData = msg.data; updatePairHeader(); }
     if (msg.klines) {
       const k = msg.klines[selectedCoinId] && msg.klines[selectedCoinId][selectedInterval];
       if (k) mergeLiveCandle(k);
@@ -539,9 +565,6 @@ function setObStatus(text) {
   if (el) el.textContent = text;
 }
 
-/* ═══════════════════════════════════════════════════════
-   PAIR HEADER
-   ═══════════════════════════════════════════════════════ */
 function fmtPrice(n) {
   if (n === null || n === undefined || isNaN(n)) return '—';
   if (n >= 1000) return n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -566,25 +589,18 @@ function updatePairHeader() {
   const pct  = d.changePct || 0;
   const sign = pct >= 0 ? '+' : '';
   const cls  = pct >= 0 ? 'up' : 'down';
-
   document.getElementById('pairPrice').textContent = fmtPrice(d.price);
   document.getElementById('pairPrice').className = 'pair-price ' + cls;
   document.getElementById('pairChange').innerHTML = `<span class="${cls}">${sign}${pct.toFixed(2)}%</span>`;
   document.getElementById('pairHigh').textContent = fmtPrice(d.high);
   document.getElementById('pairLow').textContent  = fmtPrice(d.low);
   document.getElementById('pairVol').textContent  = fmtVol(d.quoteVol);
-
   const spreadEl = document.getElementById('obSpreadPrice');
   spreadEl.textContent = fmtPrice(d.price);
   spreadEl.className = 'spread-price ' + (pct >= 0 ? 'up' : 'down');
-
   recalcTotal();
 }
 
-/* ═══════════════════════════════════════════════════════
-   CANDLESTICK CHART (self-contained canvas renderer —
-   no external charting library required)
-   ═══════════════════════════════════════════════════════ */
 async function loadHistoricalCandles() {
   const coin = getCoin();
   const symbol = coin.symbol + 'USDT';
@@ -611,9 +627,7 @@ function mergeLiveCandle(k) {
   } else if (k.t > last.t) {
     candles.push({ t: k.t, o: k.o, h: k.h, l: k.l, c: k.c, v: k.v });
     if (candles.length > 300) candles.shift();
-  } else {
-    return;
-  }
+  } else { return; }
   drawCandles();
 }
 
@@ -623,7 +637,6 @@ function drawCandles() {
   const canvas = document.getElementById('candleCanvas');
   const wrap = canvas.parentElement;
   if (!candles.length) return;
-
   const dpr = window.devicePixelRatio || 1;
   const cssW = wrap.clientWidth;
   const cssH = 360;
@@ -634,11 +647,9 @@ function drawCandles() {
   const ctx = canvas.getContext('2d');
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.clearRect(0, 0, cssW, cssH);
-
   const padRight = 58, padTop = 10, padBottom = 18;
   const plotW = cssW - padRight;
   const plotH = cssH - padTop - padBottom;
-
   const visible = candles.slice(-140);
   let hi = -Infinity, lo = Infinity;
   visible.forEach(c => { if (c.h > hi) hi = c.h; if (c.l < lo) lo = c.l; });
@@ -646,12 +657,10 @@ function drawCandles() {
   if (hi === lo) { hi += 1; lo -= 1; }
   const pad = (hi - lo) * 0.08;
   hi += pad; lo -= pad;
-
   const n = visible.length;
   const slot = plotW / n;
   const bodyW = Math.max(1.5, slot * 0.62);
   const yFor = p => padTop + plotH - ((p - lo) / (hi - lo)) * plotH;
-
   ctx.strokeStyle = 'rgba(255,255,255,.05)';
   ctx.fillStyle = '#444';
   ctx.font = '10px -apple-system,sans-serif';
@@ -663,7 +672,6 @@ function drawCandles() {
     ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(plotW, y); ctx.stroke();
     ctx.fillText(fmtPrice(p), plotW + 6, y + 3);
   }
-
   visible.forEach((c, i) => {
     const x = i * slot + slot / 2;
     const rising = c.c >= c.o;
@@ -677,12 +685,9 @@ function drawCandles() {
     const top = Math.min(yO, yC), h = Math.max(1, Math.abs(yC - yO));
     ctx.fillRect(x - bodyW / 2, top, bodyW, h);
   });
-
   lastDraw = { visible, slot, n };
-
   const latest = visible[visible.length - 1];
   renderOhlcReadout(latest);
-
   canvas.onmousemove = (ev) => {
     const rect = canvas.getBoundingClientRect();
     const x = ev.clientX - rect.left;
@@ -702,22 +707,14 @@ function renderOhlcReadout(c) {
     `<span>C <b class="${cls}">${fmtPrice(c.c)}</b></span>`;
 }
 
-/* ═══════════════════════════════════════════════════════
-   ORDER BOOK  (GET /api/spot/orderbook?symbol=BTC)
-   ═══════════════════════════════════════════════════════ */
 async function loadOrderBook() {
   const coin = getCoin();
   try {
     const r = await fetch(`/api/spot/orderbook?symbol=${coin.symbol}`);
     const d = await r.json();
-    if (d.success) {
-      renderOrderBook(d.data.bids || [], d.data.asks || []);
-    } else {
-      renderOrderBookEmpty();
-    }
-  } catch (e) {
-    renderOrderBookEmpty();
-  }
+    if (d.success) { renderOrderBook(d.data.bids || [], d.data.asks || []); }
+    else { renderOrderBookEmpty(); }
+  } catch (e) { renderOrderBookEmpty(); }
 }
 
 function renderOrderBookEmpty() {
@@ -726,11 +723,7 @@ function renderOrderBookEmpty() {
 }
 
 function renderOrderBook(bids, asks) {
-  const maxQty = Math.max(
-    1e-9,
-    ...bids.map(b => b[1]), ...asks.map(a => a[1])
-  );
-
+  const maxQty = Math.max(1e-9, ...bids.map(b => b[1]), ...asks.map(a => a[1]));
   const buildRows = (levels, side) => levels.map(([price, qty]) => {
     const total = price * qty;
     const depthPct = Math.min(100, (qty / maxQty) * 100);
@@ -741,143 +734,100 @@ function renderOrderBook(bids, asks) {
       <span class="ob-cell">${fmtPrice(total)}</span>
     </div>`;
   }).join('');
-
-  const asksSorted = [...asks].sort((a, b) => b[0] - a[0]).slice(-12); // lowest ask nearest spread
+  const asksSorted = [...asks].sort((a, b) => b[0] - a[0]).slice(-12);
   const bidsSorted = [...bids].sort((a, b) => b[0] - a[0]).slice(0, 12);
-
-  document.getElementById('obAsks').innerHTML = asksSorted.length
-    ? buildRows(asksSorted, 'ask') : `<div class="ob-empty">No pending sell orders</div>`;
-  document.getElementById('obBids').innerHTML = bidsSorted.length
-    ? buildRows(bidsSorted, 'bid') : `<div class="ob-empty">No pending buy orders</div>`;
-
+  document.getElementById('obAsks').innerHTML = asksSorted.length ? buildRows(asksSorted, 'ask') : `<div class="ob-empty">No pending sell orders</div>`;
+  document.getElementById('obBids').innerHTML = bidsSorted.length ? buildRows(bidsSorted, 'bid') : `<div class="ob-empty">No pending buy orders</div>`;
   setObStatus('Live');
 }
 
-/* ═══════════════════════════════════════════════════════
-   SPOT WALLET / HOLDINGS  (GET /api/spot/wallet)
-   ═══════════════════════════════════════════════════════ */
 async function loadWallet() {
   try {
     const r = await fetch('/api/spot/wallet');
     const d = await r.json();
-    if (d.success) {
-      spotHoldings = d.data.holdings || [];
-      renderHoldings();
-      updateBalanceLabel();
-    } else {
-      renderHoldingsError(d.message);
-      updateBalanceLabel();
-    }
-  } catch (e) {
-    renderHoldingsError();
-    updateBalanceLabel();
-  }
+    if (d.success) { spotHoldings = d.data.holdings || []; renderHoldings(); updateBalanceLabel(); }
+    else { renderHoldingsError(d.message); updateBalanceLabel(); }
+  } catch (e) { renderHoldingsError(); updateBalanceLabel(); }
 }
 
 function renderHoldingsError(msg) {
-  document.getElementById('rtHoldings').innerHTML =
-    `<div class="empty-state"><span class="icn">⚠</span>${msg || 'Could not load holdings — check the /api/spot/wallet endpoint.'}</div>`;
+  document.getElementById('rtHoldings').innerHTML = `<div class="empty-state"><span class="icn">⚠</span>${msg || 'Could not load holdings — check the /api/spot/wallet endpoint.'}</div>`;
 }
 
 function renderHoldings() {
   const withBal = spotHoldings.filter(h => parseFloat(h.available_quantity) > 0 || parseFloat(h.locked_quantity) > 0);
-  if (!withBal.length) {
-    document.getElementById('rtHoldings').innerHTML = `<div class="empty-state"><span class="icn">👛</span>No spot holdings yet.</div>`;
-    return;
-  }
+  if (!withBal.length) { document.getElementById('rtHoldings').innerHTML = `<div class="empty-state"><span class="icn">👛</span>No spot holdings yet.</div>`; return; }
   const rows = withBal.map(h => {
     const sym = (h.symbol || '').toUpperCase();
     const coinMeta = TRADE_COINS.find(c => c.symbol === sym);
+    const displayName = coinMeta ? coinMeta.name : (sym === 'USDT' ? 'Tether' : sym);
+    const icon = coinMeta ? coinMeta.icon : (sym === 'USDT' ? '₮' : '●');
     const price = sym === 'USDT' ? 1 : (coinMeta && liveData[coinMeta.id] ? liveData[coinMeta.id].price : parseFloat(h.average_buy_price) || 0);
     const avail = parseFloat(h.available_quantity) || 0;
     const locked = parseFloat(h.locked_quantity) || 0;
     const value = (avail + locked) * price;
     return `<tr>
-      <td style="font-weight:600;">${sym}</td>
-      <td>${avail.toFixed(6)}</td>
-      <td>${locked.toFixed(6)}</td>
-      <td>${fmtUsd(value)}</td>
+      <td>
+        <div class="asset-cell">
+          <span class="asset-icon">${icon}</span>
+          <div>
+            <div style="font-weight:600;">${sym}</div>
+            <div class="asset-name">${displayName}</div>
+          </div>
+        </div>
+      </td>
+      <td>${avail.toFixed(6)}</td><td>${locked.toFixed(6)}</td><td>${fmtUsd(value)}</td>
     </tr>`;
   }).join('');
-  document.getElementById('rtHoldings').innerHTML = `
-    <table class="mini-table">
-      <thead><tr><th>Asset</th><th>Available</th><th>Locked</th><th>Value</th></tr></thead>
-      <tbody>${rows}</tbody>
-    </table>`;
+  document.getElementById('rtHoldings').innerHTML = `<table class="mini-table"><thead><tr><th>Asset</th><th>Available</th><th>Locked</th><th>Value</th></tr></thead><tbody>${rows}</tbody></table>`;
 }
 
 function updateBalanceLabel() {
   const coin = getCoin();
   const usdt = getHoldingQty('USDT');
   const base = getHoldingQty(coin.symbol);
-  document.getElementById('tpBalance').textContent =
-    orderSide === 'BUY'
-      ? `${usdt.toLocaleString('en-US', { maximumFractionDigits: 2 })} USDT`
-      : `${base.toFixed(6)} ${coin.symbol}`;
+  document.getElementById('tpBalance').textContent = orderSide === 'BUY'
+    ? `${usdt.toLocaleString('en-US', { maximumFractionDigits: 2 })} USDT`
+    : `${base.toFixed(6)} ${coin.symbol}`;
 }
 
-/* ═══════════════════════════════════════════════════════
-   OPEN ORDERS  (GET /api/spot/orders, cancel is a stub for now)
-   ═══════════════════════════════════════════════════════ */
 async function loadOrders() {
   try {
     const r = await fetch('/api/spot/orders');
     const d = await r.json();
-    if (d.success) {
-      openOrders = d.data || [];
-      renderOrders();
-    } else {
-      renderOrdersError(d.message);
-    }
-  } catch (e) {
-    renderOrdersError();
-  }
+    if (d.success) { openOrders = d.data || []; renderOrders(); }
+    else { renderOrdersError(d.message); }
+  } catch (e) { renderOrdersError(); }
 }
 
 function renderOrdersError(msg) {
-  document.getElementById('rtOrders').innerHTML =
-    `<div class="empty-state"><span class="icn">⚠</span>${msg || 'Could not load orders — check the /api/spot/orders endpoint.'}</div>`;
+  document.getElementById('rtOrders').innerHTML = `<div class="empty-state"><span class="icn">⚠</span>${msg || 'Could not load orders — check the /api/spot/orders endpoint.'}</div>`;
 }
 
 function renderOrders() {
-  if (!openOrders.length) {
-    document.getElementById('rtOrders').innerHTML = `<div class="empty-state"><span class="icn">📋</span>No open orders.</div>`;
-    return;
-  }
-  const rows = openOrders.map(o => {
+  // Only pending LIMIT orders belong in this tab — MARKET orders fill
+  // immediately and never rest as "open", so they're excluded here.
+  const limitOrders = openOrders.filter(o => (o.order_type || '').toUpperCase() === 'LIMIT');
+  if (!limitOrders.length) { document.getElementById('rtOrders').innerHTML = `<div class="empty-state"><span class="icn">📋</span>No pending limit orders.</div>`; return; }
+  const rows = limitOrders.map(o => {
     const sideCls = (o.side || '').toUpperCase() === 'BUY' ? 'buy' : 'sell';
-    const price = o.order_type === 'MARKET' ? 'Market' : fmtPrice(parseFloat(o.limit_price));
-    return `<tr>
-      <td>
-        <div style="font-weight:600;">${o.symbol}/USDT</div>
-        <span class="side-pill ${sideCls}">${o.side}</span>
-      </td>
-      <td>${price}</td>
-      <td>${parseFloat(o.remaining_quantity ?? o.quantity).toFixed(6)}</td>
-      <td><button class="cancel-btn" onclick="cancelOrder('${o.order_id}')">Cancel</button></td>
-    </tr>`;
+    const price = fmtPrice(parseFloat(o.limit_price));
+    const tpsl = [];
+    if (o.take_profit_price !== null && o.take_profit_price !== undefined) tpsl.push(`<span class="tpsl-pill">TP ${fmtPrice(parseFloat(o.take_profit_price))}</span>`);
+    if (o.stop_loss_price !== null && o.stop_loss_price !== undefined) tpsl.push(`<span class="tpsl-pill">SL ${fmtPrice(parseFloat(o.stop_loss_price))}</span>`);
+    return `<tr><td><div style="font-weight:600;">${o.symbol}/USDT</div><span class="side-pill ${sideCls}">${o.side}</span>${tpsl.join('')}</td><td>${price}</td><td>${parseFloat(o.remaining_quantity ?? o.quantity).toFixed(6)}</td><td><button class="cancel-btn" onclick="cancelOrder('${o.order_id}')">Cancel</button></td></tr>`;
   }).join('');
-  document.getElementById('rtOrders').innerHTML = `
-    <table class="mini-table">
-      <thead><tr><th>Pair / Side</th><th>Price</th><th>Amount</th><th></th></tr></thead>
-      <tbody>${rows}</tbody>
-    </table>`;
+  document.getElementById('rtOrders').innerHTML = `<table class="mini-table"><thead><tr><th>Pair / Side</th><th>Price</th><th>Amount</th><th></th></tr></thead><tbody>${rows}</tbody></table>`;
 }
 
 async function cancelOrder(orderId) {
   try {
     const r = await fetch(`/api/spot/order/${orderId}/cancel`, { method: 'POST' });
     const d = await r.json();
-    if (d.success) { loadOrders(); loadWallet(); loadOrderBook(); }
-    else alert(d.message || 'Could not cancel order.');
-  } catch (e) {
-    alert('Network error while cancelling order.');
-  }
+    if (d.success) { loadOrders(); loadWallet(); loadOrderBook(); } else { alert(d.message || 'Could not cancel order.'); }
+  } catch (e) { alert('Network error while cancelling order.'); }
 }
 
-/* ═══════════════════════════════════════════════════════
-   RIGHT-COLUMN TABS
-   ═══════════════════════════════════════════════════════ */
 function setRightTab(tab) {
   rightTab = tab;
   document.getElementById('rtOrdersTab').classList.toggle('active', tab === 'orders');
@@ -886,9 +836,6 @@ function setRightTab(tab) {
   document.getElementById('rtHoldings').style.display = tab === 'holdings' ? 'block' : 'none';
 }
 
-/* ═══════════════════════════════════════════════════════
-   TRADE PANEL  (order placement is a server-side stub for now)
-   ═══════════════════════════════════════════════════════ */
 function setSide(side) {
   orderSide = side;
   document.getElementById('tabBuy').classList.toggle('active', side === 'BUY');
@@ -897,6 +844,7 @@ function setSide(side) {
   document.getElementById('pctSlider').value = 0;
   document.getElementById('pctVal').textContent = '0%';
   document.getElementById('amountInput').value = '';
+  clearAllFieldErrors();
   updateSubmitLabel();
   updateBalanceLabel();
   recalcTotal();
@@ -912,7 +860,37 @@ function setOrderType(type) {
     const priceInput = document.getElementById('limitPriceInput');
     if (d && !priceInput.value) priceInput.value = fmtPrice(d.price).replace(/,/g, '');
   }
+  clearAllFieldErrors();
   recalcTotal();
+}
+
+function toggleTpSl() {
+  tpslEnabled = document.getElementById('tpslCheckbox').checked;
+  document.getElementById('tpslFields').style.display = tpslEnabled ? 'block' : 'none';
+  if (!tpslEnabled) {
+    document.getElementById('tpInput').value = '';
+    document.getElementById('slInput').value = '';
+    clearFieldError('tpInput');
+    clearFieldError('slInput');
+  }
+}
+
+function clearFieldError(inputId) {
+  const el = document.getElementById(inputId + 'Error');
+  const input = document.getElementById(inputId);
+  if (el) { el.textContent = ''; el.classList.remove('show'); }
+  if (input) input.classList.remove('invalid');
+}
+
+function setFieldError(inputId, msg) {
+  const el = document.getElementById(inputId + 'Error');
+  const input = document.getElementById(inputId);
+  if (el) { el.textContent = msg; el.classList.add('show'); }
+  if (input) input.classList.add('invalid');
+}
+
+function clearAllFieldErrors() {
+  ['amountInput', 'limitPriceInput', 'tpInput', 'slInput'].forEach(clearFieldError);
 }
 
 function updateSubmitLabel() {
@@ -933,7 +911,6 @@ function applyPercent(pct) {
   document.getElementById('pctVal').textContent = pct + '%';
   const price = getEffectivePrice();
   const coin = getCoin();
-
   if (orderSide === 'BUY') {
     const usdt = getHoldingQty('USDT');
     const spend = usdt * (pct / 100);
@@ -954,66 +931,131 @@ function recalcTotal() {
   document.getElementById('totalDisplay').textContent = total.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' USDT';
 }
 
-async function submitOrder() {
+/* ═══════════════════════════════════════════════════════════════════════
+   FRONTEND VALIDATION — mirrors the backend checklist so the user gets
+   instant feedback before anything is sent over the wire. The backend
+   re-validates everything independently against its own live price feed,
+   this is purely a first pass / UX layer.
+   ═══════════════════════════════════════════════════════════════════════ */
+function validateTradeInputs() {
+  clearAllFieldErrors();
   const coin = getCoin();
-  const msgBox = document.getElementById('tradeMsg');
-  const btn = document.getElementById('submitBtn');
-  msgBox.style.display = 'none';
 
   const qty = parseFloat(document.getElementById('amountInput').value);
-  if (!qty || qty <= 0) return showTradeMsg('Enter a valid amount.', 'error');
+  if (!qty || qty <= 0) {
+    setFieldError('amountInput', 'Enter an amount greater than 0.');
+    return { ok: false };
+  }
 
   let limitPrice = null;
   if (orderType === 'LIMIT') {
     limitPrice = parseFloat(document.getElementById('limitPriceInput').value);
-    if (!limitPrice || limitPrice <= 0) return showTradeMsg('Enter a valid limit price.', 'error');
+    if (!limitPrice || limitPrice <= 0) {
+      setFieldError('limitPriceInput', 'Enter a limit price greater than 0.');
+      return { ok: false };
+    }
   }
 
+  const marketData = liveData[selectedCoinId];
+  const marketPrice = marketData ? marketData.price : null;
+  if (!marketPrice) {
+    return { ok: false, generalMsg: 'Live market price unavailable — please wait a moment and try again.' };
+  }
+
+  if (orderType === 'LIMIT') {
+    if (orderSide === 'BUY' && limitPrice >= marketPrice) {
+      setFieldError('limitPriceInput', `Buy limit price must be below the current market price (${fmtPrice(marketPrice)}).`);
+      return { ok: false };
+    }
+    if (orderSide === 'SELL' && limitPrice <= marketPrice) {
+      setFieldError('limitPriceInput', `Sell limit price must be above the current market price (${fmtPrice(marketPrice)}).`);
+      return { ok: false };
+    }
+  }
+
+  const entryPrice = orderType === 'MARKET' ? marketPrice : limitPrice;
+
+  let tp = null, sl = null;
+  if (tpslEnabled) {
+    const tpRaw = document.getElementById('tpInput').value;
+    const slRaw = document.getElementById('slInput').value;
+
+    if (tpRaw !== '') {
+      tp = parseFloat(tpRaw);
+      if (!tp || tp <= 0) { setFieldError('tpInput', 'Take profit must be greater than 0.'); return { ok: false }; }
+    }
+    if (slRaw !== '') {
+      sl = parseFloat(slRaw);
+      if (!sl || sl <= 0) { setFieldError('slInput', 'Stop loss must be greater than 0.'); return { ok: false }; }
+    }
+
+    if (orderSide === 'BUY') {
+      if (tp !== null && tp <= entryPrice) { setFieldError('tpInput', `Take profit must be above ${fmtPrice(entryPrice)}.`); return { ok: false }; }
+      if (sl !== null && sl >= entryPrice) { setFieldError('slInput', `Stop loss must be below ${fmtPrice(entryPrice)}.`); return { ok: false }; }
+    } else {
+      if (tp !== null && tp >= entryPrice) { setFieldError('tpInput', `Take profit must be below ${fmtPrice(entryPrice)}.`); return { ok: false }; }
+      if (sl !== null && sl <= entryPrice) { setFieldError('slInput', `Stop loss must be above ${fmtPrice(entryPrice)}.`); return { ok: false }; }
+    }
+  }
+
+  return { ok: true, qty, limitPrice, tp, sl, entryPrice, marketPrice, coin };
+}
+
+async function submitOrder() {
+  const msgBox = document.getElementById('tradeMsg');
+  msgBox.style.display = 'none';
+
+  const v = validateTradeInputs();
+  if (!v.ok) return showTradeMsg(v.generalMsg || 'Fix the highlighted fields before submitting.', 'error');
+
+  const { qty, limitPrice, tp, sl, coin } = v;
+  const btn = document.getElementById('submitBtn');
+
+  // Balance check against currently loaded wallet holdings
   if (orderSide === 'BUY') {
     const usdt = getHoldingQty('USDT');
     const price = getEffectivePrice();
-    if (price > 0 && qty * price > usdt + 1e-9) {
-      return showTradeMsg(`Insufficient USDT balance. Available: ${usdt.toFixed(2)} USDT`, 'error');
-    }
+    if (price > 0 && qty * price > usdt + 1e-9) return showTradeMsg(`Insufficient USDT balance. Available: ${usdt.toFixed(2)} USDT`, 'error');
   } else {
     const base = getHoldingQty(coin.symbol);
-    if (qty > base + 1e-9) {
-      return showTradeMsg(`Insufficient ${coin.symbol} balance. Available: ${base.toFixed(6)} ${coin.symbol}`, 'error');
-    }
+    if (qty > base + 1e-9) return showTradeMsg(`Insufficient ${coin.symbol} balance. Available: ${base.toFixed(6)} ${coin.symbol}`, 'error');
   }
+
+  // The packet sent to the backend — backend re-validates all of this independently.
+  const orderPayload = {
+    symbol: coin.symbol,
+    side: orderSide,
+    order_type: orderType,
+    quantity: qty,
+    limit_price: orderType === 'LIMIT' ? limitPrice : null,
+    take_profit_price: tp,
+    stop_loss_price: sl,
+  };
 
   btn.disabled = true;
   btn.textContent = orderSide === 'BUY' ? 'Buying…' : 'Selling…';
-
   try {
     const r = await fetch('/api/spot/order', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        symbol: coin.symbol,
-        side: orderSide,
-        order_type: orderType,
-        quantity: qty,
-        limit_price: limitPrice,
-      }),
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(orderPayload),
     });
     const d = await r.json();
     if (d.success) {
-      showTradeMsg(`✓ ${orderSide === 'BUY' ? 'Buy' : 'Sell'} order placed for ${qty} ${coin.symbol}.`, 'success');
+      showTradeMsg(`✓ ${orderSide === 'BUY' ? 'Buy' : 'Sell'} order placed for ${qty} ${coin.symbol}` + (tp || sl ? ' with TP/SL attached.' : '.'), 'success');
       document.getElementById('amountInput').value = '';
       document.getElementById('pctSlider').value = 0;
       document.getElementById('pctVal').textContent = '0%';
+      document.getElementById('tpslCheckbox').checked = false;
+      toggleTpSl();
       recalcTotal();
       loadWallet(); loadOrders(); loadOrderBook();
+    } else if (d.data && Array.isArray(d.data.errors) && d.data.errors.length) {
+      showTradeMsg(d.data.errors.join(' '), 'error');
     } else {
       showTradeMsg(d.message || 'Order failed. Please try again.', 'error');
     }
-  } catch (e) {
-    showTradeMsg('Network error — please check your connection and try again.', 'error');
-  } finally {
-    btn.disabled = false;
-    updateSubmitLabel();
-  }
+  } catch (e) { showTradeMsg('Network error — please check your connection and try again.', 'error'); }
+  finally { btn.disabled = false; updateSubmitLabel(); }
 }
 
 function showTradeMsg(text, type) {

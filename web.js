@@ -20,7 +20,8 @@ const socialProfile = require('./Social_Platform/profile');
 const follow_Unfollow = require('./Social_Platform/follow_unfollow');
 const create_Post = require('./Social_Platform/posts');
 const crypto_square=require('./Social_Platform/insights')
-const tradePanels_Routes = require('./routes/tradePanels_Routes');
+const spotPanel = require('./routes/spotPanel_Route');
+const futuresPanel= require('./routes/futuresPanel_Route');
 
 // ---------------- Managers ----------------
 
@@ -59,7 +60,8 @@ app.use(socialProfile);
 app.use(follow_Unfollow);
 app.use(create_Post);
 app.use(crypto_square);
-app.use(tradePanels_Routes);
+app.use(spotPanel);
+app.use(futuresPanel);
 
 // ---------------- 404 ----------------
 
