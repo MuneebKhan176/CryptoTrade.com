@@ -417,11 +417,11 @@
         <table>
           <thead>
             <tr>
-              <th>Asset</th><th>Symbol</th><th>Available Qty</th><th>Locked Qty</th><th>Avg Buy Price</th><th>Value (USD)</th>
+              <th>Asset</th><th>Symbol</th><th>Available Qty</th><th>Locked Qty</th><th>Avg Buy Price</th><th>Current Price</th><th>Value (USD)</th>
             </tr>
           </thead>
           <tbody id="holdingsTable">
-            <tr><td colspan="6" style="text-align:center;padding:30px;color:var(--text-3)">
+            <tr><td colspan="7" style="text-align:center;padding:30px;color:var(--text-3)">
               <span class="spinner-inline"></span>Loading spot wallet…
             </td></tr>
           </tbody>
@@ -518,7 +518,11 @@ async function loadIdentity() {
   } catch (e) { console.error('loadIdentity error:', e); }
 }
 
-/* Spot wallet = per-asset rows from spot_holdings, joined through spot_wallet.wallet_id. */
+/* Spot wallet = per-asset rows from spot_holdings, joined through spot_wallet.wallet_id.
+   The REST response now includes currentPrice + value per holding (priced
+   from the live Binance cache server-side), so this is a fast first paint
+   that already matches what the portfolio WebSocket will push moments
+   later — no jump/flicker when the socket connects. */
 async function loadSpotWallet() {
   const tbody = document.getElementById('holdingsTable');
   try {
@@ -526,7 +530,7 @@ async function loadSpotWallet() {
     const d = await r.json();
 
     if (!d.success) {
-      tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;padding:30px;color:var(--text-3)">${d.message || 'Could not load spot wallet.'}</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;padding:30px;color:var(--text-3)">${d.message || 'Could not load spot wallet.'}</td></tr>`;
       return;
     }
 
@@ -540,36 +544,81 @@ async function loadSpotWallet() {
     badge.style.background = status === 'BLOCKED' ? 'rgba(239,68,68,.12)' : 'rgba(34,197,94,.12)';
     badge.style.borderColor = status === 'BLOCKED' ? 'rgba(239,68,68,.2)' : 'rgba(34,197,94,.2)';
 
-    if (!holdings || !holdings.length) {
-      tbody.innerHTML = `<tr><td colspan="6"><div class="empty-state"><div class="icon">📊</div><p>No spot holdings yet. Place a trade to see assets here.</p></div></td></tr>`;
-      return;
-    }
-
-    tbody.innerHTML = holdings.map(h => {
-      const meta = assetMeta(h.symbol);
-      const value = (h.availableQuantity + h.lockedQuantity) * (h.averageBuyPrice || 0);
-      return `<tr>
-        <td><div class="coin-cell">
-          <div class="coin-icon ${meta.cls}">${meta.icon}</div>
-          <div><div class="coin-name">${meta.name}</div><div class="coin-sym">${h.symbol}</div></div>
-        </div></td>
-        <td style="font-weight:600;">${h.symbol}</td>
-        <td style="font-variant-numeric:tabular-nums;">${fmtQty(h.availableQuantity)}</td>
-        <td style="font-variant-numeric:tabular-nums;color:var(--text-2);">${fmtQty(h.lockedQuantity)}</td>
-        <td style="color:var(--text-2);">${h.averageBuyPrice ? fmtUsd(h.averageBuyPrice) : '—'}</td>
-        <td style="font-weight:600;">${fmtUsd(value)}</td>
-      </tr>`;
-    }).join('');
+    renderHoldingsTable(holdings);
   } catch (e) {
     console.error('loadSpotWallet error:', e);
-    tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;padding:30px;color:var(--text-3)">Network error loading wallet.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;padding:30px;color:var(--text-3)">Network error loading wallet.</td></tr>`;
   }
+}
+
+/* Shared renderer — used by both the initial REST paint and every
+   subsequent 'portfolio' push from the WebSocket, so the two code paths
+   can never drift out of sync visually. */
+function renderHoldingsTable(holdings) {
+  const tbody = document.getElementById('holdingsTable');
+  if (!holdings || !holdings.length) {
+    tbody.innerHTML = `<tr><td colspan="7"><div class="empty-state"><div class="icon">📊</div><p>No spot holdings yet. Place a trade to see assets here.</p></div></td></tr>`;
+    return;
+  }
+  tbody.innerHTML = holdings.map(h => {
+    const meta = assetMeta(h.symbol);
+    return `<tr>
+      <td><div class="coin-cell">
+        <div class="coin-icon ${meta.cls}">${meta.icon}</div>
+        <div><div class="coin-name">${meta.name}</div><div class="coin-sym">${h.symbol}</div></div>
+      </div></td>
+      <td style="font-weight:600;">${h.symbol}</td>
+      <td style="font-variant-numeric:tabular-nums;">${fmtQty(h.availableQuantity)}</td>
+      <td style="font-variant-numeric:tabular-nums;color:var(--text-2);">${fmtQty(h.lockedQuantity)}</td>
+      <td style="color:var(--text-2);">${h.averageBuyPrice ? fmtUsd(h.averageBuyPrice) : '—'}</td>
+      <td style="color:var(--text-2);">${fmtUsd(h.currentPrice)}</td>
+      <td style="font-weight:600;">${fmtUsd(h.value)}</td>
+    </tr>`;
+  }).join('');
+}
+
+/* ═══════════════════════════════════════════════════════
+   LIVE PORTFOLIO — shared /ws/market-data connection.
+   The REST call above fires first for instant paint; this just takes
+   over updates every ~2.5s after that, without any extra Binance calls
+   of its own (server re-reads spot_holdings + prices from its in-memory
+   cache on each tick).
+   ═══════════════════════════════════════════════════════ */
+let portfolioSocket = null;
+
+function connectPortfolioSocket() {
+  const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+  portfolioSocket = new WebSocket(`${proto}://${location.host}/ws/market-data`);
+
+  portfolioSocket.onmessage = (evt) => {
+    let msg;
+    try { msg = JSON.parse(evt.data); } catch (e) { return; }
+    if (msg.type !== 'portfolio') return; // ignore the public 'snapshot' broadcast on this page
+
+    const { totalValue, holdings, status, walletId } = msg.data;
+
+    document.getElementById('balanceDisplay').textContent = fmtUsd(totalValue);
+    document.getElementById('accountNum').textContent = 'Wallet ID: ' + (walletId ?? '—');
+
+    const badge = document.getElementById('statusBadge');
+    badge.textContent = status || 'ACTIVE';
+    badge.style.color = status === 'BLOCKED' ? 'var(--red)' : 'var(--green)';
+    badge.style.background = status === 'BLOCKED' ? 'rgba(239,68,68,.12)' : 'rgba(34,197,94,.12)';
+    badge.style.borderColor = status === 'BLOCKED' ? 'rgba(239,68,68,.2)' : 'rgba(34,197,94,.2)';
+
+    renderHoldingsTable(holdings);
+  };
+
+  portfolioSocket.onclose = () => {
+    // simple reconnect — page still works off the last paint meanwhile
+    setTimeout(connectPortfolioSocket, 2000);
+  };
 }
 
 /* ═══════════════════════════════════════════════════════
    INTERNAL TRANSFER — between this user's own wallets
    ═══════════════════════════════════════════════════════
-   Backend: POST /api/wallets/transfer (see Wallets/walletTransferService.js)
+   Backend: POST /api/wallets/transfer (see Wallets_Config/walletTransfer.js)
    ═══════════════════════════════════════════════════════ */
 const WALLET_ENDPOINTS = {
   funding: '/api/wallets/funding',
@@ -644,12 +693,16 @@ async function submitTransfer() {
   }
 }
 
-/* This page shows the Spot wallet, so refresh that after a transfer. */
+/* This page shows the Spot wallet. A manual refresh right after a
+   transfer is still nice for instant feedback — the portfolio socket
+   will also reflect the post-transfer balance on its next ~2.5s tick
+   regardless, since it re-reads spot_holdings fresh each time. */
 function refreshCurrentWallet() { loadSpotWallet(); }
 
 document.addEventListener('DOMContentLoaded', () => {
   loadIdentity();
-  loadSpotWallet();
+  loadSpotWallet();          // fast first paint from REST
+  connectPortfolioSocket();  // live updates every ~2.5s after that
 });
 </script>
 </body>

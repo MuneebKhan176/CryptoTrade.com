@@ -11,6 +11,10 @@ const verifyToken = require("../middle/middleware");
 // Wallet-to-wallet internal transfer logic lives in its own file.
 const { transferBetweenWallets } = require("../Wallets_Config/walletTransfer");
 
+// Shared live-price cache from the Binance feed — adjust path if your
+// market_data.js lives somewhere else.
+const { getLivePrice } = require("../Web_Sockets/marketData_ws");
+
 function sendResponse(res, statusCode, success, message, data = null) {
     return res.status(statusCode).json({ success, message, data });
 }
@@ -30,7 +34,7 @@ router.get("/futures-wallet", verifyToken, (req, res) => {
 
 // ═══════════════════════════════════════════════════════
 // FUNDING WALLET DATA
-// ════════════════════════════════════════════════╗
+// ═══════════════════════════════════════════════════════
 // There's no separate funding_wallet table — the Funding wallet IS the
 // accounts row, held entirely as a single USDT balance. This is what
 // funding-wallet.html's loadFundingWallet() is fetching.
@@ -94,17 +98,25 @@ router.get("/api/wallets/spot", verifyToken, (req, res) => {
                     // instead of a $0.00 line item.
                     const holdings = holdingsResult
                         .filter(h => parseFloat(h.available_quantity) > 0 || parseFloat(h.locked_quantity) > 0)
-                        .map(h => ({
-                            symbol: h.symbol,
-                            availableQuantity: parseFloat(h.available_quantity),
-                            lockedQuantity: parseFloat(h.locked_quantity),
-                            averageBuyPrice: parseFloat(h.average_buy_price),
-                        }));
+                        .map(h => {
+                            // Price from the shared live Binance cache, falling
+                            // back to avg_buy_price only if the feed hasn't
+                            // produced a tick yet (e.g. right after server start).
+                            const currentPrice = getLivePrice(h.symbol) ?? parseFloat(h.average_buy_price) ?? 0;
+                            const available = parseFloat(h.available_quantity);
+                            const locked = parseFloat(h.locked_quantity);
+                            return {
+                                symbol: h.symbol,
+                                availableQuantity: available,
+                                lockedQuantity: locked,
+                                averageBuyPrice: parseFloat(h.average_buy_price),
+                                currentPrice,
+                                value: (available + locked) * currentPrice,
+                            };
+                        });
 
-                    const totalValue = holdings.reduce(
-                        (sum, h) => sum + (h.availableQuantity + h.lockedQuantity) * (h.averageBuyPrice || 0),
-                        0
-                    );
+                    // totalValue now driven by live price, not avg_buy_price.
+                    const totalValue = holdings.reduce((sum, h) => sum + h.value, 0);
 
                     return sendResponse(res, 200, true, "Spot wallet loaded", {
                         walletId: wallet.wallet_id,
@@ -153,7 +165,11 @@ router.get("/api/wallets/futures", verifyToken, (req, res) => {
 // ═══════════════════════════════════════════════════════
 // body: { fromWallet: 'funding'|'spot'|'futures', toWallet: same, amount }
 // All validation, locking, and the debit/credit transaction live in
-// walletTransferService.js — this route just wires it up.
+// walletTransfer.js — this route just wires it up. No changes needed
+// here: walletTransfer.js already reads available_quantity (not
+// available_quantity + locked_quantity) via getSpotBalance, FOR UPDATE
+// inside a transaction, so once orders correctly move funds into
+// locked_quantity, transfers already respect the lock automatically.
 router.post("/api/wallets/transfer", verifyToken, transferBetweenWallets);
 
 module.exports = router;

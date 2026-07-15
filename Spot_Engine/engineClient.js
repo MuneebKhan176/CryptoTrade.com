@@ -1,35 +1,71 @@
 // engineClient.js
 // -----------------------------------------------------------------------
-// Shared TCP client for the CryptoTrade C++ engine (trade_engine.cpp).
+// Shared TCP client for the CryptoTrade C++ spot trading engine
+// (trade_engine.cpp).
 //
 // IMPORTANT: this module opens exactly ONE TCP connection to the engine
-// for the whole Node process, and every call to sendOrderToEngine() reuses
-// it — regardless of which user placed the order. We do NOT open a new
-// socket per request; that's the whole point of this module.
+// for the whole Node process, and every call reuses it — regardless of
+// which user placed the order. We do NOT open a new socket per request.
 //
-// Because many orders from many users can be in flight on that single
-// connection at the same time, each outgoing packet gets a unique
-// request_id. The engine echoes it back on the matching reply, and this
-// module uses it to resolve the right pending promise — so replies don't
-// have to arrive in the same order the requests were sent.
+// Two kinds of traffic flow back over that one socket:
+//
+//   1. REQUEST/RESPONSE — Node sends PLACE_ORDER / CANCEL_ORDER /
+//      PRICE_UPDATE with a request_id, and gets back an immediate
+//      ORDER_ACK / CANCEL_ACK carrying that same request_id. This module
+//      resolves the matching pending promise for those.
+//
+//   2. PUSH EVENTS — the engine can also emit EXECUTION and
+//      ORDER_BOOK_UPDATE messages that are NOT replies to a specific
+//      call. A resting LIMIT order can fill minutes after it was placed,
+//      triggered by a PRICE_UPDATE that had nothing to do with that
+//      order; a TP/SL exit fires the same way. These arrive with the
+//      request_id of whatever inbound packet triggered them (which is
+//      usually a PRICE_UPDATE Node's price-poller sent, not something a
+//      route handler is awaiting), so they are NOT resolved against
+//      `pending` — they're emitted as events instead. Route handlers /
+//      services subscribe with `engineEvents.on('execution', ...)` etc.
 //
 // Framing: one JSON object per line (newline-delimited), in both
-// directions, so multiple messages can be pipelined over the same socket.
+// directions, so multiple messages can be pipelined over the same socket
+// — and a single inbound packet to the engine can produce MULTIPLE
+// outbound lines (e.g. an ORDER_ACK followed by an EXECUTION followed by
+// an ORDER_BOOK_UPDATE). Every line is processed independently.
 //
 // If the connection drops, this module automatically reconnects with a
 // short backoff. Requests made while disconnected are queued and flushed
 // once the connection is back up (up to a bounded wait — see PENDING
 // TIMEOUT below), so a brief reconnect doesn't have to fail every order
 // mid-blip.
+//
+// NOTE ON STATE: the engine's order books are RAM-only and are wiped on
+// engine restart. If the connection drops and reconnects, any orders that
+// were resting on the engine's book are gone from its memory — Node's
+// MySQL `spot_orders` rows for those will still show OPEN. Whoever owns
+// reconciliation (e.g. a startup job) is responsible for re-submitting
+// still-OPEN LIMIT orders to the engine after a reconnect; this module
+// does not do that automatically, since it can't tell "fresh engine
+// process" apart from "same engine, brief network blip" on its own.
 // -----------------------------------------------------------------------
 
 const net = require("net");
 const crypto = require("crypto");
+const { EventEmitter } = require("events");
 
 const ENGINE_HOST = process.env.TRADE_ENGINE_HOST || "127.0.0.1";
 const ENGINE_PORT = parseInt(process.env.TRADE_ENGINE_PORT || "9000", 10);
 const RECONNECT_DELAY_MS = 2000;
 const PENDING_TIMEOUT_MS = 5000;
+
+/* ═══════════════════════════════════════════════════════════════════════
+   PUSH EVENT EMITTER
+   ───────────────────────────────────────────────────────────────────────
+   Subscribe to these from wherever fills/book updates need to be
+   persisted to MySQL and broadcast over WebSockets, e.g.:
+     const { engineEvents } = require("./engineClient");
+     engineEvents.on("execution", (msg) => { ...persist + broadcast... });
+     engineEvents.on("orderBookUpdate", (msg) => { ...broadcast... });
+   ═══════════════════════════════════════════════════════════════════════ */
+const engineEvents = new EventEmitter();
 
 /* ═══════════════════════════════════════════════════════════════════════
    SHARED CONNECTION STATE (module-level singleton — one per Node process)
@@ -38,7 +74,7 @@ let socket = null;
 let connected = false;
 let recvBuffer = "";
 
-// request_id -> { resolve, reject, timer, sent }
+// request_id -> { resolve, reject, timer, sent, expectedType }
 // `sent` distinguishes two very different situations on disconnect:
 //   - sent === true : the packet already went out on a socket that then
 //     died, so we genuinely don't know if the engine processed it. Fail it.
@@ -76,27 +112,67 @@ function flushWriteQueue() {
     }
 }
 
+// A single inbound Node->engine packet can produce several outbound
+// lines. We route each one independently:
+//   - ORDER_ACK / CANCEL_ACK  -> resolves the pending promise for that
+//     request_id (the immediate reply to a PLACE_ORDER/CANCEL_ORDER call).
+//   - EXECUTION / ORDER_BOOK_UPDATE -> always emitted as an event. If a
+//     PRICE_UPDATE call is still awaiting its own ack, these are also
+//     surfaced there so a direct caller can see synchronous fills too
+//     (see sendPriceUpdate below), but they are never used to resolve
+//     ORDER_ACK/CANCEL_ACK promises.
+//   - ERROR -> rejects the pending promise for that request_id if one
+//     exists, otherwise emitted as an event.
 function handleLine(line) {
     if (!line) return;
 
-    let reply;
+    let msg;
     try {
-        reply = JSON.parse(line);
+        msg = JSON.parse(line);
     } catch (err) {
         console.error("Trade engine sent invalid JSON, dropping line:", line);
         return;
     }
 
-    const requestId = reply.request_id;
-    const entry = pending.get(requestId);
-    if (!entry) {
-        // No one is waiting on this anymore (e.g. it already timed out).
-        return;
-    }
+    const type = msg.type;
+    const requestId = msg.request_id;
+    const entry = requestId ? pending.get(requestId) : undefined;
 
-    pending.delete(requestId);
-    clearTimeout(entry.timer);
-    entry.resolve(reply);
+    switch (type) {
+        case "ORDER_ACK":
+        case "CANCEL_ACK": {
+            if (entry) {
+                pending.delete(requestId);
+                clearTimeout(entry.timer);
+                entry.resolve(msg);
+            }
+            break;
+        }
+        case "EXECUTION": {
+            engineEvents.emit("execution", msg);
+            if (entry && entry.collect) entry.collect.push(msg);
+            break;
+        }
+        case "ORDER_BOOK_UPDATE": {
+            engineEvents.emit("orderBookUpdate", msg);
+            if (entry && entry.collect) entry.collect.push(msg);
+            break;
+        }
+        case "ERROR": {
+            if (entry) {
+                pending.delete(requestId);
+                clearTimeout(entry.timer);
+                entry.reject(new Error(msg.message || "Trade engine error"));
+            } else {
+                console.error("Trade engine ERROR (unsolicited):", msg.message);
+                engineEvents.emit("engineError", msg);
+            }
+            break;
+        }
+        default: {
+            console.error("Trade engine sent unknown message type, dropping:", line);
+        }
+    }
 }
 
 function connect() {
@@ -105,6 +181,7 @@ function connect() {
     socket.connect(ENGINE_PORT, ENGINE_HOST, () => {
         connected = true;
         console.log(`Connected to trade engine at ${ENGINE_HOST}:${ENGINE_PORT} (shared connection)`);
+        engineEvents.emit("connected");
         flushWriteQueue();
     });
 
@@ -135,6 +212,7 @@ function connect() {
         }
         connected = false;
         recvBuffer = "";
+        engineEvents.emit("disconnected", lastErrorMessage);
         failInFlightPending(`Trade engine connection was lost: ${lastErrorMessage}`);
         setTimeout(connect, RECONNECT_DELAY_MS);
     });
@@ -144,32 +222,90 @@ function connect() {
 connect();
 
 /* ═══════════════════════════════════════════════════════════════════════
-   PUBLIC API
-   ───────────────────────────────────────────────────────────────────────
-   Every caller — no matter which user's request triggered it — goes
-   through this same function, which writes onto the one shared socket.
+   INTERNAL: send one packet, wait for its ack, optionally collect any
+   EXECUTION / ORDER_BOOK_UPDATE lines that arrive before the ack does
+   (they're written by the engine in the same batch, so in practice they
+   arrive first).
    ═══════════════════════════════════════════════════════════════════════ */
-function sendOrderToEngine(orderPacket) {
+function sendPacket(packet, { collectPushMessages = false } = {}) {
     return new Promise((resolve, reject) => {
-        const requestId = generateRequestId();
-        const packetWithId = { request_id: requestId, ...orderPacket };
+        const requestId = packet.request_id || generateRequestId();
+        const packetWithId = { ...packet, request_id: requestId };
         const line = JSON.stringify(packetWithId) + "\n";
+
+        const collect = collectPushMessages ? [] : undefined;
 
         const timer = setTimeout(() => {
             pending.delete(requestId);
             reject(new Error("Timed out waiting for the trade engine"));
         }, PENDING_TIMEOUT_MS);
 
+        const wrappedResolve = (ackMsg) => {
+            resolve(collect ? { ack: ackMsg, pushMessages: collect } : ackMsg);
+        };
+
         if (connected) {
-            pending.set(requestId, { resolve, reject, timer, sent: true });
+            pending.set(requestId, { resolve: wrappedResolve, reject, timer, sent: true, collect });
             socket.write(line);
         } else {
             // Engine is mid-reconnect — queue it, the pending timeout above
             // still protects us if it never comes back in time.
-            pending.set(requestId, { resolve, reject, timer, sent: false });
+            pending.set(requestId, { resolve: wrappedResolve, reject, timer, sent: false, collect });
             writeQueue.push({ requestId, line });
         }
     });
 }
 
-module.exports = { sendOrderToEngine };
+/* ═══════════════════════════════════════════════════════════════════════
+   PUBLIC API
+   ───────────────────────────────────────────────────────────────────────
+   Every caller — no matter which user's request triggered it — goes
+   through these functions, which write onto the one shared socket.
+   Node must have already run ALL pre-trade validation (auth, balance
+   checks, business rules) before calling sendOrderToEngine; the engine
+   only re-checks packet integrity / known trading pair.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+// order: { order_id, user_id, wallet_id, symbol, side, order_type,
+//          quantity, limit_price?, take_profit_price?, stop_loss_price? }
+// Resolves with the ORDER_ACK payload: { accepted, message, errors, engine_order_id, ... }
+// Any EXECUTION this placement causes synchronously (a MARKET fill, or a
+// LIMIT order that was immediately marketable) is ALSO emitted on
+// engineEvents as usual — persist/broadcast it there, don't rely on the
+// ack alone for that.
+function sendOrderToEngine(order) {
+    return sendPacket({ action: "PLACE_ORDER", ...order }).then((ack) => {
+        if (!ack || ack.type !== "ORDER_ACK") {
+            throw new Error("Unexpected reply from trade engine for PLACE_ORDER");
+        }
+        return ack;
+    });
+}
+
+// Cancels a resting LIMIT order by its MySQL spot_orders.order_id.
+// Resolves with the CANCEL_ACK payload: { cancelled, message }.
+function cancelOrderOnEngine(orderId, symbol) {
+    return sendPacket({ action: "CANCEL_ORDER", order_id: orderId, symbol }).then((ack) => {
+        if (!ack || ack.type !== "CANCEL_ACK") {
+            throw new Error("Unexpected reply from trade engine for CANCEL_ORDER");
+        }
+        return ack;
+    });
+}
+
+// Forwards a live price tick (e.g. from the Binance REST poller) to the
+// engine so it can evaluate resting LIMIT orders and TP/SL triggers for
+// that symbol. Any resulting fills are emitted on engineEvents('execution')
+// as they happen — this call's own return value is mostly useful for
+// logging/debugging, not for driving persistence (subscribe to the event
+// instead, since fills can also happen from OTHER callers' price ticks).
+function sendPriceUpdate(symbol, price) {
+    return sendPacket({ action: "PRICE_UPDATE", symbol, price }, { collectPushMessages: true });
+}
+
+module.exports = {
+    sendOrderToEngine,
+    cancelOrderOnEngine,
+    sendPriceUpdate,
+    engineEvents,
+};
