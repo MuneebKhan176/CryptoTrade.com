@@ -3,30 +3,27 @@ const path = require("path");
 const router = express.Router();
 
 // Same db module used across the app (authRoutes.js, walletRoutes.js …)
-const { conn } = require("../db_connection");
+// `conn` = the shared pool, safe for one-shot queries. `getConnection` =
+// checks out ONE dedicated connection for a real transaction (BEGIN ...
+// FOR UPDATE ... COMMIT) — required any time locking is involved.
+const { conn, getConnection } = require("../db_connection");
 
 // Same auth middleware used by /dashboard, /funding-wallet, etc. — sets req.user.id from the JWT cookie.
 const verifyToken = require("../middle/middleware");
 
 // TCP client for the C++ CryptoTrade engine (see engine/trade_engine.cpp).
-// engineClient.js owns ONE shared, persistent TCP connection for the whole
-// process — every call below reuses it, regardless of which user's request
-// triggered it. No connection is opened per order.
-//
-// engineEvents is how the engine's PUSH messages arrive — fills and book
-// updates that are NOT replies to a specific request (a resting LIMIT
-// order can fill minutes later, triggered by someone else's price tick).
-// All MySQL persistence for fills happens off that event, in ONE place,
-// not scattered across route handlers — see handleExecution() below.
 const { sendOrderToEngine, cancelOrderOnEngine, engineEvents } = require("../Spot_Engine/engineClient");
+
+// Locking module — every function here takes the SAME dedicated
+// connection as the surrounding transaction, never the shared pool.
+const { lockForOrder, unlockOnCancel, releaseOnFill } = require("../Wallets_Config/spotHoldings_Lock");
 
 function sendResponse(res, statusCode, success, message, data = null) {
     return res.status(statusCode).json({ success, message, data });
 }
 
-// Promise-flavored query helper — the persistence logic below chains
-// several dependent queries (fetch order -> insert trade -> upsert
-// holdings -> upsert position) and reads far worse as nested callbacks.
+// Promise-flavored query helper for the shared pool — fine for one-shot,
+// non-transactional reads (GET endpoints below).
 function query(sql, params) {
     return new Promise((resolve, reject) => {
         conn.query(sql, params, (err, result) => {
@@ -36,16 +33,35 @@ function query(sql, params) {
     });
 }
 
+// Same helper, but bound to a specific dedicated connection — use this
+// for anything that must run inside a transaction alongside a lock/
+// unlock/release call.
+function txQuery(connection, sql, params) {
+    return new Promise((resolve, reject) => {
+        connection.query(sql, params, (err, result) => {
+            if (err) return reject(err);
+            resolve(result);
+        });
+    });
+}
+function beginTransaction(connection) {
+    return new Promise((resolve, reject) => {
+        connection.beginTransaction((err) => (err ? reject(err) : resolve()));
+    });
+}
+function commit(connection) {
+    return new Promise((resolve, reject) => {
+        connection.commit((err) => (err ? reject(err) : resolve()));
+    });
+}
+function rollback(connection) {
+    return new Promise((resolve) => {
+        connection.rollback(() => resolve());
+    });
+}
+
 /* ═══════════════════════════════════════════════════════════════════════
    SUPPORTED SYMBOLS
-   ───────────────────────────────────────────────────────────────────────
-   Must stay in sync with the TRADE_COINS list in spot_trade.html. Anything
-   not in this list is rejected before we even bother hitting Binance.
-
-   DB / REST layer uses the base asset only ("BTC"), matching spot_orders
-   / spot_holdings.symbol. The engine speaks full pairs ("BTCUSDT") — see
-   toEnginePair/fromEnginePair below. Convert at the boundary, never store
-   the pair form in MySQL.
    ═══════════════════════════════════════════════════════════════════════ */
 const SUPPORTED_SYMBOLS = ["BTC", "ETH", "BNB", "SOL", "XRP", "USDC"];
 
@@ -58,11 +74,6 @@ function fromEnginePair(pairSymbol) {
 
 /* ═══════════════════════════════════════════════════════════════════════
    LIVE MARKET PRICE (server-side, never trusted from the client)
-   ───────────────────────────────────────────────────────────────────────
-   All price-direction checks (LIMIT vs market, TP/SL vs entry) are
-   validated against a price WE fetch, not whatever the frontend happened
-   to have cached in its WebSocket feed. This is what keeps a client from
-   spoofing a favorable price to force a bad TP/SL through.
    ═══════════════════════════════════════════════════════════════════════ */
 async function getMarketPrice(symbol) {
     const url = `https://api.binance.com/api/v3/ticker/price?symbol=${symbol}USDT`;
@@ -75,19 +86,7 @@ async function getMarketPrice(symbol) {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
-   ORDER VALIDATION — the full checklist
-   ───────────────────────────────────────────────────────────────────────
-   ✓ Request format is valid
-   ✓ Trading symbol exists
-   ✓ Quantity > 0
-   ✓ LIMIT order must have a limit price / MARKET must not
-   ✓ TP > 0 (if provided), SL > 0 (if provided)
-   ✓ BUY MARKET  : TP > entry, SL < entry            (entry = market price)
-   ✓ BUY LIMIT   : limit < market, TP > limit, SL < limit
-   ✓ SELL MARKET : TP < entry, SL > entry             (entry = market price)
-   ✓ SELL LIMIT  : limit > market, TP < limit, SL > limit
-   Returns { valid, errors[], normalized } — normalized is the clean,
-   type-coerced packet used for both the DB insert and the engine packet.
+   ORDER VALIDATION — unchanged from before
    ═══════════════════════════════════════════════════════════════════════ */
 function validateOrderRequest(body, marketPrice) {
     const errors = [];
@@ -102,7 +101,6 @@ function validateOrderRequest(body, marketPrice) {
     if (side !== "BUY" && side !== "SELL") errors.push("Side must be BUY or SELL");
     if (order_type !== "MARKET" && order_type !== "LIMIT") errors.push("Order type must be MARKET or LIMIT");
 
-    // Can't safely check anything symbol/side/type-dependent below without these
     if (errors.length) return { valid: false, errors };
 
     const upperSymbol = symbol.toUpperCase();
@@ -122,7 +120,6 @@ function validateOrderRequest(body, marketPrice) {
             errors.push("LIMIT orders require a limit_price greater than 0");
         }
     } else {
-        // MARKET orders must not carry a limit price at all
         if (limit_price !== undefined && limit_price !== null && limit_price !== "") {
             errors.push("MARKET orders must not include a limit_price");
         }
@@ -140,8 +137,6 @@ function validateOrderRequest(body, marketPrice) {
         if (isNaN(sl) || sl <= 0) errors.push("stop_loss_price must be greater than 0");
     }
 
-    // Stop here if the basic shape is already broken — directional checks
-    // below assume limitPrice/tp/sl are valid numbers when not null.
     if (errors.length) return { valid: false, errors };
 
     const entryPrice = order_type === "MARKET" ? marketPrice : limitPrice;
@@ -164,11 +159,6 @@ function validateOrderRequest(body, marketPrice) {
 
     if (errors.length) return { valid: false, errors };
 
-    // NOTE: TP/SL only make economic sense on a BUY (spot has no
-    // short-selling — spot_positions only ever tracks a long quantity /
-    // entry_price). The engine also rejects TP/SL on a SELL; we surface
-    // the same rule here so the client gets a clean 400 instead of a
-    // round trip to the engine just to be told no.
     if (side === "SELL" && (tp !== null || sl !== null)) {
         return { valid: false, errors: ["take_profit_price / stop_loss_price are only supported on BUY orders"] };
     }
@@ -247,7 +237,7 @@ router.get("/api/spot/orders", verifyToken, (req, res) => {
 
     conn.query(
         `SELECT order_id, symbol, side, order_type, quantity, remaining_quantity,
-                limit_price, take_profit_price, stop_loss_price, status, created_at
+                limit_price, locked_price, take_profit_price, stop_loss_price, status, created_at
          FROM spot_orders
          WHERE user_id = ? AND status IN ('OPEN', 'PARTIALLY_FILLED')
          ORDER BY created_at DESC`,
@@ -263,6 +253,7 @@ router.get("/api/spot/orders", verifyToken, (req, res) => {
                 quantity: parseFloat(o.quantity),
                 remaining_quantity: parseFloat(o.remaining_quantity),
                 limit_price: o.limit_price !== null ? parseFloat(o.limit_price) : null,
+                locked_price: o.locked_price !== null ? parseFloat(o.locked_price) : null,
                 take_profit_price: o.take_profit_price !== null ? parseFloat(o.take_profit_price) : null,
                 stop_loss_price: o.stop_loss_price !== null ? parseFloat(o.stop_loss_price) : null,
                 status: o.status,
@@ -276,11 +267,6 @@ router.get("/api/spot/orders", verifyToken, (req, res) => {
 
 /* ═══════════════════════════════════════════════════════════════════════
    OPEN POSITIONS  (GET /api/spot/positions)
-   ───────────────────────────────────────────────────────────────────────
-   A position row is created the moment a BUY entry order fills (see
-   handleExecution below) and closed the moment its TP or SL fires.
-   Orders placed with no TP/SL never get a position row — they're just a
-   holdings change, tracked in spot_holdings instead.
    ═══════════════════════════════════════════════════════════════════════ */
 router.get("/api/spot/positions", verifyToken, (req, res) => {
     const userId = req.user.id;
@@ -317,10 +303,6 @@ router.get("/api/spot/positions", verifyToken, (req, res) => {
 
 /* ═══════════════════════════════════════════════════════════════════════
    TRADE HISTORY  (GET /api/spot/trades)
-   ───────────────────────────────────────────────────────────────────────
-   spot_trades only ever gets a row from handleExecution() below, i.e.
-   strictly AFTER the engine reports a fill. An order that's still
-   OPEN/PARTIALLY_FILLED has no trade history yet — that's by design.
    ═══════════════════════════════════════════════════════════════════════ */
 router.get("/api/spot/trades", verifyToken, (req, res) => {
     const userId = req.user.id;
@@ -387,26 +369,34 @@ router.get("/api/spot/orderbook", verifyToken, (req, res) => {
 /* ═══════════════════════════════════════════════════════════════════════
    PLACE ORDER  (POST /api/spot/order)
    ───────────────────────────────────────────────────────────────────────
-   Flow:
+   Flow (fixed):
      1. verifyToken already confirmed the JWT — req.user.id is trusted.
      2. Fetch a fresh, server-side market price for the requested symbol.
      3. Run the full validation checklist against that price.
-     4. On failure -> 400 with a list of every violated rule. Nothing is
-        written to the DB and nothing reaches the engine.
-     5. On success -> INSERT the order into spot_orders as OPEN *first*.
-        This row is what makes the order durable: if the engine or Node
-        crashes one millisecond later, the order still exists and will be
-        picked back up by recoverOpenOrdersToEngine() the next time this
-        process connects to a (possibly fresh) engine. The engine's RAM
-        book is a cache of this table, never the source of truth.
-     6. Forward the DB-assigned order_id to the engine as `order_id` —
-        that's the correlation key EXECUTION packets come back with.
-     7. If the engine rejects the packet, mark the row CANCELLED and
-        relay the errors. If the engine is unreachable, leave the row
-        OPEN — we genuinely don't know whether the engine received it,
-        and recovery will reconcile it on the next connect.
-   Fills are NOT persisted here — see handleExecution(), which runs off
-   the engine's push events regardless of which request caused them.
+     4. Check out ONE dedicated connection and start a transaction:
+          a. lockForOrder() — reserves USDT (BUY) or the base asset
+             (SELL) against spot_holdings, FOR UPDATE. This is the actual
+             fix for "orders never locked funds": until this call
+             existed, available_quantity was untouched between placement
+             and fill, so a transfer or a second order could spend money
+             that was already spoken for.
+          b. INSERT the order as OPEN, persisting locked_price — the
+             exact price the lock was computed against (market price for
+             MARKET, limit_price for LIMIT). Cancel/fill later recompute
+             the exact reserved amount from remaining_quantity *
+             locked_price (BUY) or remaining_quantity alone (SELL),
+             without needing any extra bookkeeping table.
+          c. commit. If the lock fails (insufficient funds) or the insert
+             fails, roll back — nothing is written, nothing reaches the
+             engine.
+     5. Forward the DB-assigned order_id to the engine as `order_id`.
+     6. If the engine rejects the packet, or is unreachable, open a
+        SEPARATE transaction to unlock what was reserved and mark the row
+        CANCELLED — never leave a rejected order holding a lock forever.
+        If the engine is unreachable, we genuinely don't know whether it
+        received the order, so the row (and its lock) are left in place;
+        recovery reconciles it on the next connect.
+   Fills are NOT persisted here — see handleExecution().
    ═══════════════════════════════════════════════════════════════════════ */
 router.post("/api/spot/order", verifyToken, async (req, res) => {
     const userId = req.user.id;
@@ -437,89 +427,154 @@ router.post("/api/spot/order", verifyToken, async (req, res) => {
 
     const packet = validation.normalized;
 
+    let connection;
     try {
-        const walletRows = await query("SELECT wallet_id, status FROM spot_wallet WHERE user_id = ?", [userId]);
-        if (!walletRows.length) return sendResponse(res, 404, false, "Spot wallet not found");
+        connection = await getConnection();
+    } catch (e) {
+        return sendResponse(res, 500, false, "Could not acquire a database connection.");
+    }
 
-        const wallet = walletRows[0];
-        if (wallet.status !== "ACTIVE") return sendResponse(res, 403, false, "Spot wallet is blocked");
+    let orderId;
+    let wallet;
+    try {
+        await beginTransaction(connection);
 
-        // Durable first: this row exists before the engine ever sees the
-        // order, so a crash on either side loses nothing.
-        const insertResult = await query(
+        const walletRows = await txQuery(connection, "SELECT wallet_id, status FROM spot_wallet WHERE user_id = ?", [userId]);
+        if (!walletRows.length) {
+            await rollback(connection);
+            return sendResponse(res, 404, false, "Spot wallet not found");
+        }
+        wallet = walletRows[0];
+        if (wallet.status !== "ACTIVE") {
+            await rollback(connection);
+            return sendResponse(res, 403, false, "Spot wallet is blocked");
+        }
+
+        // Reserve funds/asset BEFORE the order exists — this is the
+        // core fix. entry_price_reference is what the lock is sized
+        // against, and is persisted below as locked_price.
+        try {
+            await lockForOrder(connection, {
+                walletId: wallet.wallet_id,
+                side: packet.side,
+                symbol: packet.symbol,
+                quantity: packet.quantity,
+                estimatedPrice: packet.entry_price_reference,
+            });
+        } catch (lockErr) {
+            await rollback(connection);
+            return sendResponse(res, 400, false, lockErr.message);
+        }
+
+        const insertResult = await txQuery(
+            connection,
             `INSERT INTO spot_orders
                 (user_id, wallet_id, symbol, side, order_type, quantity, remaining_quantity,
-                 limit_price, take_profit_price, stop_loss_price, status)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'OPEN')`,
+                 limit_price, locked_price, take_profit_price, stop_loss_price, status)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'OPEN')`,
             [
                 userId, wallet.wallet_id, packet.symbol, packet.side, packet.order_type,
-                packet.quantity, packet.quantity, packet.limit_price,
+                packet.quantity, packet.quantity, packet.limit_price, packet.entry_price_reference,
                 packet.take_profit_price, packet.stop_loss_price,
             ]
         );
-        const orderId = insertResult.insertId;
+        orderId = insertResult.insertId;
 
-        const enginePacket = {
-            action: "PLACE_ORDER",
-            order_id: orderId,
-            user_id: userId,
-            wallet_id: wallet.wallet_id,
-            symbol: toEnginePair(packet.symbol),
-            side: packet.side,
-            order_type: packet.order_type,
-            quantity: packet.quantity,
-            limit_price: packet.limit_price,
-            take_profit_price: packet.take_profit_price,
-            stop_loss_price: packet.stop_loss_price,
-        };
-
-        let engineReply;
-        try {
-            engineReply = await sendOrderToEngine(enginePacket);
-        } catch (engineErr) {
-            // Unreachable / timed out — we don't know if the engine ever
-            // saw it. Leave the row OPEN; recovery reconciles it against
-            // whatever engine process is live the next time we connect.
-            return sendResponse(res, 502, false,
-                `Trade engine unavailable: ${engineErr.message}. Your order (#${orderId}) was saved and will be retried automatically.`,
-                { order_id: orderId }
-            );
-        }
-
-        if (!engineReply.accepted) {
-            await query("UPDATE spot_orders SET status = 'CANCELLED' WHERE order_id = ?", [orderId]);
-            return sendResponse(res, 400, false, "Order rejected by trade engine", {
-                order_id: orderId,
-                errors: engineReply.errors || [],
-            });
-        }
-
-        return sendResponse(res, 200, true, "Order placed", {
-            order_id: orderId,
-            engine_order_id: engineReply.engine_order_id,
-            wallet_id: wallet.wallet_id,
-            symbol: packet.symbol,
-            side: packet.side,
-            order_type: packet.order_type,
-            quantity: packet.quantity,
-            limit_price: packet.limit_price,
-            take_profit_price: packet.take_profit_price,
-            stop_loss_price: packet.stop_loss_price,
-            entry_price_reference: packet.entry_price_reference,
-            market_price_reference: packet.market_price_reference,
-            status: "OPEN",
-        });
+        await commit(connection);
     } catch (dbErr) {
+        await rollback(connection);
         return sendResponse(res, 500, false, "Database error while placing order");
+    } finally {
+        connection.release();
     }
+
+    const enginePacket = {
+        action: "PLACE_ORDER",
+        order_id: orderId,
+        user_id: userId,
+        wallet_id: wallet.wallet_id,
+        symbol: toEnginePair(packet.symbol),
+        side: packet.side,
+        order_type: packet.order_type,
+        quantity: packet.quantity,
+        limit_price: packet.limit_price,
+        take_profit_price: packet.take_profit_price,
+        stop_loss_price: packet.stop_loss_price,
+    };
+
+    let engineReply;
+    try {
+        engineReply = await sendOrderToEngine(enginePacket);
+    } catch (engineErr) {
+        // Unreachable / timed out — leave the row + its lock in place;
+        // recovery reconciles it against whatever engine is live next.
+        return sendResponse(res, 502, false,
+            `Trade engine unavailable: ${engineErr.message}. Your order (#${orderId}) was saved and will be retried automatically.`,
+            { order_id: orderId }
+        );
+    }
+
+    if (!engineReply.accepted) {
+        // Engine rejected it — release the reservation and mark
+        // CANCELLED in its own transaction, since the placement
+        // transaction already committed.
+        await releaseRejectedOrder(orderId, packet.side, packet.symbol, packet.quantity, packet.entry_price_reference, wallet.wallet_id);
+        return sendResponse(res, 400, false, "Order rejected by trade engine", {
+            order_id: orderId,
+            errors: engineReply.errors || [],
+        });
+    }
+
+    return sendResponse(res, 200, true, "Order placed", {
+        order_id: orderId,
+        engine_order_id: engineReply.engine_order_id,
+        wallet_id: wallet.wallet_id,
+        symbol: packet.symbol,
+        side: packet.side,
+        order_type: packet.order_type,
+        quantity: packet.quantity,
+        limit_price: packet.limit_price,
+        take_profit_price: packet.take_profit_price,
+        stop_loss_price: packet.stop_loss_price,
+        entry_price_reference: packet.entry_price_reference,
+        market_price_reference: packet.market_price_reference,
+        status: "OPEN",
+    });
 });
+
+/**
+ * Shared unlock-and-cancel helper — used both when the engine rejects a
+ * brand-new order and when a resting order is cancelled by the user.
+ * Recomputes exactly what was reserved from remaining_quantity and the
+ * persisted locked_price, so no separate ledger of "how much did we
+ * lock" needs to be maintained anywhere else.
+ */
+async function releaseRejectedOrder(orderId, side, symbol, remainingQuantity, lockedPrice, walletId) {
+    const lockSymbol = side === "BUY" ? "USDT" : symbol;
+    const lockAmount = side === "BUY" ? remainingQuantity * lockedPrice : remainingQuantity;
+
+    let connection;
+    try {
+        connection = await getConnection();
+        await beginTransaction(connection);
+        await unlockOnCancel(connection, { walletId, lockSymbol, lockAmount });
+        await txQuery(connection, "UPDATE spot_orders SET status = 'CANCELLED' WHERE order_id = ?", [orderId]);
+        await commit(connection);
+    } catch (err) {
+        if (connection) await rollback(connection);
+        console.error(`Failed to release rejected order_id=${orderId}:`, err);
+    } finally {
+        if (connection) connection.release();
+    }
+}
 
 /* ═══════════════════════════════════════════════════════════════════════
    CANCEL ORDER  (POST /api/spot/order/:order_id/cancel)
    ───────────────────────────────────────────────────────────────────────
    Cancels on the engine FIRST, then reflects the outcome in MySQL —
-   never the other way around, or the DB could say CANCELLED for an
-   order the engine is still resting (and will happily fill later).
+   unlocking whatever remains reserved (remaining_quantity * locked_price
+   for a BUY, remaining_quantity alone for a SELL) inside the same
+   transaction that marks the order CANCELLED.
    ═══════════════════════════════════════════════════════════════════════ */
 router.post("/api/spot/order/:order_id/cancel", verifyToken, async (req, res) => {
     const userId = req.user.id;
@@ -527,7 +582,7 @@ router.post("/api/spot/order/:order_id/cancel", verifyToken, async (req, res) =>
 
     try {
         const rows = await query(
-            "SELECT order_id, symbol, status FROM spot_orders WHERE order_id = ? AND user_id = ?",
+            "SELECT order_id, wallet_id, symbol, side, status, remaining_quantity, locked_price FROM spot_orders WHERE order_id = ? AND user_id = ?",
             [orderId, userId]
         );
         if (!rows.length) return sendResponse(res, 404, false, "Order not found");
@@ -551,7 +606,25 @@ router.post("/api/spot/order/:order_id/cancel", verifyToken, async (req, res) =>
             return sendResponse(res, 409, false, engineReply.message || "Order could not be cancelled — it may have already filled");
         }
 
-        await query("UPDATE spot_orders SET status = 'CANCELLED' WHERE order_id = ? AND user_id = ?", [orderId, userId]);
+        const remaining = parseFloat(order.remaining_quantity);
+        const lockedPrice = order.locked_price !== null ? parseFloat(order.locked_price) : null;
+        const lockSymbol = order.side === "BUY" ? "USDT" : order.symbol;
+        const lockAmount = order.side === "BUY" ? remaining * lockedPrice : remaining;
+
+        let connection;
+        try {
+            connection = await getConnection();
+            await beginTransaction(connection);
+            await unlockOnCancel(connection, { walletId: order.wallet_id, lockSymbol, lockAmount });
+            await txQuery(connection, "UPDATE spot_orders SET status = 'CANCELLED' WHERE order_id = ? AND user_id = ?", [orderId, userId]);
+            await commit(connection);
+        } catch (dbErr) {
+            if (connection) await rollback(connection);
+            return sendResponse(res, 500, false, "Database error while cancelling order");
+        } finally {
+            if (connection) connection.release();
+        }
+
         return sendResponse(res, 200, true, "Order cancelled", { order_id: orderId });
     } catch (dbErr) {
         return sendResponse(res, 500, false, "Database error while cancelling order");
@@ -561,51 +634,53 @@ router.post("/api/spot/order/:order_id/cancel", verifyToken, async (req, res) =>
 /* ═══════════════════════════════════════════════════════════════════════
    FILL PERSISTENCE  (driven by the engine's EXECUTION push events)
    ───────────────────────────────────────────────────────────────────────
-   This is the ONLY place spot_trades gets a row — i.e. transaction
-   history exists strictly after a trade executes, never before. Until
-   this fires, the order just sits in spot_orders as OPEN/PARTIALLY_FILLED.
-
    Two shapes of EXECUTION come through here:
      - Entry fill (is_exit_order=false): a BUY or SELL order filled.
-       -> record the trade, update the order, adjust holdings, and if it
-          was a BUY with TP/SL attached, open a position row.
      - Exit fill (is_exit_order=true): a TP or SL closed a position.
-       -> record the trade, adjust holdings, close the matching position.
-       The parent order's own spot_orders row was already FILLED when the
-       entry executed, so it is NOT touched again here.
 
-   We query spot_orders by order_id (the field the engine echoes back on
-   every EXECUTION) to pull take_profit_price/stop_loss_price for the new
-   position row — those aren't in the wire packet itself, only in MySQL.
+   Both run on ONE dedicated connection wrapped in a transaction. Both
+   release the lock reserved at placement time via releaseOnFill(), which
+   credits the reserved amount back to available_quantity (see the fixed
+   contract documented in spotHoldings_Lock.js), and then immediately
+   debit back out exactly what's actually being spent/consumed. That
+   release-then-debit symmetry is what was missing before and caused the
+   double-debit bug — see the comments inline below for each case.
    ═══════════════════════════════════════════════════════════════════════ */
 async function handleExecution(msg) {
+    let connection;
     try {
+        connection = await getConnection();
+        await beginTransaction(connection);
+
         const symbol = fromEnginePair(msg.symbol);
         const fillQty = msg.fill_quantity;
         const fillPrice = msg.fill_price;
 
         if (!msg.is_exit_order) {
-            await persistEntryFill(msg, symbol, fillQty, fillPrice);
+            await persistEntryFill(connection, msg, symbol, fillQty, fillPrice);
         } else {
-            await persistExitFill(msg, symbol, fillQty, fillPrice);
+            await persistExitFill(connection, msg, symbol, fillQty, fillPrice);
         }
+
+        await commit(connection);
     } catch (err) {
+        if (connection) await rollback(connection);
         // Deliberately do not throw further — this runs off an event
         // emitter with no caller to catch it. Log loudly so a failed
         // persistence step (e.g. a transient DB blip) is visible instead
         // of silently losing a fill.
         console.error(`Failed to persist EXECUTION for order_id=${msg.order_id}:`, err);
+    } finally {
+        if (connection) connection.release();
     }
 }
 
-async function persistEntryFill(msg, symbol, fillQty, fillPrice) {
-    // Look the order up for the fields the wire packet doesn't carry
-    // (TP/SL) and to make sure we're not double-applying a fill we've
-    // already seen (e.g. a duplicate line after a reconnect race).
-    const orderRows = await query(
+async function persistEntryFill(connection, msg, symbol, fillQty, fillPrice) {
+    const orderRows = await txQuery(
+        connection,
         `SELECT order_id, user_id, wallet_id, symbol, side, status, remaining_quantity,
-                take_profit_price, stop_loss_price
-         FROM spot_orders WHERE order_id = ?`,
+                locked_price, take_profit_price, stop_loss_price
+         FROM spot_orders WHERE order_id = ? FOR UPDATE`,
         [msg.order_id]
     );
     if (!orderRows.length) {
@@ -621,45 +696,86 @@ async function persistEntryFill(msg, symbol, fillQty, fillPrice) {
     const newRemaining = Math.max(0, parseFloat(order.remaining_quantity) - fillQty);
     const newStatus = newRemaining > 0 ? "PARTIALLY_FILLED" : "FILLED";
 
-    await query(
-        "UPDATE spot_orders SET remaining_quantity = ?, status = ? WHERE order_id = ?",
-        [newRemaining, newStatus, msg.order_id]
-    );
+    await txQuery(connection, "UPDATE spot_orders SET remaining_quantity = ?, status = ? WHERE order_id = ?", [newRemaining, newStatus, msg.order_id]);
 
-    await query(
+    await txQuery(
+        connection,
         `INSERT INTO spot_trades (order_id, user_id, symbol, quantity, price, commission)
          VALUES (?, ?, ?, ?, ?, 0)`,
         [msg.order_id, msg.user_id, symbol, fillQty, fillPrice]
     );
 
     if (msg.side === "BUY") {
-        // Credit the bought asset, recompute the weighted average buy price.
+        const lockedPrice = parseFloat(order.locked_price);
+        const releaseAmount = fillQty * lockedPrice; // exactly what was reserved for this slice
+        const actualCost = fillQty * fillPrice;       // what actually got spent
+
+        // Release the USDT lock for this filled slice first — this now
+        // credits releaseAmount back into available_quantity (fixed
+        // contract), then the debit below takes actualCost back out.
+        // When lockedPrice === fillPrice (the normal case) those two
+        // cancel out to a net-zero change beyond the original
+        // reservation. Any difference (slippage between the reference
+        // price used to lock and the engine's actual fill price) flows
+        // through available_quantity correctly here.
+        await releaseOnFill(connection, { walletId: msg.wallet_id, lockSymbol: "USDT", filledLockAmount: releaseAmount });
+        await txQuery(
+            connection,
+            `UPDATE spot_holdings SET available_quantity = available_quantity - ?
+             WHERE wallet_id = ? AND symbol = 'USDT'`,
+            [actualCost, msg.wallet_id]
+        );
+
+        // Does this fill spawn/feed a TP/SL-tracked position? If so, the
+        // bought asset must land in locked_quantity, not available —
+        // it's earmarked for a resting exit trigger and must NOT be
+        // freely transferable until that exit fires. This closes the
+        // "TP/SL asset fully transferable" hole.
+        const hasExitTrigger = order.take_profit_price !== null || order.stop_loss_price !== null;
         const cost = fillQty * fillPrice;
-        await query(
-            `INSERT INTO spot_holdings (wallet_id, symbol, available_quantity, locked_quantity, average_buy_price, total_cost)
-             VALUES (?, ?, ?, 0, ?, ?)
-             ON DUPLICATE KEY UPDATE
-                total_cost = total_cost + VALUES(total_cost),
-                available_quantity = available_quantity + VALUES(available_quantity),
-                average_buy_price = total_cost / available_quantity`,
-            [msg.wallet_id, symbol, fillQty, fillPrice, cost]
-        );
-        // Debit USDT for the cost of the buy.
-        await query(
-            `INSERT INTO spot_holdings (wallet_id, symbol, available_quantity)
-             VALUES (?, 'USDT', ?)
-             ON DUPLICATE KEY UPDATE available_quantity = available_quantity + VALUES(available_quantity)`,
-            [msg.wallet_id, -cost]
-        );
+
+        if (hasExitTrigger) {
+            await txQuery(
+                connection,
+                `INSERT INTO spot_holdings (wallet_id, symbol, available_quantity, locked_quantity, average_buy_price, total_cost)
+                 VALUES (?, ?, 0, ?, ?, ?)
+                 ON DUPLICATE KEY UPDATE
+                    total_cost = total_cost + VALUES(total_cost),
+                    locked_quantity = locked_quantity + VALUES(locked_quantity),
+                    average_buy_price = total_cost / (available_quantity + locked_quantity)`,
+                [msg.wallet_id, symbol, fillQty, fillPrice, cost]
+            );
+        } else {
+            await txQuery(
+                connection,
+                `INSERT INTO spot_holdings (wallet_id, symbol, available_quantity, locked_quantity, average_buy_price, total_cost)
+                 VALUES (?, ?, ?, 0, ?, ?)
+                 ON DUPLICATE KEY UPDATE
+                    total_cost = total_cost + VALUES(total_cost),
+                    available_quantity = available_quantity + VALUES(available_quantity),
+                    average_buy_price = total_cost / (available_quantity + locked_quantity)`,
+                [msg.wallet_id, symbol, fillQty, fillPrice, cost]
+            );
+        }
     } else {
-        // Plain SELL entry (no TP/SL, no position tracking) — debit the
-        // asset, credit USDT.
-        await query(
+        // Plain SELL entry (no TP/SL, no position tracking). The asset
+        // was already moved from available_quantity into locked_quantity
+        // at placement time. Release the lock for this fill — which now
+        // credits fillQty back into available_quantity (fixed contract)
+        // — then immediately debit that same fillQty back out, since
+        // it's being sold, not returned to the user. Net effect on
+        // available_quantity is a drop of fillQty overall, same as
+        // before, but nothing is left dangling in locked_quantity with
+        // no corresponding credit. Finally, credit the USDT proceeds.
+        await releaseOnFill(connection, { walletId: msg.wallet_id, lockSymbol: symbol, filledLockAmount: fillQty });
+        await txQuery(
+            connection,
             `UPDATE spot_holdings SET available_quantity = available_quantity - ?
              WHERE wallet_id = ? AND symbol = ?`,
             [fillQty, msg.wallet_id, symbol]
         );
-        await query(
+        await txQuery(
+            connection,
             `INSERT INTO spot_holdings (wallet_id, symbol, available_quantity)
              VALUES (?, 'USDT', ?)
              ON DUPLICATE KEY UPDATE available_quantity = available_quantity + VALUES(available_quantity)`,
@@ -667,10 +783,9 @@ async function persistEntryFill(msg, symbol, fillQty, fillPrice) {
         );
     }
 
-    // Only a BUY with at least one of TP/SL spawns a tracked position —
-    // matches the engine, which only creates exit triggers for those.
     if (order.side === "BUY" && (order.take_profit_price !== null || order.stop_loss_price !== null)) {
-        await query(
+        await txQuery(
+            connection,
             `INSERT INTO spot_positions
                 (order_id, user_id, wallet_id, symbol, quantity, entry_price, invested_usdt,
                  take_profit_price, stop_loss_price, status)
@@ -683,31 +798,41 @@ async function persistEntryFill(msg, symbol, fillQty, fillPrice) {
     }
 
     // TODO: broadcast this fill to the user over the existing WebSocket
-    // layer (see live chat's ws server on :7070) once that hook exists,
-    // e.g. broadcastToUser(msg.user_id, { type: "spot_fill", ...msg }).
+    // layer once that hook exists, e.g.
+    // broadcastToUser(msg.user_id, { type: "spot_fill", ...msg }).
 }
 
-async function persistExitFill(msg, symbol, fillQty, fillPrice) {
-    await query(
+async function persistExitFill(connection, msg, symbol, fillQty, fillPrice) {
+    await txQuery(
+        connection,
         `INSERT INTO spot_trades (order_id, user_id, symbol, quantity, price, commission)
          VALUES (?, ?, ?, ?, ?, 0)`,
         [msg.order_id, msg.user_id, symbol, fillQty, fillPrice]
     );
 
-    // Closing a long: credit USDT for the sale, debit the held asset.
-    await query(
+    // The position's asset has been sitting in locked_quantity since the
+    // entry fill (see persistEntryFill above). Release it — which now
+    // credits fillQty back into available_quantity (fixed contract,
+    // same as a cancel) — then debit that same fillQty straight back
+    // out, since it's being sold to close the position rather than
+    // returned to the user. Then credit the USDT proceeds.
+    await releaseOnFill(connection, { walletId: msg.wallet_id, lockSymbol: symbol, filledLockAmount: fillQty });
+    await txQuery(
+        connection,
+        `UPDATE spot_holdings SET available_quantity = available_quantity - ?
+         WHERE wallet_id = ? AND symbol = ?`,
+        [fillQty, msg.wallet_id, symbol]
+    );
+    await txQuery(
+        connection,
         `INSERT INTO spot_holdings (wallet_id, symbol, available_quantity)
          VALUES (?, 'USDT', ?)
          ON DUPLICATE KEY UPDATE available_quantity = available_quantity + VALUES(available_quantity)`,
         [msg.wallet_id, fillQty * fillPrice]
     );
-    await query(
-        `UPDATE spot_holdings SET available_quantity = available_quantity - ?
-         WHERE wallet_id = ? AND symbol = ?`,
-        [fillQty, msg.wallet_id, symbol]
-    );
 
-    const result = await query(
+    const result = await txQuery(
+        connection,
         `UPDATE spot_positions SET status = 'CLOSED', closed_at = CURRENT_TIMESTAMP
          WHERE order_id = ? AND status = 'OPEN'`,
         [msg.order_id]
@@ -716,35 +841,19 @@ async function persistExitFill(msg, symbol, fillQty, fillPrice) {
         console.error(`Exit EXECUTION for order_id=${msg.order_id} found no OPEN position to close`);
     }
 
-    // realized_pnl isn't persisted anywhere (no column for it on
-    // spot_positions/spot_trades in the current schema) — it's always
-    // derivable as (exit trade price - position.entry_price) * quantity
-    // when needed for display, so recompute it there rather than storing
-    // a value that could drift from the source rows.
+    // realized_pnl isn't persisted anywhere — it's always derivable as
+    // (exit trade price - position.entry_price) * quantity when needed
+    // for display, so recompute it there rather than storing a value
+    // that could drift from the source rows.
 
     // TODO: broadcast this close to the user over the WebSocket layer,
-    // same as persistEntryFill above — include msg.realized_pnl directly
-    // from the wire packet since the engine already computed it.
+    // same as persistEntryFill above.
 }
 
 engineEvents.on("execution", handleExecution);
 
 /* ═══════════════════════════════════════════════════════════════════════
-   ORDER BOOK RECOVERY
-   ───────────────────────────────────────────────────────────────────────
-   The engine's order book is RAM-only and starts EMPTY on every process
-   restart. spot_orders is the source of truth it's rebuilt from: every
-   row still OPEN/PARTIALLY_FILLED gets re-submitted with its *remaining*
-   quantity as a fresh PLACE_ORDER.
-
-   This runs exactly ONCE per Node process, on the first successful
-   engine connection (`engineEvents.once`, not `.on`) — not on every
-   reconnect. A reconnect of the SAME long-running engine process still
-   has its book intact in RAM; resubmitting on every reconnect would
-   double-book those orders (the engine has no de-dup for a re-sent
-   order_id). If the engine process itself was restarted independently of
-   Node, restart Node too (or trigger this manually) so recovery actually
-   runs against the fresh, empty book.
+   ORDER BOOK RECOVERY — unchanged from before
    ═══════════════════════════════════════════════════════════════════════ */
 async function recoverOpenOrdersToEngine() {
     let rows;
@@ -798,22 +907,29 @@ engineEvents.once("connected", recoverOpenOrdersToEngine);
 module.exports = router;
 
 /* ═══════════════════════════════════════════════════════════════════════
-   WIRE-UP (in your main server file, next to the other routers):
+   REQUIRED SCHEMA CHANGE
 
-     const spotTradeRoutes = require("./routes/spotTradeRoutes");
+   spot_orders needs one new column to persist the price a lock was
+   computed against, so cancel/fill can recompute the exact reserved
+   amount without a separate ledger table:
+
+     ALTER TABLE spot_orders
+       ADD COLUMN locked_price DECIMAL(20,8) DEFAULT NULL AFTER limit_price;
+
+   For BUY orders this is set once, at placement, to entry_price_reference
+   (market price for MARKET orders, limit_price for LIMIT orders). It is
+   never updated afterwards — remaining_quantity already shrinks with
+   each partial fill, so remaining_quantity * locked_price always equals
+   what's still actually reserved. SELL orders don't need it (their lock
+   amount is just remaining_quantity of the base asset), so it stays NULL
+   there.
+
+   WIRE-UP (in your main server file, next to the other routers):
+     const spotTradeRoutes = require("./routes/spotPanel_Route");
      app.use("/", spotTradeRoutes);
 
-   Adjust the require path/folder name to match where you save this file.
-   engineClient.js must sit next to this file (or update the require path).
-
-   Requires Node 18+ for the global `fetch` used in getMarketPrice(). If
-   you're on an older Node version, swap it for node-fetch or axios.
-
-   Requires the C++ engine (trade_engine.cpp) running and reachable at
-   TRADE_ENGINE_HOST:TRADE_ENGINE_PORT (defaults to 127.0.0.1:9000).
-
-   NOTE: this file registers its engineEvents listeners (execution
-   persistence + one-time recovery) as a side effect of being required.
-   Require it exactly once per process (normal for an Express router) —
-   requiring it twice would double-persist every fill.
+   Requires Node 18+ for the global `fetch` used in getMarketPrice().
+   Requires the C++ engine (trade_engine.cpp) running and reachable.
+   This file registers engineEvents listeners as a side effect of being
+   required — require it exactly once per process.
    ═══════════════════════════════════════════════════════════════════════ */

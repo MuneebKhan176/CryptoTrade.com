@@ -59,7 +59,6 @@ pool.getConnection((err, connection) => {
         return;
     }
     connection.release();
-    console.log('MySQL pool: connected.');
 });
 
 // Promise-flavored helper for grabbing ONE dedicated connection to run a
