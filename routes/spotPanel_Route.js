@@ -16,7 +16,16 @@ const { sendOrderToEngine, cancelOrderOnEngine, engineEvents } = require("../Spo
 
 // Locking module — every function here takes the SAME dedicated
 // connection as the surrounding transaction, never the shared pool.
+// Unchanged by the OCO migration: OCO is placed with side='SELL', and
+// lockForOrder already reserves the base asset quantity for any non-BUY
+// side, exactly like a plain SELL.
 const { lockForOrder, unlockOnCancel, releaseOnFill } = require("../Wallets_Config/spotHoldings_Lock");
+
+// Push notifier over the same market-data WebSocket layer — lets us tell
+// a user's browser "go refresh your balance/orders" the instant one of
+// their orders fills, even if that fill happened minutes later off a
+// resting LIMIT/OCO leg with no HTTP request in flight to piggyback on.
+const { notifyUserTradeUpdate } = require("../Web_Sockets/marketData_ws");
 
 function sendResponse(res, statusCode, success, message, data = null) {
     return res.status(statusCode).json({ success, message, data });
@@ -86,7 +95,14 @@ async function getMarketPrice(symbol) {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
-   ORDER VALIDATION — unchanged from before
+   ORDER VALIDATION
+   ───────────────────────────────────────────────────────────────────────
+   Rewritten for the OCO migration:
+     - No more take_profit_price / stop_loss_price attached to BUY orders.
+     - OCO is its own order_type: SELL-only, carries limit_price (the
+       upper, take-profit-style leg) and the new stop_price (the lower,
+       stop-loss-style leg). Whichever leg the market reaches first fires;
+       same semantics as the engine's OCO handling.
    ═══════════════════════════════════════════════════════════════════════ */
 function validateOrderRequest(body, marketPrice) {
     const errors = [];
@@ -95,11 +111,13 @@ function validateOrderRequest(body, marketPrice) {
         return { valid: false, errors: ["Malformed request body"] };
     }
 
-    const { symbol, side, order_type, quantity, limit_price, take_profit_price, stop_loss_price } = body;
+    const { symbol, side, order_type, quantity, limit_price, stop_price } = body;
 
     if (!symbol || typeof symbol !== "string") errors.push("Symbol is required");
     if (side !== "BUY" && side !== "SELL") errors.push("Side must be BUY or SELL");
-    if (order_type !== "MARKET" && order_type !== "LIMIT") errors.push("Order type must be MARKET or LIMIT");
+    if (order_type !== "MARKET" && order_type !== "LIMIT" && order_type !== "OCO") {
+        errors.push("Order type must be MARKET, LIMIT, or OCO");
+    }
 
     if (errors.length) return { valid: false, errors };
 
@@ -113,55 +131,70 @@ function validateOrderRequest(body, marketPrice) {
         errors.push("Quantity must be a number greater than 0");
     }
 
+    if (order_type === "OCO" && side !== "SELL") {
+        errors.push("OCO orders are only supported on the SELL side");
+    }
+
     let limitPrice = null;
+    let stopPrice = null;
+
     if (order_type === "LIMIT") {
         limitPrice = parseFloat(limit_price);
         if (limit_price === undefined || limit_price === null || isNaN(limitPrice) || limitPrice <= 0) {
             errors.push("LIMIT orders require a limit_price greater than 0");
         }
-    } else {
+        if (stop_price !== undefined && stop_price !== null && stop_price !== "") {
+            errors.push("LIMIT orders must not include a stop_price");
+        }
+    } else if (order_type === "MARKET") {
         if (limit_price !== undefined && limit_price !== null && limit_price !== "") {
             errors.push("MARKET orders must not include a limit_price");
         }
-    }
-
-    let tp = null;
-    if (take_profit_price !== undefined && take_profit_price !== null && take_profit_price !== "") {
-        tp = parseFloat(take_profit_price);
-        if (isNaN(tp) || tp <= 0) errors.push("take_profit_price must be greater than 0");
-    }
-
-    let sl = null;
-    if (stop_loss_price !== undefined && stop_loss_price !== null && stop_loss_price !== "") {
-        sl = parseFloat(stop_loss_price);
-        if (isNaN(sl) || sl <= 0) errors.push("stop_loss_price must be greater than 0");
-    }
-
-    if (errors.length) return { valid: false, errors };
-
-    const entryPrice = order_type === "MARKET" ? marketPrice : limitPrice;
-
-    if (side === "BUY" && order_type === "MARKET") {
-        if (tp !== null && tp <= entryPrice) errors.push(`Take profit must be above the market entry price (${entryPrice})`);
-        if (sl !== null && sl >= entryPrice) errors.push(`Stop loss must be below the market entry price (${entryPrice})`);
-    } else if (side === "BUY" && order_type === "LIMIT") {
-        if (limitPrice >= marketPrice) errors.push(`Buy limit price must be below the current market price (${marketPrice})`);
-        if (tp !== null && tp <= limitPrice) errors.push(`Take profit must be above the limit price (${limitPrice})`);
-        if (sl !== null && sl >= limitPrice) errors.push(`Stop loss must be below the limit price (${limitPrice})`);
-    } else if (side === "SELL" && order_type === "MARKET") {
-        if (tp !== null && tp >= entryPrice) errors.push(`Take profit must be below the market entry price (${entryPrice})`);
-        if (sl !== null && sl <= entryPrice) errors.push(`Stop loss must be above the market entry price (${entryPrice})`);
-    } else if (side === "SELL" && order_type === "LIMIT") {
-        if (limitPrice <= marketPrice) errors.push(`Sell limit price must be above the current market price (${marketPrice})`);
-        if (tp !== null && tp >= limitPrice) errors.push(`Take profit must be below the limit price (${limitPrice})`);
-        if (sl !== null && sl <= limitPrice) errors.push(`Stop loss must be above the limit price (${limitPrice})`);
+        if (stop_price !== undefined && stop_price !== null && stop_price !== "") {
+            errors.push("MARKET orders must not include a stop_price");
+        }
+    } else if (order_type === "OCO") {
+        limitPrice = parseFloat(limit_price);
+        stopPrice = parseFloat(stop_price);
+        if (limit_price === undefined || limit_price === null || isNaN(limitPrice) || limitPrice <= 0) {
+            errors.push("OCO orders require a positive limit_price (take-profit leg)");
+        }
+        if (stop_price === undefined || stop_price === null || isNaN(stopPrice) || stopPrice <= 0) {
+            errors.push("OCO orders require a positive stop_price (stop-loss leg)");
+        }
+        if (!isNaN(limitPrice) && !isNaN(stopPrice) && limitPrice <= stopPrice) {
+            errors.push("OCO limit_price (take-profit leg) must be above stop_price (stop-loss leg)");
+        }
     }
 
     if (errors.length) return { valid: false, errors };
 
-    if (side === "SELL" && (tp !== null || sl !== null)) {
-        return { valid: false, errors: ["take_profit_price / stop_loss_price are only supported on BUY orders"] };
+    if (order_type === "LIMIT") {
+        if (side === "BUY" && limitPrice >= marketPrice) {
+            errors.push(`Buy limit price must be below the current market price (${marketPrice})`);
+        } else if (side === "SELL" && limitPrice <= marketPrice) {
+            errors.push(`Sell limit price must be above the current market price (${marketPrice})`);
+        }
+    } else if (order_type === "OCO") {
+        // Same shape as a SELL limit check, applied to both legs: the
+        // take-profit leg sits above market, the stop leg sits below it.
+        if (limitPrice <= marketPrice) {
+            errors.push(`OCO take-profit price must be above the current market price (${marketPrice})`);
+        }
+        if (stopPrice >= marketPrice) {
+            errors.push(`OCO stop price must be below the current market price (${marketPrice})`);
+        }
     }
+
+    if (errors.length) return { valid: false, errors };
+
+    // entry_price_reference only matters for sizing a BUY's USDT lock.
+    // SELL and OCO lock the base asset quantity itself, independent of
+    // price, so there's nothing to reference there.
+    const entryPrice =
+        order_type === "MARKET" ? marketPrice :
+        order_type === "LIMIT" ? limitPrice :
+        null;
 
     return {
         valid: true,
@@ -171,9 +204,8 @@ function validateOrderRequest(body, marketPrice) {
             side,
             order_type,
             quantity: qty,
-            limit_price: limitPrice,
-            take_profit_price: tp,
-            stop_loss_price: sl,
+            limit_price: limitPrice,   // LIMIT: the limit price. OCO: upper/take-profit-style leg.
+            stop_price: stopPrice,     // OCO only: lower/stop-loss-style leg.
             entry_price_reference: entryPrice,
             market_price_reference: marketPrice,
         },
@@ -237,7 +269,7 @@ router.get("/api/spot/orders", verifyToken, (req, res) => {
 
     conn.query(
         `SELECT order_id, symbol, side, order_type, quantity, remaining_quantity,
-                limit_price, locked_price, take_profit_price, stop_loss_price, status, created_at
+                limit_price, locked_price, stop_price, status, created_at
          FROM spot_orders
          WHERE user_id = ? AND status IN ('OPEN', 'PARTIALLY_FILLED')
          ORDER BY created_at DESC`,
@@ -254,49 +286,12 @@ router.get("/api/spot/orders", verifyToken, (req, res) => {
                 remaining_quantity: parseFloat(o.remaining_quantity),
                 limit_price: o.limit_price !== null ? parseFloat(o.limit_price) : null,
                 locked_price: o.locked_price !== null ? parseFloat(o.locked_price) : null,
-                take_profit_price: o.take_profit_price !== null ? parseFloat(o.take_profit_price) : null,
-                stop_loss_price: o.stop_loss_price !== null ? parseFloat(o.stop_loss_price) : null,
+                stop_price: o.stop_price !== null ? parseFloat(o.stop_price) : null,
                 status: o.status,
                 created_at: o.created_at,
             }));
 
             return sendResponse(res, 200, true, "Open orders loaded", orders);
-        }
-    );
-});
-
-/* ═══════════════════════════════════════════════════════════════════════
-   OPEN POSITIONS  (GET /api/spot/positions)
-   ═══════════════════════════════════════════════════════════════════════ */
-router.get("/api/spot/positions", verifyToken, (req, res) => {
-    const userId = req.user.id;
-    const statusFilter = req.query.status === "CLOSED" ? "CLOSED" : "OPEN";
-
-    conn.query(
-        `SELECT position_id, order_id, symbol, quantity, entry_price, invested_usdt,
-                take_profit_price, stop_loss_price, status, opened_at, closed_at
-         FROM spot_positions
-         WHERE user_id = ? AND status = ?
-         ORDER BY opened_at DESC`,
-        [userId, statusFilter],
-        (err, rows) => {
-            if (err) return sendResponse(res, 500, false, "Database error");
-
-            const positions = rows.map(p => ({
-                position_id: p.position_id,
-                order_id: p.order_id,
-                symbol: p.symbol,
-                quantity: parseFloat(p.quantity),
-                entry_price: parseFloat(p.entry_price),
-                invested_usdt: parseFloat(p.invested_usdt),
-                take_profit_price: p.take_profit_price !== null ? parseFloat(p.take_profit_price) : null,
-                stop_loss_price: p.stop_loss_price !== null ? parseFloat(p.stop_loss_price) : null,
-                status: p.status,
-                opened_at: p.opened_at,
-                closed_at: p.closed_at,
-            }));
-
-            return sendResponse(res, 200, true, "Positions loaded", positions);
         }
     );
 });
@@ -335,6 +330,13 @@ router.get("/api/spot/trades", verifyToken, (req, res) => {
 
 /* ═══════════════════════════════════════════════════════════════════════
    ORDER BOOK  (GET /api/spot/orderbook?symbol=BTC)
+   ───────────────────────────────────────────────────────────────────────
+   Includes both LIMIT and OCO order types now. Only limit_price is used
+   in the grouping/aggregation — for an OCO row that's the upper,
+   take-profit-style leg, so it shows up as a resting ask exactly like a
+   plain SELL limit order would. The lower stop leg is intentionally left
+   out of the book (same convention real exchanges use: stop orders are
+   hidden from depth until triggered).
    ═══════════════════════════════════════════════════════════════════════ */
 router.get("/api/spot/orderbook", verifyToken, (req, res) => {
     const symbol = (req.query.symbol || "").toUpperCase();
@@ -344,7 +346,7 @@ router.get("/api/spot/orderbook", verifyToken, (req, res) => {
         SELECT side, limit_price, SUM(remaining_quantity) AS total_qty
         FROM spot_orders
         WHERE symbol = ?
-          AND order_type = 'LIMIT'
+          AND order_type IN ('LIMIT', 'OCO')
           AND status IN ('OPEN', 'PARTIALLY_FILLED')
           AND limit_price IS NOT NULL
         GROUP BY side, limit_price
@@ -369,33 +371,27 @@ router.get("/api/spot/orderbook", verifyToken, (req, res) => {
 /* ═══════════════════════════════════════════════════════════════════════
    PLACE ORDER  (POST /api/spot/order)
    ───────────────────────────────────────────────────────────────────────
-   Flow (fixed):
+   Flow:
      1. verifyToken already confirmed the JWT — req.user.id is trusted.
      2. Fetch a fresh, server-side market price for the requested symbol.
      3. Run the full validation checklist against that price.
      4. Check out ONE dedicated connection and start a transaction:
           a. lockForOrder() — reserves USDT (BUY) or the base asset
-             (SELL) against spot_holdings, FOR UPDATE. This is the actual
-             fix for "orders never locked funds": until this call
-             existed, available_quantity was untouched between placement
-             and fill, so a transfer or a second order could spend money
-             that was already spoken for.
-          b. INSERT the order as OPEN, persisting locked_price — the
-             exact price the lock was computed against (market price for
-             MARKET, limit_price for LIMIT). Cancel/fill later recompute
-             the exact reserved amount from remaining_quantity *
-             locked_price (BUY) or remaining_quantity alone (SELL),
-             without needing any extra bookkeeping table.
+             (SELL / OCO — OCO locks exactly like a plain SELL, since
+             it's placed directly against an asset the user already
+             holds) against spot_holdings, FOR UPDATE.
+          b. INSERT the order as OPEN, persisting locked_price (BUY
+             only — the price the USDT lock was computed against) and,
+             for OCO, stop_price alongside limit_price.
           c. commit. If the lock fails (insufficient funds) or the insert
              fails, roll back — nothing is written, nothing reaches the
              engine.
      5. Forward the DB-assigned order_id to the engine as `order_id`.
      6. If the engine rejects the packet, or is unreachable, open a
         SEPARATE transaction to unlock what was reserved and mark the row
-        CANCELLED — never leave a rejected order holding a lock forever.
-        If the engine is unreachable, we genuinely don't know whether it
-        received the order, so the row (and its lock) are left in place;
-        recovery reconciles it on the next connect.
+        CANCELLED. If the engine is unreachable, we genuinely don't know
+        whether it received the order, so the row (and its lock) are left
+        in place; recovery reconciles it on the next connect.
    Fills are NOT persisted here — see handleExecution().
    ═══════════════════════════════════════════════════════════════════════ */
 router.post("/api/spot/order", verifyToken, async (req, res) => {
@@ -450,9 +446,10 @@ router.post("/api/spot/order", verifyToken, async (req, res) => {
             return sendResponse(res, 403, false, "Spot wallet is blocked");
         }
 
-        // Reserve funds/asset BEFORE the order exists — this is the
-        // core fix. entry_price_reference is what the lock is sized
-        // against, and is persisted below as locked_price.
+        // Reserve funds/asset BEFORE the order exists. For BUY,
+        // estimatedPrice sizes the USDT lock (persisted below as
+        // locked_price). For SELL and OCO it's unused — the lock is just
+        // `quantity` of the base asset, regardless of price.
         try {
             await lockForOrder(connection, {
                 walletId: wallet.wallet_id,
@@ -470,12 +467,12 @@ router.post("/api/spot/order", verifyToken, async (req, res) => {
             connection,
             `INSERT INTO spot_orders
                 (user_id, wallet_id, symbol, side, order_type, quantity, remaining_quantity,
-                 limit_price, locked_price, take_profit_price, stop_loss_price, status)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'OPEN')`,
+                 limit_price, locked_price, stop_price, status)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'OPEN')`,
             [
                 userId, wallet.wallet_id, packet.symbol, packet.side, packet.order_type,
                 packet.quantity, packet.quantity, packet.limit_price, packet.entry_price_reference,
-                packet.take_profit_price, packet.stop_loss_price,
+                packet.stop_price,
             ]
         );
         orderId = insertResult.insertId;
@@ -498,8 +495,7 @@ router.post("/api/spot/order", verifyToken, async (req, res) => {
         order_type: packet.order_type,
         quantity: packet.quantity,
         limit_price: packet.limit_price,
-        take_profit_price: packet.take_profit_price,
-        stop_loss_price: packet.stop_loss_price,
+        stop_price: packet.stop_price,
     };
 
     let engineReply;
@@ -534,8 +530,7 @@ router.post("/api/spot/order", verifyToken, async (req, res) => {
         order_type: packet.order_type,
         quantity: packet.quantity,
         limit_price: packet.limit_price,
-        take_profit_price: packet.take_profit_price,
-        stop_loss_price: packet.stop_loss_price,
+        stop_price: packet.stop_price,
         entry_price_reference: packet.entry_price_reference,
         market_price_reference: packet.market_price_reference,
         status: "OPEN",
@@ -546,8 +541,10 @@ router.post("/api/spot/order", verifyToken, async (req, res) => {
  * Shared unlock-and-cancel helper — used both when the engine rejects a
  * brand-new order and when a resting order is cancelled by the user.
  * Recomputes exactly what was reserved from remaining_quantity and the
- * persisted locked_price, so no separate ledger of "how much did we
- * lock" needs to be maintained anywhere else.
+ * persisted locked_price (BUY only), so no separate ledger of "how much
+ * did we lock" needs to be maintained anywhere else. Works unchanged for
+ * OCO since it's stored with side='SELL', same lock shape as a plain
+ * SELL.
  */
 async function releaseRejectedOrder(orderId, side, symbol, remainingQuantity, lockedPrice, walletId) {
     const lockSymbol = side === "BUY" ? "USDT" : symbol;
@@ -573,8 +570,11 @@ async function releaseRejectedOrder(orderId, side, symbol, remainingQuantity, lo
    ───────────────────────────────────────────────────────────────────────
    Cancels on the engine FIRST, then reflects the outcome in MySQL —
    unlocking whatever remains reserved (remaining_quantity * locked_price
-   for a BUY, remaining_quantity alone for a SELL) inside the same
-   transaction that marks the order CANCELLED.
+   for a BUY, remaining_quantity alone for a SELL/OCO) inside the same
+   transaction that marks the order CANCELLED. Unchanged by the OCO
+   migration: the engine's CANCEL_ORDER handler already looks up both its
+   plain-order index and its OCO index by db_order_id, and cancels
+   whichever leg(s) exist.
    ═══════════════════════════════════════════════════════════════════════ */
 router.post("/api/spot/order/:order_id/cancel", verifyToken, async (req, res) => {
     const userId = req.user.id;
@@ -634,17 +634,24 @@ router.post("/api/spot/order/:order_id/cancel", verifyToken, async (req, res) =>
 /* ═══════════════════════════════════════════════════════════════════════
    FILL PERSISTENCE  (driven by the engine's EXECUTION push events)
    ───────────────────────────────────────────────────────────────────────
-   Two shapes of EXECUTION come through here:
-     - Entry fill (is_exit_order=false): a BUY or SELL order filled.
-     - Exit fill (is_exit_order=true): a TP or SL closed a position.
-
-   Both run on ONE dedicated connection wrapped in a transaction. Both
-   release the lock reserved at placement time via releaseOnFill(), which
-   credits the reserved amount back to available_quantity (see the fixed
-   contract documented in spotHoldings_Lock.js), and then immediately
-   debit back out exactly what's actually being spent/consumed. That
-   release-then-debit symmetry is what was missing before and caused the
-   double-debit bug — see the comments inline below for each case.
+   Rewritten for the OCO migration: there is no more "entry fill" vs.
+   "exit fill" split, no is_exit_order flag, and no spot_positions table.
+   Every EXECUTION is now just a BUY fill or a SELL fill:
+     - BUY:  release the USDT lock for this slice, debit the actual fill
+       cost, credit the bought asset into holdings.
+     - SELL: covers plain SELL, LIMIT SELL, AND both OCO legs
+       (msg.is_oco_leg is true for those) — release the base-asset lock
+       for this slice, debit it back out (it's being sold, not returned),
+       credit the USDT proceeds. The engine has already cancelled the
+       sibling OCO leg internally by the time this EXECUTION arrives, so
+       there's nothing OCO-specific left to do here; is_oco_leg /
+       oco_leg on the message are available if you want to tag the trade
+       row, but aren't required for correct balance bookkeeping.
+   Runs on ONE dedicated connection wrapped in a transaction. Once the
+   fill is committed, pushes a 'trade_update' event over the WebSocket to
+   that user's browser(s) so the panel refreshes immediately — this is
+   what closes the gap for LIMIT/OCO fills that happen later, off of a
+   price tick that had no HTTP request waiting on it.
    ═══════════════════════════════════════════════════════════════════════ */
 async function handleExecution(msg) {
     let connection;
@@ -656,13 +663,29 @@ async function handleExecution(msg) {
         const fillQty = msg.fill_quantity;
         const fillPrice = msg.fill_price;
 
-        if (!msg.is_exit_order) {
-            await persistEntryFill(connection, msg, symbol, fillQty, fillPrice);
-        } else {
-            await persistExitFill(connection, msg, symbol, fillQty, fillPrice);
-        }
+        await persistFill(connection, msg, symbol, fillQty, fillPrice);
 
         await commit(connection);
+
+        // Fire only after the transaction actually commits — no point
+        // telling the browser to refresh balances that aren't updated yet.
+        try {
+            notifyUserTradeUpdate(msg.user_id, {
+                order_id: msg.order_id,
+                symbol,
+                side: msg.side,
+                order_type: msg.order_type,
+                status: msg.status,
+                is_oco_leg: !!msg.is_oco_leg,
+                oco_leg: msg.oco_leg || null,
+                fill_quantity: fillQty,
+                fill_price: fillPrice,
+            });
+        } catch (notifyErr) {
+            // Never let a broadcast failure look like a persistence
+            // failure — the fill is safely committed either way.
+            console.error(`Failed to push trade_update for order_id=${msg.order_id}:`, notifyErr);
+        }
     } catch (err) {
         if (connection) await rollback(connection);
         // Deliberately do not throw further — this runs off an event
@@ -675,11 +698,10 @@ async function handleExecution(msg) {
     }
 }
 
-async function persistEntryFill(connection, msg, symbol, fillQty, fillPrice) {
+async function persistFill(connection, msg, symbol, fillQty, fillPrice) {
     const orderRows = await txQuery(
         connection,
-        `SELECT order_id, user_id, wallet_id, symbol, side, status, remaining_quantity,
-                locked_price, take_profit_price, stop_loss_price
+        `SELECT order_id, user_id, wallet_id, symbol, side, status, remaining_quantity, locked_price
          FROM spot_orders WHERE order_id = ? FOR UPDATE`,
         [msg.order_id]
     );
@@ -710,14 +732,11 @@ async function persistEntryFill(connection, msg, symbol, fillQty, fillPrice) {
         const releaseAmount = fillQty * lockedPrice; // exactly what was reserved for this slice
         const actualCost = fillQty * fillPrice;       // what actually got spent
 
-        // Release the USDT lock for this filled slice first — this now
-        // credits releaseAmount back into available_quantity (fixed
-        // contract), then the debit below takes actualCost back out.
-        // When lockedPrice === fillPrice (the normal case) those two
-        // cancel out to a net-zero change beyond the original
-        // reservation. Any difference (slippage between the reference
-        // price used to lock and the engine's actual fill price) flows
-        // through available_quantity correctly here.
+        // Release the USDT lock for this filled slice first — credits
+        // releaseAmount back into available_quantity — then the debit
+        // below takes actualCost back out. When lockedPrice === fillPrice
+        // (the normal case) those cancel out to a net-zero change beyond
+        // the original reservation; any slippage flows through correctly.
         await releaseOnFill(connection, { walletId: msg.wallet_id, lockSymbol: "USDT", filledLockAmount: releaseAmount });
         await txQuery(
             connection,
@@ -726,47 +745,25 @@ async function persistEntryFill(connection, msg, symbol, fillQty, fillPrice) {
             [actualCost, msg.wallet_id]
         );
 
-        // Does this fill spawn/feed a TP/SL-tracked position? If so, the
-        // bought asset must land in locked_quantity, not available —
-        // it's earmarked for a resting exit trigger and must NOT be
-        // freely transferable until that exit fires. This closes the
-        // "TP/SL asset fully transferable" hole.
-        const hasExitTrigger = order.take_profit_price !== null || order.stop_loss_price !== null;
         const cost = fillQty * fillPrice;
-
-        if (hasExitTrigger) {
-            await txQuery(
-                connection,
-                `INSERT INTO spot_holdings (wallet_id, symbol, available_quantity, locked_quantity, average_buy_price, total_cost)
-                 VALUES (?, ?, 0, ?, ?, ?)
-                 ON DUPLICATE KEY UPDATE
-                    total_cost = total_cost + VALUES(total_cost),
-                    locked_quantity = locked_quantity + VALUES(locked_quantity),
-                    average_buy_price = total_cost / (available_quantity + locked_quantity)`,
-                [msg.wallet_id, symbol, fillQty, fillPrice, cost]
-            );
-        } else {
-            await txQuery(
-                connection,
-                `INSERT INTO spot_holdings (wallet_id, symbol, available_quantity, locked_quantity, average_buy_price, total_cost)
-                 VALUES (?, ?, ?, 0, ?, ?)
-                 ON DUPLICATE KEY UPDATE
-                    total_cost = total_cost + VALUES(total_cost),
-                    available_quantity = available_quantity + VALUES(available_quantity),
-                    average_buy_price = total_cost / (available_quantity + locked_quantity)`,
-                [msg.wallet_id, symbol, fillQty, fillPrice, cost]
-            );
-        }
+        await txQuery(
+            connection,
+            `INSERT INTO spot_holdings (wallet_id, symbol, available_quantity, locked_quantity, average_buy_price, total_cost)
+             VALUES (?, ?, ?, 0, ?, ?)
+             ON DUPLICATE KEY UPDATE
+                total_cost = total_cost + VALUES(total_cost),
+                available_quantity = available_quantity + VALUES(available_quantity),
+                average_buy_price = total_cost / (available_quantity + locked_quantity)`,
+            [msg.wallet_id, symbol, fillQty, fillPrice, cost]
+        );
     } else {
-        // Plain SELL entry (no TP/SL, no position tracking). The asset
+        // SELL fill — plain SELL, LIMIT SELL, or an OCO leg. The asset
         // was already moved from available_quantity into locked_quantity
-        // at placement time. Release the lock for this fill — which now
-        // credits fillQty back into available_quantity (fixed contract)
-        // — then immediately debit that same fillQty back out, since
-        // it's being sold, not returned to the user. Net effect on
-        // available_quantity is a drop of fillQty overall, same as
-        // before, but nothing is left dangling in locked_quantity with
-        // no corresponding credit. Finally, credit the USDT proceeds.
+        // at placement time. Release the lock for this fill — credits
+        // fillQty back into available_quantity — then immediately debit
+        // that same fillQty back out, since it's being sold, not
+        // returned. Net effect on available_quantity is a drop of
+        // fillQty overall, with nothing left dangling in locked_quantity.
         await releaseOnFill(connection, { walletId: msg.wallet_id, lockSymbol: symbol, filledLockAmount: fillQty });
         await txQuery(
             connection,
@@ -782,85 +779,25 @@ async function persistEntryFill(connection, msg, symbol, fillQty, fillPrice) {
             [msg.wallet_id, fillQty * fillPrice]
         );
     }
-
-    if (order.side === "BUY" && (order.take_profit_price !== null || order.stop_loss_price !== null)) {
-        await txQuery(
-            connection,
-            `INSERT INTO spot_positions
-                (order_id, user_id, wallet_id, symbol, quantity, entry_price, invested_usdt,
-                 take_profit_price, stop_loss_price, status)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'OPEN')`,
-            [
-                msg.order_id, msg.user_id, msg.wallet_id, symbol, fillQty, fillPrice, fillQty * fillPrice,
-                order.take_profit_price, order.stop_loss_price,
-            ]
-        );
-    }
-
-    // TODO: broadcast this fill to the user over the existing WebSocket
-    // layer once that hook exists, e.g.
-    // broadcastToUser(msg.user_id, { type: "spot_fill", ...msg }).
-}
-
-async function persistExitFill(connection, msg, symbol, fillQty, fillPrice) {
-    await txQuery(
-        connection,
-        `INSERT INTO spot_trades (order_id, user_id, symbol, quantity, price, commission)
-         VALUES (?, ?, ?, ?, ?, 0)`,
-        [msg.order_id, msg.user_id, symbol, fillQty, fillPrice]
-    );
-
-    // The position's asset has been sitting in locked_quantity since the
-    // entry fill (see persistEntryFill above). Release it — which now
-    // credits fillQty back into available_quantity (fixed contract,
-    // same as a cancel) — then debit that same fillQty straight back
-    // out, since it's being sold to close the position rather than
-    // returned to the user. Then credit the USDT proceeds.
-    await releaseOnFill(connection, { walletId: msg.wallet_id, lockSymbol: symbol, filledLockAmount: fillQty });
-    await txQuery(
-        connection,
-        `UPDATE spot_holdings SET available_quantity = available_quantity - ?
-         WHERE wallet_id = ? AND symbol = ?`,
-        [fillQty, msg.wallet_id, symbol]
-    );
-    await txQuery(
-        connection,
-        `INSERT INTO spot_holdings (wallet_id, symbol, available_quantity)
-         VALUES (?, 'USDT', ?)
-         ON DUPLICATE KEY UPDATE available_quantity = available_quantity + VALUES(available_quantity)`,
-        [msg.wallet_id, fillQty * fillPrice]
-    );
-
-    const result = await txQuery(
-        connection,
-        `UPDATE spot_positions SET status = 'CLOSED', closed_at = CURRENT_TIMESTAMP
-         WHERE order_id = ? AND status = 'OPEN'`,
-        [msg.order_id]
-    );
-    if (result.affectedRows === 0) {
-        console.error(`Exit EXECUTION for order_id=${msg.order_id} found no OPEN position to close`);
-    }
-
-    // realized_pnl isn't persisted anywhere — it's always derivable as
-    // (exit trade price - position.entry_price) * quantity when needed
-    // for display, so recompute it there rather than storing a value
-    // that could drift from the source rows.
-
-    // TODO: broadcast this close to the user over the WebSocket layer,
-    // same as persistEntryFill above.
 }
 
 engineEvents.on("execution", handleExecution);
 
 /* ═══════════════════════════════════════════════════════════════════════
-   ORDER BOOK RECOVERY — unchanged from before
+   ORDER BOOK RECOVERY
+   ───────────────────────────────────────────────────────────────────────
+   Unchanged in shape, updated fields: forwards stop_price instead of
+   take_profit_price/stop_loss_price. For a recovered OCO row,
+   remaining_quantity is always the full original quantity (OCO fires
+   atomically — see fillOrderCompletely in the engine), so resubmitting it
+   as-is recreates both legs fresh with new engine_order_ids.
    ═══════════════════════════════════════════════════════════════════════ */
 async function recoverOpenOrdersToEngine() {
     let rows;
     try {
         rows = await query(
             `SELECT order_id, user_id, wallet_id, symbol, side, order_type, remaining_quantity,
-                    limit_price, take_profit_price, stop_loss_price
+                    limit_price, stop_price
              FROM spot_orders
              WHERE status IN ('OPEN', 'PARTIALLY_FILLED')`
         );
@@ -887,8 +824,7 @@ async function recoverOpenOrdersToEngine() {
             order_type: row.order_type,
             quantity: parseFloat(row.remaining_quantity),
             limit_price: row.limit_price !== null ? parseFloat(row.limit_price) : null,
-            take_profit_price: row.take_profit_price !== null ? parseFloat(row.take_profit_price) : null,
-            stop_loss_price: row.stop_loss_price !== null ? parseFloat(row.stop_loss_price) : null,
+            stop_price: row.stop_price !== null ? parseFloat(row.stop_price) : null,
         };
 
         try {
@@ -907,22 +843,12 @@ engineEvents.once("connected", recoverOpenOrdersToEngine);
 module.exports = router;
 
 /* ═══════════════════════════════════════════════════════════════════════
-   REQUIRED SCHEMA CHANGE
+   SCHEMA
 
-   spot_orders needs one new column to persist the price a lock was
-   computed against, so cancel/fill can recompute the exact reserved
-   amount without a separate ledger table:
-
-     ALTER TABLE spot_orders
-       ADD COLUMN locked_price DECIMAL(20,8) DEFAULT NULL AFTER limit_price;
-
-   For BUY orders this is set once, at placement, to entry_price_reference
-   (market price for MARKET orders, limit_price for LIMIT orders). It is
-   never updated afterwards — remaining_quantity already shrinks with
-   each partial fill, so remaining_quantity * locked_price always equals
-   what's still actually reserved. SELL orders don't need it (their lock
-   amount is just remaining_quantity of the base asset), so it stays NULL
-   there.
+   Apply the migration that ships alongside this file (drops
+   take_profit_price/stop_loss_price and spot_positions, adds stop_price,
+   widens order_type to include 'OCO'). See that migration for the full
+   from-scratch CREATE TABLE reference too.
 
    WIRE-UP (in your main server file, next to the other routers):
      const spotTradeRoutes = require("./routes/spotPanel_Route");
@@ -932,4 +858,8 @@ module.exports = router;
    Requires the C++ engine (trade_engine.cpp) running and reachable.
    This file registers engineEvents listeners as a side effect of being
    required — require it exactly once per process.
+
+   Requires Web_Sockets/marketData_ws.js to export `notifyUserTradeUpdate`
+   (added alongside this file) so fills can push a 'trade_update' event to
+   the placing user's browser(s) over the existing market-data WebSocket.
    ═══════════════════════════════════════════════════════════════════════ */

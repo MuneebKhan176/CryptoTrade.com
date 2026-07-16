@@ -185,8 +185,23 @@
   .type-tab { font-size:.8rem; font-weight:600; color:var(--text-2); background:none; border:none; cursor:pointer; padding:2px 0; border-bottom:2px solid transparent; }
   .type-tab.active { color:#fff; border-bottom-color:var(--blue); }
 
-  .bal-row { display:flex; justify-content:space-between; font-size:.74rem; color:var(--text-2); margin-bottom:8px; }
+  .bal-row { display:flex; justify-content:space-between; align-items:center; font-size:.74rem; color:var(--text-2); margin-bottom:8px; }
   .bal-row b { color:#fff; font-weight:600; }
+  .bal-value { display:flex; align-items:center; gap:6px; }
+  .refresh-btn {
+    background:none; border:none; cursor:pointer; color:var(--text-2); padding:2px;
+    line-height:0; display:flex; align-items:center; justify-content:center;
+    border-radius:5px; transition:.15s;
+  }
+  .refresh-btn:hover { color:#fff; background:var(--surface2); }
+  .refresh-btn.spinning svg { animation: spin .6s linear infinite; }
+  .refresh-btn-inline {
+    background:none; border:none; cursor:pointer; color:var(--text-2); padding:2px;
+    line-height:0; display:inline-flex; align-items:center; justify-content:center;
+    border-radius:5px; transition:.15s; margin-left:6px;
+  }
+  .refresh-btn-inline:hover { color:#fff; background:var(--surface2); }
+  .refresh-btn-inline.spinning svg { animation: spin .6s linear infinite; }
 
   .field-row { margin-bottom:10px; }
   .field-row label { display:block; font-size:.7rem; color:var(--text-3); text-transform:uppercase; letter-spacing:.05em; margin-bottom:5px; }
@@ -200,18 +215,21 @@
   .field-input.invalid { border-color: var(--red); }
   .field-suffix { position:absolute; right:11px; top:50%; transform:translateY(-50%); font-size:.72rem; color:var(--text-3); font-weight:600; }
 
-  /* ── TP/SL toggle + fields ── */
-  .tpsl-toggle {
-    display:flex; align-items:center; gap:9px; font-size:.8rem; font-weight:600; color:var(--text);
-    cursor:pointer; user-select:none; margin-bottom:10px; padding:2px 0;
+  /* ── OCO fields ──
+     TP and SL are kept as two independent inputs (so the values posted
+     to the backend are exactly as before — limit_price / stop_price,
+     no merging, no clash) but are visually presented together under a
+     single "Price (TP/SL)" label, split by a "/" divider, the same way
+     the price feed shows a combined TP/SL string like 65200/64000. */
+  .oco-hint {
+    font-size:.72rem; color:var(--text-2); margin-bottom:8px;
   }
-  .tpsl-toggle input[type="checkbox"] {
-    width:16px; height:16px; accent-color:var(--blue); cursor:pointer; flex-shrink:0;
+  .oco-price-row {
+    display:flex; align-items:center; gap:8px;
   }
-  .tpsl-fields {
-    border:1px dashed var(--border2); border-radius:9px; padding:12px 12px 2px;
-    margin-bottom:12px; background:var(--surface2);
-  }
+  .oco-price-row .field-input-wrap { flex:1; min-width:0; }
+  .oco-price-row .oco-slash { color:var(--text-3); font-weight:700; font-size:.9rem; flex-shrink:0; }
+  .oco-price-row .field-input { padding-right:11px; text-align:center; }
   .field-error {
     font-size:.68rem; color:var(--red); margin-top:5px; display:none; line-height:1.35;
   }
@@ -240,8 +258,16 @@
   .msg-box.error   { background:rgba(239,68,68,.1);  border:1px solid rgba(239,68,68,.2);  color:var(--red); }
   .msg-box.info    { background:var(--surface2); border:1px solid var(--border2); color:var(--text-2); }
 
-  /* ── Right column tabs ── */
-  .rt-tabs { display:flex; border-bottom:1px solid var(--border); }
+  /* ── Right column tabs ──
+     border-top added so the tab strip gets its own separating line
+     above (against the chart), matching the width/weight of the
+     existing border-bottom line below the tabs — previously the tabs
+     visually "merged" straight into the chart above them. */
+  .rt-tabs {
+    display:flex; align-items:center;
+    border-top:1px solid rgba(59,130,246,.4);
+    border-bottom:1px solid var(--border);
+  }
   .rt-tab {
     flex:1; padding:11px; font-size:.8rem; font-weight:700; text-align:center;
     background:none; border:none; color:var(--text-2); cursor:pointer; border-bottom:2px solid transparent; transition:.15s;
@@ -272,6 +298,12 @@
     font-size:.62rem; font-weight:700; padding:1px 6px; border-radius:4px; display:inline-block;
     margin-left:4px; background:var(--surface3); color:var(--text-2); border:1px solid var(--border2);
   }
+  /* Combined TP/SL price string shown in the Price column for OCO rows,
+     e.g. "65200/64000" — take-profit leg in green, stop leg in red. */
+  .oco-price-combo { font-weight:700; white-space:nowrap; }
+  .oco-price-combo .tp { color:var(--green); }
+  .oco-price-combo .sl { color:var(--red); }
+  .oco-price-combo .sep { color:var(--text-3); font-weight:400; margin:0 2px; }
   .cancel-btn {
     font-size:.68rem; font-weight:600; color:var(--text-2); background:var(--surface2);
     border:1px solid var(--border2); border-radius:5px; padding:3px 8px; cursor:pointer; transition:.15s;
@@ -339,11 +371,20 @@
       <div class="type-tabs">
         <button class="type-tab active" id="typeMarket" onclick="setOrderType('MARKET')">Market</button>
         <button class="type-tab" id="typeLimit" onclick="setOrderType('LIMIT')">Limit</button>
+        <!-- OCO is SELL-only — hidden by default, shown by setSide() -->
+        <button class="type-tab" id="typeOco" onclick="setOrderType('OCO')" style="display:none;">OCO</button>
       </div>
 
       <div class="bal-row">
         <span>Spot Balance</span>
-        <b id="tpBalance">Loading…</b>
+        <span class="bal-value">
+          <b id="tpBalance">Loading…</b>
+          <button class="refresh-btn" id="balRefreshBtn" onclick="refreshBalance()" title="Refresh balance">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/>
+            </svg>
+          </button>
+        </span>
       </div>
 
       <div class="field-row" id="limitPriceRow" style="display:none;">
@@ -353,6 +394,28 @@
           <span class="field-suffix">USDT</span>
         </div>
         <div class="field-error" id="limitPriceInputError"></div>
+      </div>
+
+      <!-- OCO — a SELL against an asset already held, with two exit
+           prices instead of one. Both legs are required, not optional.
+           They're displayed together as a single "Price (TP/SL)" row,
+           split by "/" — purely visual; tpInput and slInput are still
+           two independent fields posted as limit_price / stop_price,
+           exactly as before, so nothing changes on the backend side. -->
+      <div class="field-row" id="ocoFields" style="display:none;">
+        <label>Price (TP / SL)</label>
+        <div class="oco-hint">Sells automatically when price hits either leg — whichever comes first.</div>
+        <div class="oco-price-row">
+          <div class="field-input-wrap">
+            <input class="field-input" type="number" id="tpInput" placeholder="TP" min="0" step="0.00000001" oninput="clearFieldError('tpInput')"/>
+          </div>
+          <span class="oco-slash">/</span>
+          <div class="field-input-wrap">
+            <input class="field-input" type="number" id="slInput" placeholder="SL" min="0" step="0.00000001" oninput="clearFieldError('slInput')"/>
+          </div>
+        </div>
+        <div class="field-error" id="tpInputError"></div>
+        <div class="field-error" id="slInputError"></div>
       </div>
 
       <div class="field-row">
@@ -369,31 +432,6 @@
         <span class="pct-val" id="pctVal">0%</span>
       </div>
 
-      <!-- TP/SL — tickbox reveals the fields below when checked -->
-      <label class="tpsl-toggle" for="tpslCheckbox">
-        <input type="checkbox" id="tpslCheckbox" onchange="toggleTpSl()"/>
-        Take Profit / Stop Loss
-      </label>
-
-      <div class="tpsl-fields" id="tpslFields" style="display:none;">
-        <div class="field-row">
-          <label>Take Profit <span style="color:var(--text-3);font-weight:400;text-transform:none;">(optional)</span></label>
-          <div class="field-input-wrap">
-            <input class="field-input" type="number" id="tpInput" placeholder="0.00" min="0" step="0.00000001" oninput="clearFieldError('tpInput')"/>
-            <span class="field-suffix">USDT</span>
-          </div>
-          <div class="field-error" id="tpInputError"></div>
-        </div>
-        <div class="field-row">
-          <label>Stop Loss <span style="color:var(--text-3);font-weight:400;text-transform:none;">(optional)</span></label>
-          <div class="field-input-wrap">
-            <input class="field-input" type="number" id="slInput" placeholder="0.00" min="0" step="0.00000001" oninput="clearFieldError('slInput')"/>
-            <span class="field-suffix">USDT</span>
-          </div>
-          <div class="field-error" id="slInputError"></div>
-        </div>
-      </div>
-
       <div class="total-row">
         <span>Total</span>
         <b id="totalDisplay">0.00 USDT</b>
@@ -404,7 +442,7 @@
     </div>
   </div>
 
-  <!-- ═══ CENTER: CHART + OPEN ORDERS / HOLDINGS ═══ -->
+  <!-- ═══ CENTER: CHART + OPEN ORDERS / HOLDINGS / HISTORY ═══ -->
   <div class="col chart-col">
     <div class="chart-toolbar" id="tfToolbar">
       <button class="tf-btn" data-tf="15m">15m</button>
@@ -423,12 +461,21 @@
     <div class="rt-tabs">
       <button class="rt-tab active" id="rtOrdersTab" onclick="setRightTab('orders')">Open Orders</button>
       <button class="rt-tab" id="rtHoldingsTab" onclick="setRightTab('holdings')">Holdings</button>
+      <button class="rt-tab" id="rtHistoryTab" onclick="setRightTab('history')">History</button>
+      <button class="refresh-btn-inline" id="rtRefreshBtn" onclick="refreshRightPanel()" title="Refresh">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/>
+        </svg>
+      </button>
     </div>
     <div class="rt-body" id="rtOrders">
       <div class="empty-state"><span class="spinner-inline"></span>Loading orders…</div>
     </div>
     <div class="rt-body" id="rtHoldings" style="display:none;">
       <div class="empty-state"><span class="spinner-inline"></span>Loading holdings…</div>
+    </div>
+    <div class="rt-body" id="rtHistory" style="display:none;">
+      <div class="empty-state"><span class="spinner-inline"></span>Loading history…</div>
     </div>
   </div>
 
@@ -468,10 +515,11 @@ let liveData  = {};
 let candles   = [];
 let spotHoldings = [];
 let openOrders   = [];
+let tradeHistory  = [];
+let tradeHistoryLoaded = false;
 let orderSide    = 'BUY';
 let orderType    = 'MARKET';
 let rightTab     = 'orders';
-let tpslEnabled  = false;
 
 document.addEventListener('DOMContentLoaded', () => {
   populatePairSelect();
@@ -526,6 +574,7 @@ function onPairChange() {
   loadOrderBook();
   updatePairHeader();
   recalcTotal();
+  updateBalanceLabel();
 }
 
 function getCoin() { return TRADE_COINS.find(c => c.id === selectedCoinId); }
@@ -551,11 +600,35 @@ function connectMarketSocket() {
   marketSocket.onmessage = (event) => {
     let msg;
     try { msg = JSON.parse(event.data); } catch (e) { return; }
-    if (msg.type !== 'snapshot') return;
-    if (msg.data) { liveData = msg.data; updatePairHeader(); }
-    if (msg.klines) {
-      const k = msg.klines[selectedCoinId] && msg.klines[selectedCoinId][selectedInterval];
-      if (k) mergeLiveCandle(k);
+
+    if (msg.type === 'snapshot') {
+      if (msg.data) {
+        liveData = msg.data;
+        updatePairHeader();
+        // Re-price holdings against the live feed on every tick — not
+        // just once at initial load. Fixes holdings staying pinned to
+        // average_buy_price if loadWallet() resolved before the first
+        // snapshot arrived.
+        if (spotHoldings.length) renderHoldings();
+      }
+      if (msg.klines) {
+        const k = msg.klines[selectedCoinId] && msg.klines[selectedCoinId][selectedInterval];
+        if (k) mergeLiveCandle(k);
+      }
+      return;
+    }
+
+    if (msg.type === 'trade_update') {
+      // Pushed by the backend the moment ANY of this user's orders fills
+      // — including a resting LIMIT/OCO leg firing later off someone
+      // else's price tick, which the browser would otherwise never learn
+      // about without a manual page refresh. Refresh balance, holdings,
+      // and open orders immediately.
+      loadWallet();
+      loadOrders();
+      loadOrderBook();
+      if (rightTab === 'history') loadHistory();
+      return;
     }
   };
 }
@@ -750,6 +823,34 @@ async function loadWallet() {
   } catch (e) { renderHoldingsError(); updateBalanceLabel(); }
 }
 
+// Manual refresh trigger for the small refresh icon next to the balance
+// label. Spins the icon while the request is in flight so the click
+// registers as "doing something" even on a fast connection.
+async function refreshBalance() {
+  const btn = document.getElementById('balRefreshBtn');
+  if (btn) btn.classList.add('spinning');
+  try {
+    await loadWallet();
+  } finally {
+    if (btn) btn.classList.remove('spinning');
+  }
+}
+
+// Refresh trigger for the icon next to the Open Orders / Holdings /
+// History tabs — refreshes whichever data the currently active tab is
+// showing, plus the order book, without touching the selected trading pair.
+async function refreshRightPanel() {
+  const btn = document.getElementById('rtRefreshBtn');
+  if (btn) btn.classList.add('spinning');
+  try {
+    const tasks = [loadWallet(), loadOrders(), loadOrderBook()];
+    if (rightTab === 'history') tasks.push(loadHistory());
+    await Promise.all(tasks);
+  } finally {
+    if (btn) btn.classList.remove('spinning');
+  }
+}
+
 function renderHoldingsError(msg) {
   document.getElementById('rtHoldings').innerHTML = `<div class="empty-state"><span class="icn">⚠</span>${msg || 'Could not load holdings — check the /api/spot/wallet endpoint.'}</div>`;
 }
@@ -762,6 +863,11 @@ function renderHoldings() {
     const coinMeta = TRADE_COINS.find(c => c.symbol === sym);
     const displayName = coinMeta ? coinMeta.name : (sym === 'USDT' ? 'Tether' : sym);
     const icon = coinMeta ? coinMeta.icon : (sym === 'USDT' ? '₮' : '●');
+    // Prefer the live feed price on every render. Only fall back to the
+    // stored average_buy_price when the live feed truly has nothing for
+    // this coin yet (e.g. right after a cold start before the first
+    // Binance tick arrives) — this fallback stops being sticky because
+    // renderHoldings() now re-runs on every snapshot tick.
     const price = sym === 'USDT' ? 1 : (coinMeta && liveData[coinMeta.id] ? liveData[coinMeta.id].price : parseFloat(h.average_buy_price) || 0);
     const avail = parseFloat(h.available_quantity) || 0;
     const locked = parseFloat(h.locked_quantity) || 0;
@@ -805,17 +911,33 @@ function renderOrdersError(msg) {
 }
 
 function renderOrders() {
-  // Only pending LIMIT orders belong in this tab — MARKET orders fill
-  // immediately and never rest as "open", so they're excluded here.
-  const limitOrders = openOrders.filter(o => (o.order_type || '').toUpperCase() === 'LIMIT');
-  if (!limitOrders.length) { document.getElementById('rtOrders').innerHTML = `<div class="empty-state"><span class="icn">📋</span>No pending limit orders.</div>`; return; }
-  const rows = limitOrders.map(o => {
+  // Pending LIMIT and OCO orders belong here — MARKET orders fill
+  // immediately and never rest as "open", so they're excluded.
+  const restingOrders = openOrders.filter(o => ['LIMIT', 'OCO'].includes((o.order_type || '').toUpperCase()));
+  if (!restingOrders.length) { document.getElementById('rtOrders').innerHTML = `<div class="empty-state"><span class="icn">📋</span>No pending orders.</div>`; return; }
+  const rows = restingOrders.map(o => {
+    const type = (o.order_type || '').toUpperCase();
     const sideCls = (o.side || '').toUpperCase() === 'BUY' ? 'buy' : 'sell';
-    const price = fmtPrice(parseFloat(o.limit_price));
-    const tpsl = [];
-    if (o.take_profit_price !== null && o.take_profit_price !== undefined) tpsl.push(`<span class="tpsl-pill">TP ${fmtPrice(parseFloat(o.take_profit_price))}</span>`);
-    if (o.stop_loss_price !== null && o.stop_loss_price !== undefined) tpsl.push(`<span class="tpsl-pill">SL ${fmtPrice(parseFloat(o.stop_loss_price))}</span>`);
-    return `<tr><td><div style="font-weight:600;">${o.symbol}/USDT</div><span class="side-pill ${sideCls}">${o.side}</span>${tpsl.join('')}</td><td>${price}</td><td>${parseFloat(o.remaining_quantity ?? o.quantity).toFixed(6)}</td><td><button class="cancel-btn" onclick="cancelOrder('${o.order_id}')">Cancel</button></td></tr>`;
+    let priceDisplay;
+    if (type === 'OCO') {
+      // Combined "TP/SL" string in the Price column instead of two
+      // separate pills — e.g. 65200/64000 — purely a display change,
+      // still reading straight from limit_price / stop_price.
+      const tp = fmtPrice(parseFloat(o.limit_price));
+      const sl = fmtPrice(parseFloat(o.stop_price));
+      priceDisplay = `<span class="oco-price-combo"><span class="tp">${tp}</span><span class="sep">/</span><span class="sl">${sl}</span></span>`;
+    } else {
+      priceDisplay = fmtPrice(parseFloat(o.limit_price));
+    }
+    return `<tr>
+      <td>
+        <div style="font-weight:600;">${o.symbol}/USDT</div>
+        <span class="side-pill ${sideCls}">${o.side}</span><span class="tpsl-pill">${type}</span>
+      </td>
+      <td>${priceDisplay}</td>
+      <td>${parseFloat(o.remaining_quantity ?? o.quantity).toFixed(6)}</td>
+      <td><button class="cancel-btn" onclick="cancelOrder('${o.order_id}')">Cancel</button></td>
+    </tr>`;
   }).join('');
   document.getElementById('rtOrders').innerHTML = `<table class="mini-table"><thead><tr><th>Pair / Side</th><th>Price</th><th>Amount</th><th></th></tr></thead><tbody>${rows}</tbody></table>`;
 }
@@ -828,12 +950,54 @@ async function cancelOrder(orderId) {
   } catch (e) { alert('Network error while cancelling order.'); }
 }
 
+/* ═══════════════════════════════════════════════════════════════════════
+   TRADE HISTORY TAB — reads the existing /api/spot/trades endpoint
+   (already implemented on the backend, no backend change needed here).
+   Lazy-loaded the first time the tab is opened, then kept in sync by
+   refreshRightPanel() and by the 'trade_update' WebSocket push.
+   ═══════════════════════════════════════════════════════════════════════ */
+async function loadHistory() {
+  try {
+    const r = await fetch('/api/spot/trades?limit=100');
+    const d = await r.json();
+    if (d.success) { tradeHistory = d.data || []; tradeHistoryLoaded = true; renderHistory(); }
+    else { renderHistoryError(d.message); }
+  } catch (e) { renderHistoryError(); }
+}
+
+function renderHistoryError(msg) {
+  document.getElementById('rtHistory').innerHTML = `<div class="empty-state"><span class="icn">⚠</span>${msg || 'Could not load history — check the /api/spot/trades endpoint.'}</div>`;
+}
+
+function renderHistory() {
+  if (!tradeHistory.length) { document.getElementById('rtHistory').innerHTML = `<div class="empty-state"><span class="icn">🕓</span>No trade history yet.</div>`; return; }
+  const rows = tradeHistory.map(t => {
+    const dt = new Date(t.executed_at);
+    const dtStr = isNaN(dt.getTime()) ? '—' : dt.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+    const qty = parseFloat(t.quantity) || 0;
+    const price = parseFloat(t.price) || 0;
+    return `<tr>
+      <td>
+        <div style="font-weight:600;">${t.symbol}/USDT</div>
+        <div class="asset-name">${dtStr}</div>
+      </td>
+      <td>${fmtPrice(price)}</td>
+      <td>${qty.toFixed(6)}</td>
+      <td>${fmtUsd(qty * price)}</td>
+    </tr>`;
+  }).join('');
+  document.getElementById('rtHistory').innerHTML = `<table class="mini-table"><thead><tr><th>Pair / Time</th><th>Price</th><th>Amount</th><th>Total</th></tr></thead><tbody>${rows}</tbody></table>`;
+}
+
 function setRightTab(tab) {
   rightTab = tab;
   document.getElementById('rtOrdersTab').classList.toggle('active', tab === 'orders');
   document.getElementById('rtHoldingsTab').classList.toggle('active', tab === 'holdings');
+  document.getElementById('rtHistoryTab').classList.toggle('active', tab === 'history');
   document.getElementById('rtOrders').style.display = tab === 'orders' ? 'block' : 'none';
   document.getElementById('rtHoldings').style.display = tab === 'holdings' ? 'block' : 'none';
+  document.getElementById('rtHistory').style.display = tab === 'history' ? 'block' : 'none';
+  if (tab === 'history' && !tradeHistoryLoaded) loadHistory();
 }
 
 function setSide(side) {
@@ -845,6 +1009,13 @@ function setSide(side) {
   document.getElementById('pctVal').textContent = '0%';
   document.getElementById('amountInput').value = '';
   clearAllFieldErrors();
+
+  // OCO is SELL-only — hide the tab on the BUY side, and bounce back to
+  // Market if it was selected when the user switches to BUY.
+  const ocoTab = document.getElementById('typeOco');
+  ocoTab.style.display = side === 'SELL' ? '' : 'none';
+  if (side === 'BUY' && orderType === 'OCO') { setOrderType('MARKET'); }
+
   updateSubmitLabel();
   updateBalanceLabel();
   recalcTotal();
@@ -854,25 +1025,23 @@ function setOrderType(type) {
   orderType = type;
   document.getElementById('typeMarket').classList.toggle('active', type === 'MARKET');
   document.getElementById('typeLimit').classList.toggle('active', type === 'LIMIT');
+  document.getElementById('typeOco').classList.toggle('active', type === 'OCO');
   document.getElementById('limitPriceRow').style.display = type === 'LIMIT' ? 'block' : 'none';
+  document.getElementById('ocoFields').style.display = type === 'OCO' ? 'block' : 'none';
+
   if (type === 'LIMIT') {
     const d = liveData[selectedCoinId];
     const priceInput = document.getElementById('limitPriceInput');
     if (d && !priceInput.value) priceInput.value = fmtPrice(d.price).replace(/,/g, '');
   }
-  clearAllFieldErrors();
-  recalcTotal();
-}
-
-function toggleTpSl() {
-  tpslEnabled = document.getElementById('tpslCheckbox').checked;
-  document.getElementById('tpslFields').style.display = tpslEnabled ? 'block' : 'none';
-  if (!tpslEnabled) {
+  if (type !== 'OCO') {
     document.getElementById('tpInput').value = '';
     document.getElementById('slInput').value = '';
     clearFieldError('tpInput');
     clearFieldError('slInput');
   }
+  clearAllFieldErrors();
+  recalcTotal();
 }
 
 function clearFieldError(inputId) {
@@ -947,6 +1116,10 @@ function validateTradeInputs() {
     return { ok: false };
   }
 
+  if (orderType === 'OCO' && orderSide !== 'SELL') {
+    return { ok: false, generalMsg: 'OCO orders are only available on the Sell side.' };
+  }
+
   let limitPrice = null;
   if (orderType === 'LIMIT') {
     limitPrice = parseFloat(document.getElementById('limitPriceInput').value);
@@ -973,32 +1146,19 @@ function validateTradeInputs() {
     }
   }
 
-  const entryPrice = orderType === 'MARKET' ? marketPrice : limitPrice;
-
   let tp = null, sl = null;
-  if (tpslEnabled) {
-    const tpRaw = document.getElementById('tpInput').value;
-    const slRaw = document.getElementById('slInput').value;
+  if (orderType === 'OCO') {
+    tp = parseFloat(document.getElementById('tpInput').value);
+    sl = parseFloat(document.getElementById('slInput').value);
 
-    if (tpRaw !== '') {
-      tp = parseFloat(tpRaw);
-      if (!tp || tp <= 0) { setFieldError('tpInput', 'Take profit must be greater than 0.'); return { ok: false }; }
-    }
-    if (slRaw !== '') {
-      sl = parseFloat(slRaw);
-      if (!sl || sl <= 0) { setFieldError('slInput', 'Stop loss must be greater than 0.'); return { ok: false }; }
-    }
-
-    if (orderSide === 'BUY') {
-      if (tp !== null && tp <= entryPrice) { setFieldError('tpInput', `Take profit must be above ${fmtPrice(entryPrice)}.`); return { ok: false }; }
-      if (sl !== null && sl >= entryPrice) { setFieldError('slInput', `Stop loss must be below ${fmtPrice(entryPrice)}.`); return { ok: false }; }
-    } else {
-      if (tp !== null && tp >= entryPrice) { setFieldError('tpInput', `Take profit must be below ${fmtPrice(entryPrice)}.`); return { ok: false }; }
-      if (sl !== null && sl <= entryPrice) { setFieldError('slInput', `Stop loss must be above ${fmtPrice(entryPrice)}.`); return { ok: false }; }
-    }
+    if (!tp || tp <= 0) { setFieldError('tpInput', 'Enter a take profit price greater than 0.'); return { ok: false }; }
+    if (!sl || sl <= 0) { setFieldError('slInput', 'Enter a stop loss price greater than 0.'); return { ok: false }; }
+    if (tp <= sl) { setFieldError('tpInput', 'Take profit must be above stop loss.'); return { ok: false }; }
+    if (tp <= marketPrice) { setFieldError('tpInput', `Take profit must be above the current market price (${fmtPrice(marketPrice)}).`); return { ok: false }; }
+    if (sl >= marketPrice) { setFieldError('slInput', `Stop loss must be below the current market price (${fmtPrice(marketPrice)}).`); return { ok: false }; }
   }
 
-  return { ok: true, qty, limitPrice, tp, sl, entryPrice, marketPrice, coin };
+  return { ok: true, qty, limitPrice, tp, sl, marketPrice, coin };
 }
 
 async function submitOrder() {
@@ -1011,7 +1171,8 @@ async function submitOrder() {
   const { qty, limitPrice, tp, sl, coin } = v;
   const btn = document.getElementById('submitBtn');
 
-  // Balance check against currently loaded wallet holdings
+  // Balance check against currently loaded wallet holdings. OCO behaves
+  // like a SELL here — it reserves the base asset, not USDT.
   if (orderSide === 'BUY') {
     const usdt = getHoldingQty('USDT');
     const price = getEffectivePrice();
@@ -1021,15 +1182,17 @@ async function submitOrder() {
     if (qty > base + 1e-9) return showTradeMsg(`Insufficient ${coin.symbol} balance. Available: ${base.toFixed(6)} ${coin.symbol}`, 'error');
   }
 
-  // The packet sent to the backend — backend re-validates all of this independently.
+  // The packet sent to the backend — backend re-validates all of this
+  // independently. limit_price / stop_price are still sent as two
+  // distinct fields, exactly as before — only their on-screen grouping
+  // changed, not the payload shape.
   const orderPayload = {
     symbol: coin.symbol,
     side: orderSide,
     order_type: orderType,
     quantity: qty,
-    limit_price: orderType === 'LIMIT' ? limitPrice : null,
-    take_profit_price: tp,
-    stop_loss_price: sl,
+    limit_price: orderType === 'LIMIT' ? limitPrice : (orderType === 'OCO' ? tp : null),
+    stop_price: orderType === 'OCO' ? sl : null,
   };
 
   btn.disabled = true;
@@ -1041,14 +1204,19 @@ async function submitOrder() {
     });
     const d = await r.json();
     if (d.success) {
-      showTradeMsg(`✓ ${orderSide === 'BUY' ? 'Buy' : 'Sell'} order placed for ${qty} ${coin.symbol}` + (tp || sl ? ' with TP/SL attached.' : '.'), 'success');
+      const label = orderType === 'OCO' ? 'OCO' : (orderSide === 'BUY' ? 'Buy' : 'Sell');
+      showTradeMsg(`✓ ${label} order placed for ${qty} ${coin.symbol}.`, 'success');
       document.getElementById('amountInput').value = '';
       document.getElementById('pctSlider').value = 0;
       document.getElementById('pctVal').textContent = '0%';
-      document.getElementById('tpslCheckbox').checked = false;
-      toggleTpSl();
+      document.getElementById('tpInput').value = '';
+      document.getElementById('slInput').value = '';
       recalcTotal();
+      // Immediate refresh for this submit. Any LATER fill (a resting
+      // LIMIT/OCO leg firing off a subsequent price tick) is now caught
+      // by the 'trade_update' WebSocket push instead of being missed.
       loadWallet(); loadOrders(); loadOrderBook();
+      if (rightTab === 'history') loadHistory();
     } else if (d.data && Array.isArray(d.data.errors) && d.data.errors.length) {
       showTradeMsg(d.data.errors.join(' '), 'error');
     } else {

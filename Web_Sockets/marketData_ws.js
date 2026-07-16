@@ -223,6 +223,30 @@ function broadcastPortfolios() {
   }
 }
 
+/* ── Targeted push: "one of your orders just did something, go refresh"
+   ───────────────────────────────────────────────────────────────────────
+   Called by spotPanel_Route.js's handleExecution() right after a fill is
+   committed to MySQL. Sends a small 'trade_update' event ONLY to sockets
+   tagged with this userId (there can be more than one — multiple tabs/
+   devices) — everyone else's connection is untouched. The frontend
+   treats this purely as a "go refetch" signal; it does not carry enough
+   to fully re-render on its own, by design, so the client always ends up
+   consistent with the DB rather than trusting a push payload blindly.
+   Silently a no-op if the user has no open socket right now — the next
+   time they load the panel, loadWallet()/loadOrders() will already
+   reflect the fill anyway. ─────────────────────────────────────────── */
+function notifyUserTradeUpdate(userId, payload) {
+  if (!userId) return;
+  let delivered = 0;
+  for (const ws of clients) {
+    if (ws.userId === userId && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ type: 'trade_update', ts: Date.now(), ...payload }));
+      delivered++;
+    }
+  }
+  return delivered;
+}
+
 /* ── Resolve userId from the same auth cookie your middleware uses.
    ⚠ CONFIRM the cookie name, JWT_SECRET, and payload field name against
    middle/middleware.js before relying on this — these are best-effort
@@ -251,8 +275,8 @@ function getUserIdFromRequest(req) {
  * Call this once from your server.js, passing the same `http.Server`
  * instance you pass to attachChatWebSocketServer / your other wss setup.
  * Uses `req` from the 'connection' event to tag each socket with a
- * userId (if the visitor is logged in), so broadcastPortfolios() knows
- * which sockets to push per-user data to.
+ * userId (if the visitor is logged in), so broadcastPortfolios() and
+ * notifyUserTradeUpdate() know which sockets to push per-user data to.
  */
 function initialize(wss) {
 
@@ -292,5 +316,7 @@ module.exports = {
     KLINE_INTERVALS,
 
     getLivePrice, // exported so wallet routes & the order engine can reuse the same cache
+
+    notifyUserTradeUpdate, // exported so spotPanel_Route.js can push fill events to the user
 
 };

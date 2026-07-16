@@ -18,12 +18,31 @@
 //      ORDER_BOOK_UPDATE messages that are NOT replies to a specific
 //      call. A resting LIMIT order can fill minutes after it was placed,
 //      triggered by a PRICE_UPDATE that had nothing to do with that
-//      order; a TP/SL exit fires the same way. These arrive with the
+//      order; an OCO leg fires the same way. These arrive with the
 //      request_id of whatever inbound packet triggered them (which is
 //      usually a PRICE_UPDATE Node's price-poller sent, not something a
 //      route handler is awaiting), so they are NOT resolved against
 //      `pending` — they're emitted as events instead. Route handlers /
 //      services subscribe with `engineEvents.on('execution', ...)` etc.
+//
+// This client is a thin, order-type-agnostic pass-through: it doesn't
+// interpret order_type at all, so nothing here changed functionally when
+// OCO was added as a first-class order type — the caller (spotPanel_Route.js)
+// is responsible for populating limit_price / stop_price correctly per
+// the wire protocol below.
+//
+// WIRE PROTOCOL — Node -> Engine PLACE_ORDER payload:
+//   { order_id, user_id, wallet_id, symbol, side, order_type, quantity,
+//     limit_price?,  // LIMIT: the limit price. OCO: upper/take-profit-style leg.
+//     stop_price? }  // OCO only: the lower/stop-loss-style leg.
+//   There is no take_profit_price / stop_loss_price on this wire anymore
+//   — TP/SL-on-BUY was replaced by OCO as a standalone SELL order type.
+//
+// WIRE PROTOCOL — Engine -> Node EXECUTION payload includes:
+//   { ..., is_oco_leg, oco_leg? }  // oco_leg is "LIMIT" or "STOP", present
+//   only when is_oco_leg is true, identifying which leg fired. There is
+//   no is_exit_order field anymore — every EXECUTION is a plain BUY or
+//   SELL fill; OCO legs are SELL fills like any other.
 //
 // Framing: one JSON object per line (newline-delimited), in both
 // directions, so multiple messages can be pipelined over the same socket
@@ -42,9 +61,10 @@
 // were resting on the engine's book are gone from its memory — Node's
 // MySQL `spot_orders` rows for those will still show OPEN. Whoever owns
 // reconciliation (e.g. a startup job) is responsible for re-submitting
-// still-OPEN LIMIT orders to the engine after a reconnect; this module
+// still-OPEN LIMIT/OCO orders to the engine after a reconnect; this module
 // does not do that automatically, since it can't tell "fresh engine
 // process" apart from "same engine, brief network blip" on its own.
+// (See recoverOpenOrdersToEngine() in spotPanel_Route.js.)
 // -----------------------------------------------------------------------
 
 const net = require("net");
@@ -149,6 +169,9 @@ function handleLine(line) {
             break;
         }
         case "EXECUTION": {
+            // msg.is_oco_leg / msg.oco_leg identify OCO fills; every
+            // other field is the same shape as a plain BUY/SELL fill, so
+            // downstream persistence doesn't need a separate code path.
             engineEvents.emit("execution", msg);
             if (entry && entry.collect) entry.collect.push(msg);
             break;
@@ -267,10 +290,14 @@ function sendPacket(packet, { collectPushMessages = false } = {}) {
    ═══════════════════════════════════════════════════════════════════════ */
 
 // order: { order_id, user_id, wallet_id, symbol, side, order_type,
-//          quantity, limit_price?, take_profit_price?, stop_loss_price? }
+//          quantity, limit_price?, stop_price? }
+//   - MARKET: no limit_price, no stop_price.
+//   - LIMIT:  limit_price required, no stop_price.
+//   - OCO:    limit_price (upper/take-profit leg) and stop_price
+//             (lower/stop-loss leg) both required; side must be SELL.
 // Resolves with the ORDER_ACK payload: { accepted, message, errors, engine_order_id, ... }
 // Any EXECUTION this placement causes synchronously (a MARKET fill, or a
-// LIMIT order that was immediately marketable) is ALSO emitted on
+// LIMIT/OCO leg that was immediately marketable) is ALSO emitted on
 // engineEvents as usual — persist/broadcast it there, don't rely on the
 // ack alone for that.
 function sendOrderToEngine(order) {
@@ -282,8 +309,9 @@ function sendOrderToEngine(order) {
     });
 }
 
-// Cancels a resting LIMIT order by its MySQL spot_orders.order_id.
-// Resolves with the CANCEL_ACK payload: { cancelled, message }.
+// Cancels a resting LIMIT or OCO order by its MySQL spot_orders.order_id.
+// For OCO the engine cancels both legs internally. Resolves with the
+// CANCEL_ACK payload: { cancelled, message }.
 function cancelOrderOnEngine(orderId, symbol) {
     return sendPacket({ action: "CANCEL_ORDER", order_id: orderId, symbol }).then((ack) => {
         if (!ack || ack.type !== "CANCEL_ACK") {
@@ -294,8 +322,8 @@ function cancelOrderOnEngine(orderId, symbol) {
 }
 
 // Forwards a live price tick (e.g. from the Binance REST poller) to the
-// engine so it can evaluate resting LIMIT orders and TP/SL triggers for
-// that symbol. Any resulting fills are emitted on engineEvents('execution')
+// engine so it can evaluate resting LIMIT orders and OCO legs for that
+// symbol. Any resulting fills are emitted on engineEvents('execution')
 // as they happen — this call's own return value is mostly useful for
 // logging/debugging, not for driving persistence (subscribe to the event
 // instead, since fills can also happen from OTHER callers' price ticks).

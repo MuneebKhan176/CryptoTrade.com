@@ -8,6 +8,7 @@ const mongoConnection = require('./Social_Platform/mongo_connection');
 
 mongoConnection();
 
+
 // ---------------- Routes ----------------
 
 const authRoutes = require('./routes/authRoutes');
