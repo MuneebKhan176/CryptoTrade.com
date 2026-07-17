@@ -124,6 +124,16 @@
     display:flex; align-items:center; justify-content:space-between;
   }
 
+  /* Wallet shortcut icon in the Trade panel head — plain white icon,
+     links straight to the Spot Wallet page. Purely a navigation
+     shortcut; doesn't affect any trade logic below it. */
+  .wallet-shortcut-link {
+    color: #fff;
+    display:flex; align-items:center; justify-content:center;
+    line-height:0; opacity:.85; transition:.15s;
+  }
+  .wallet-shortcut-link:hover { opacity:1; }
+
   /* ── Order book ──
      Header labels and rows share the exact same grid so columns always
      line up: price left-aligned, amount + total right-aligned with
@@ -145,6 +155,14 @@
   .ob-row .ob-cell:nth-child(2), .ob-row .ob-cell:nth-child(3) { text-align:right; color:var(--text-2); }
   .ob-row.ask .ob-cell:first-child { color:var(--red); }
   .ob-row.bid .ob-cell:first-child { color:var(--green); }
+  /* Amount column colored per side — bid (buy-side resting orders) in
+     green, ask (sell-side resting orders) in red. The Total column
+     (3rd cell) stays neutral gray so it remains visually distinct from
+     the colored Price/Amount cells. These selectors are more specific
+     than the base ".ob-row .ob-cell:nth-child(2)" rule above, so they
+     take precedence regardless of source order. */
+  .ob-row.bid .ob-cell:nth-child(2) { color: var(--green); }
+  .ob-row.ask .ob-cell:nth-child(2) { color: var(--red); }
   .ob-row.ask .depth-bar { background: rgba(239,68,68,.08); }
   .ob-row.bid .depth-bar { background: rgba(34,197,94,.08); }
   .ob-spread {
@@ -361,7 +379,16 @@
 
   <!-- ═══ LEFT: TRADE PANEL ═══ -->
   <div class="col">
-    <div class="col-head"><span>Trade</span></div>
+    <div class="col-head">
+      <span>Trade</span>
+      <a href="/spot-wallet" class="wallet-shortcut-link" title="Go to Spot Wallet">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"/>
+          <path d="M3 5v14a2 2 0 0 0 2 2h16v-5"/>
+          <path d="M18 12a2 2 0 0 0 0 4h4v-4Z"/>
+        </svg>
+      </a>
+    </div>
     <div class="trade-panel" style="border-top:none;">
       <div class="side-tabs">
         <button class="side-tab buy active" id="tabBuy" onclick="setSide('BUY')">Buy</button>
@@ -855,14 +882,22 @@ function renderHoldingsError(msg) {
   document.getElementById('rtHoldings').innerHTML = `<div class="empty-state"><span class="icn">⚠</span>${msg || 'Could not load holdings — check the /api/spot/wallet endpoint.'}</div>`;
 }
 
+/* ═══════════════════════════════════════════════════════════════════════
+   HOLDINGS — sorted by current USD value (Current Price × Quantity),
+   highest first. Computed fresh on every call so it stays correct as
+   liveData ticks come in. Only a handful of supported assets ever land
+   here, so a plain bubble sort is more than sufficient — no need to
+   reach for a fancier algorithm.
+   ═══════════════════════════════════════════════════════════════════════ */
 function renderHoldings() {
   const withBal = spotHoldings.filter(h => parseFloat(h.available_quantity) > 0 || parseFloat(h.locked_quantity) > 0);
   if (!withBal.length) { document.getElementById('rtHoldings').innerHTML = `<div class="empty-state"><span class="icn">👛</span>No spot holdings yet.</div>`; return; }
-  const rows = withBal.map(h => {
+
+  // Resolve each holding's symbol/price/value once up front, then sort
+  // that enriched list — avoids recomputing price during comparisons.
+  const enriched = withBal.map(h => {
     const sym = (h.symbol || '').toUpperCase();
     const coinMeta = TRADE_COINS.find(c => c.symbol === sym);
-    const displayName = coinMeta ? coinMeta.name : (sym === 'USDT' ? 'Tether' : sym);
-    const icon = coinMeta ? coinMeta.icon : (sym === 'USDT' ? '₮' : '●');
     // Prefer the live feed price on every render. Only fall back to the
     // stored average_buy_price when the live feed truly has nothing for
     // this coin yet (e.g. right after a cold start before the first
@@ -872,6 +907,25 @@ function renderHoldings() {
     const avail = parseFloat(h.available_quantity) || 0;
     const locked = parseFloat(h.locked_quantity) || 0;
     const value = (avail + locked) * price;
+    return { sym, coinMeta, avail, locked, value };
+  });
+
+  // Simple bubble sort, descending by value — the holdings list is tiny
+  // (handful of supported symbols), so this is plenty fast and easy to
+  // reason about.
+  for (let i = 0; i < enriched.length - 1; i++) {
+    for (let j = 0; j < enriched.length - 1 - i; j++) {
+      if (enriched[j].value < enriched[j + 1].value) {
+        const tmp = enriched[j];
+        enriched[j] = enriched[j + 1];
+        enriched[j + 1] = tmp;
+      }
+    }
+  }
+
+  const rows = enriched.map(({ sym, coinMeta, avail, locked, value }) => {
+    const displayName = coinMeta ? coinMeta.name : (sym === 'USDT' ? 'Tether' : sym);
+    const icon = coinMeta ? coinMeta.icon : (sym === 'USDT' ? '₮' : '●');
     return `<tr>
       <td>
         <div class="asset-cell">
@@ -951,10 +1005,18 @@ async function cancelOrder(orderId) {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
-   TRADE HISTORY TAB — reads the existing /api/spot/trades endpoint
-   (already implemented on the backend, no backend change needed here).
-   Lazy-loaded the first time the tab is opened, then kept in sync by
-   refreshRightPanel() and by the 'trade_update' WebSocket push.
+   TRADE HISTORY TAB — reads /api/spot/trades, which now also returns
+   side, order_type, and order_status (joined server-side from
+   spot_orders) alongside the original trade fields, AND now includes
+   orders that were cancelled before ever filling (those carry
+   price: null since nothing ever executed). Filled and cancelled rows
+   are already interleaved by the backend query, sorted newest first —
+   this renderer just needs to color each one correctly. Table layout:
+   Pair/Type | Time | Price | Amount | Status — Type combines
+   order_type + side (e.g. "Market/Buy"), Buy is green / Sell is red,
+   and Status shows Filled (green) or Cancelled (red). Lazy-loaded the
+   first time the tab is opened, then kept in sync by refreshRightPanel()
+   and by the 'trade_update' WebSocket push.
    ═══════════════════════════════════════════════════════════════════════ */
 async function loadHistory() {
   try {
@@ -975,18 +1037,40 @@ function renderHistory() {
     const dt = new Date(t.executed_at);
     const dtStr = isNaN(dt.getTime()) ? '—' : dt.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
     const qty = parseFloat(t.quantity) || 0;
-    const price = parseFloat(t.price) || 0;
+    // Cancelled orders that never filled carry price: null (nothing ever
+    // executed) — show a dash instead of a misleading 0.000000.
+    const price = (t.price !== null && t.price !== undefined) ? parseFloat(t.price) : null;
+
+    // Type = order_type + side, e.g. "Market/Buy". Side portion colored
+    // green for Buy, red for Sell (reusing the existing .up/.down classes).
+    const typeRaw = (t.order_type || '').toUpperCase();
+    const typeLabel = typeRaw ? typeRaw.charAt(0) + typeRaw.slice(1).toLowerCase() : '—';
+    const sideRaw = (t.side || '').toUpperCase();
+    const sideCls = sideRaw === 'BUY' ? 'up' : (sideRaw === 'SELL' ? 'down' : '');
+    const sideLabel = sideRaw === 'BUY' ? 'Buy' : (sideRaw === 'SELL' ? 'Sell' : '—');
+
+    // Status: the parent order's current status, collapsed to the two
+    // states relevant to a row — Filled (covers FILLED and
+    // PARTIALLY_FILLED slices, shown green via .up) or Cancelled (red,
+    // via .down) — covers both orders cancelled after a partial fill and
+    // orders cancelled before ever filling.
+    const statusRaw = (t.order_status || '').toUpperCase();
+    const isCancelled = statusRaw === 'CANCELLED';
+    const statusCls = isCancelled ? 'down' : 'up';
+    const statusLabel = isCancelled ? 'Cancelled' : 'Filled';
+
     return `<tr>
       <td>
         <div style="font-weight:600;">${t.symbol}/USDT</div>
-        <div class="asset-name">${dtStr}</div>
+        <div class="asset-name">${typeLabel}/<span class="${sideCls}">${sideLabel}</span></div>
       </td>
-      <td>${fmtPrice(price)}</td>
+      <td>${dtStr}</td>
+      <td>${price !== null ? fmtPrice(price) : '—'}</td>
       <td>${qty.toFixed(6)}</td>
-      <td>${fmtUsd(qty * price)}</td>
+      <td><span class="${statusCls}">${statusLabel}</span></td>
     </tr>`;
   }).join('');
-  document.getElementById('rtHistory').innerHTML = `<table class="mini-table"><thead><tr><th>Pair / Time</th><th>Price</th><th>Amount</th><th>Total</th></tr></thead><tbody>${rows}</tbody></table>`;
+  document.getElementById('rtHistory').innerHTML = `<table class="mini-table"><thead><tr><th>Pair / Type</th><th>Time</th><th>Price</th><th>Amount</th><th>Status</th></tr></thead><tbody>${rows}</tbody></table>`;
 }
 
 function setRightTab(tab) {

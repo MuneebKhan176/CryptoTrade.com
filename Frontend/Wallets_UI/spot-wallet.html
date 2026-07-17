@@ -1,1104 +1,879 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8"/>
-<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>Spot Trading — CryptoTrade</title>
-<style>
-  *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Spot Wallet — CryptoTrade</title>
+  <style>
+    *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
 
-  :root {
-    --bg:        #000000;
-    --surface:   #0a0a0a;
-    --surface2:  #111111;
-    --surface3:  #161616;
-    --border:    #1a1a1a;
-    --border2:   #222222;
-    --text:      #ffffff;
-    --text-2:    #888888;
-    --text-3:    #444444;
-    --blue:      #3b82f6;
-    --blue-dim:  rgba(59,130,246,0.12);
-    --green:     #22c55e;
-    --green-dim: rgba(34,197,94,0.12);
-    --red:       #ef4444;
-    --red-dim:   rgba(239,68,68,0.12);
-  }
+    :root {
+      --bg:        #000000;
+      --surface:   #0a0a0a;
+      --surface2:  #111111;
+      --surface3:  #161616;
+      --border:    #1a1a1a;
+      --border2:   #222222;
+      --text:      #ffffff;
+      --text-2:    #888888;
+      --text-3:    #444444;
+      --blue:      #3b82f6;
+      --blue-dim:  rgba(59,130,246,0.12);
+      --green:     #22c55e;
+      --red:       #ef4444;
+      --sidebar-w: 220px;
+    }
 
-  body {
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    background: var(--bg);
-    color: var(--text);
-    min-height: 100vh;
-  }
+    html { scroll-behavior: smooth; }
 
-  /* ── Topnav ── */
-  .topnav {
-    height: 56px;
-    background: rgba(0,0,0,0.9);
-    border-bottom: 1px solid var(--border);
-    display: flex;
-    align-items: center;
-    padding: 0 20px;
-    gap: 18px;
-    position: sticky;
-    top: 0;
-    z-index: 200;
-    backdrop-filter: blur(12px);
-  }
-  .topnav-logo {
-    font-size: 1.1rem;
-    font-weight: 800;
-    letter-spacing: -0.5px;
-    background: linear-gradient(90deg,#fff 0%,#93c5fd 100%);
-    -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
-    text-decoration: none;
-    display: flex; align-items: center; gap: 7px; flex-shrink: 0;
-  }
-  .topnav-logo-dot { width:7px; height:7px; background:var(--blue); border-radius:50%; -webkit-text-fill-color:initial; animation: pdot 2s infinite; }
-  @keyframes pdot { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.4;transform:scale(.7)} }
-  .back-link {
-    font-size:.82rem; color:var(--text-2); text-decoration:none; display:flex; align-items:center; gap:6px;
-    padding:6px 12px; border-radius:7px; border:1px solid var(--border2); transition:.15s;
-  }
-  .back-link:hover { color:#fff; border-color:#444; background:var(--surface2); }
-  .topnav-right { margin-left:auto; display:flex; align-items:center; gap:10px; }
-  .avatar {
-    width:32px; height:32px; border-radius:50%;
-    background: linear-gradient(135deg,#3b82f6,#1d4ed8);
-    display:flex; align-items:center; justify-content:center;
-    font-size:.75rem; font-weight:700; color:#fff; border:2px solid var(--border2); overflow:hidden;
-  }
-  .avatar img { width:100%; height:100%; object-fit:cover; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
+    }
 
-  .market-type-bar {
-    position: absolute;
-    left: 50%;
-    top: 50%;
-    transform: translate(-50%, -50%);
-    display: flex;
-    align-items: center;
-    gap: 6px;
-  }
-  .market-type-btn {
-    padding:5px 11px; border-radius:6px; font-size:.74rem; font-weight:600;
-    background:none; border:1px solid var(--border2); color:var(--text-2);
-    cursor:pointer; text-decoration:none; transition:.15s;
-  }
-  .market-type-btn:hover:not(.active) { color:#fff; border-color:#444; }
-  .market-type-btn.active { background:var(--blue); border-color:var(--blue); color:#fff; }
-  .market-type-btn.disabled-hint { color:var(--text-3); }
+    /* ── Topnav (shared with dashboard) ── */
+    .topnav {
+      height: 60px;
+      background: rgba(0,0,0,0.9);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      padding: 0 24px;
+      gap: 16px;
+      position: sticky;
+      top: 0;
+      z-index: 200;
+      backdrop-filter: blur(12px);
+    }
+    .topnav-logo {
+      font-size: 1.15rem;
+      font-weight: 800;
+      letter-spacing: -0.5px;
+      background: linear-gradient(90deg,#fff 0%,#93c5fd 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      text-decoration: none;
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      flex-shrink: 0;
+      width: var(--sidebar-w);
+    }
+    .topnav-logo-dot {
+      width: 7px; height: 7px;
+      background: var(--blue);
+      border-radius: 50%;
+      -webkit-text-fill-color: initial;
+      flex-shrink: 0;
+      animation: pdot 2s infinite;
+    }
+    @keyframes pdot {
+      0%,100%{opacity:1;transform:scale(1)}
+      50%{opacity:.4;transform:scale(.7)}
+    }
+    .topnav-right {
+      margin-left: auto;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .nav-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 14px;
+      border-radius: 7px;
+      font-size: .82rem;
+      font-weight: 600;
+      text-decoration: none;
+      border: 1px solid var(--border2);
+      color: var(--text-2);
+      background: transparent;
+      cursor: pointer;
+      transition: all .18s;
+    }
+    .nav-pill:hover { color:#fff; border-color:#444; background: var(--surface2); }
+    .nav-pill.blue { background: var(--blue); border-color: var(--blue); color:#fff; }
+    .nav-pill.blue:hover { opacity:.88; }
+    .avatar {
+      width: 34px; height: 34px;
+      border-radius: 50%;
+      background: linear-gradient(135deg,#3b82f6,#1d4ed8);
+      display: flex; align-items: center; justify-content: center;
+      font-size: .78rem; font-weight: 700; color:#fff;
+      cursor: pointer; flex-shrink: 0;
+      border: 2px solid var(--border2);
+      overflow: hidden;
+    }
+    .avatar img { width:100%; height:100%; object-fit:cover; }
 
-  /* ── Pair header ── */
-  .pair-bar {
-    display:flex; align-items:center; gap:28px; flex-wrap:wrap;
-    padding:12px 20px; border-bottom:1px solid var(--border); background:var(--surface);
-  }
-  .pair-select-wrap { position:relative; }
-  .pair-select {
-    appearance:none; -webkit-appearance:none;
-    background: var(--surface2); border:1px solid var(--border2); border-radius:8px;
-    color:#fff; font-size:1rem; font-weight:700; padding:9px 34px 9px 14px; cursor:pointer; outline:none;
-  }
-  .pair-select-wrap::after {
-    content:'▾'; position:absolute; right:12px; top:50%; transform:translateY(-50%);
-    color:var(--text-2); pointer-events:none; font-size:.75rem;
-  }
-  .pair-price { font-size:1.3rem; font-weight:800; letter-spacing:-.5px; font-variant-numeric:tabular-nums; }
-  .pair-stat { display:flex; flex-direction:column; gap:2px; }
-  .pair-stat label { font-size:.66rem; color:var(--text-3); text-transform:uppercase; letter-spacing:.06em; }
-  .pair-stat span { font-size:.83rem; font-weight:600; font-variant-numeric:tabular-nums; }
+    /* ── Layout ── */
+    .layout { display: flex; flex: 1; }
 
-  /* ── Layout ── */
-  .spot-grid {
-    display:grid;
-    grid-template-columns: 320px 1fr 300px;
-    gap:1px;
-    background: var(--border);
-  }
-  .col { background: var(--bg); min-width:0; display:flex; flex-direction:column; }
+    /* ── Sidebar (shared with dashboard) ── */
+    .sidebar {
+      width: var(--sidebar-w);
+      background: var(--surface);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      padding: 16px 0;
+      position: sticky;
+      top: 60px;
+      height: calc(100vh - 60px);
+      overflow-y: auto;
+      flex-shrink: 0;
+    }
+    .sidebar-section { padding: 0 10px; margin-bottom: 8px; }
+    .sidebar-label {
+      font-size: .67rem; font-weight: 700; letter-spacing: .1em;
+      text-transform: uppercase; color: var(--text-3);
+      padding: 0 10px; margin-bottom: 6px;
+    }
+    .sidebar-link {
+      display: flex; align-items: center; gap: 10px;
+      padding: 9px 12px; border-radius: 7px;
+      font-size: .85rem; font-weight: 500;
+      color: var(--text-2); text-decoration: none;
+      transition: all .15s; cursor: pointer;
+      border: none; background: none; width: 100%; text-align: left;
+    }
+    .sidebar-link:hover { background: var(--surface2); color: #fff; }
+    .sidebar-link.active { background: var(--blue-dim); color: var(--blue); }
+    .sidebar-link .icon { font-size: 1rem; width: 20px; text-align: center; flex-shrink: 0; }
+    .sidebar-divider { border: none; border-top: 1px solid var(--border); margin: 8px 10px; }
+    .sidebar-logout { margin-top: auto; padding: 0 10px 8px; }
 
-  .col-head {
-    padding:10px 14px; font-size:.72rem; font-weight:700; text-transform:uppercase;
-    letter-spacing:.07em; color:var(--text-3); border-bottom:1px solid var(--border);
-    display:flex; align-items:center; justify-content:space-between;
-  }
+    /* ── Main ── */
+    .main { flex: 1; overflow-x: hidden; }
+    .panel { padding: 28px 32px; }
+    .page-title { font-size: 1.4rem; font-weight: 700; letter-spacing: -.5px; color: #fff; margin-bottom: 4px; }
+    .page-sub { font-size: .83rem; color: var(--text-2); margin-bottom: 22px; }
 
-  /* ── Order book ──
-     Header labels and rows share the exact same grid so columns always
-     line up: price left-aligned, amount + total right-aligned with
-     generous breathing room between them. */
-  .ob-labels {
-    display:grid; grid-template-columns: 1fr 1fr 1fr; column-gap:26px;
-    padding:9px 10px 9px 10px; font-size:.66rem; color:var(--text-3); text-transform:uppercase; letter-spacing:.06em;
-  }
-  .ob-labels span:nth-child(2), .ob-labels span:nth-child(3) { text-align:right; }
-  .ob-side { display:flex; flex-direction:column-reverse; padding:3px 0; }
-  .ob-side.bids { flex-direction:column; }
-  .ob-row {
-    position:relative; display:grid; grid-template-columns: 1fr 1fr 1fr; column-gap:26px; align-items:center;
-    padding:4.5px 10px 4.5px 10px; font-size:.78rem;
-    font-variant-numeric:tabular-nums; cursor:default;
-  }
-  .ob-row .depth-bar { position:absolute; top:0; right:0; bottom:0; z-index:0; }
-  .ob-row .ob-cell { position:relative; z-index:1; }
-  .ob-row .ob-cell:nth-child(2), .ob-row .ob-cell:nth-child(3) { text-align:right; color:var(--text-2); }
-  .ob-row.ask .ob-cell:first-child { color:var(--red); }
-  .ob-row.bid .ob-cell:first-child { color:var(--green); }
-  .ob-row.ask .depth-bar { background: rgba(239,68,68,.08); }
-  .ob-row.bid .depth-bar { background: rgba(34,197,94,.08); }
-  .ob-spread {
-    display:flex; align-items:center; justify-content:center; gap:8px;
-    padding:8px 14px; border-top:1px solid var(--border); border-bottom:1px solid var(--border);
-    background:var(--surface);
-  }
-  .ob-spread .spread-price { font-size:1.05rem; font-weight:800; font-variant-numeric:tabular-nums; }
-  .ob-spread .spread-price.up { color:var(--green); }
-  .ob-spread .spread-price.down { color:var(--red); }
-  .ob-spread .spread-label { font-size:.68rem; color:var(--text-3); }
-  .ob-empty { padding:20px 14px; text-align:center; color:var(--text-3); font-size:.78rem; }
+    /* ── Wallet sub-tabs ── */
+    .wallet-tabs { display: flex; gap: 8px; margin-bottom: 24px; border-bottom: 1px solid var(--border); }
+    .wallet-tab {
+      padding: 10px 18px; font-size: .84rem; font-weight: 600;
+      color: var(--text-2); text-decoration: none; border-radius: 7px 7px 0 0;
+      border: 1px solid transparent; border-bottom: none;
+      transition: all .15s; position: relative; top: 1px;
+    }
+    .wallet-tab:hover { color: #fff; }
+    .wallet-tab.active {
+      color: var(--blue); background: var(--surface);
+      border-color: var(--border); border-bottom: 1px solid var(--surface);
+    }
 
-  /* ── Chart ── */
-  .chart-toolbar { display:flex; align-items:center; gap:6px; padding:10px 14px; border-bottom:1px solid var(--border); flex-wrap:wrap; }
-  .tf-btn {
-    padding:5px 11px; border-radius:6px; font-size:.74rem; font-weight:600;
-    background:none; border:1px solid var(--border2); color:var(--text-2); cursor:pointer; transition:.15s;
-  }
-  .tf-btn.active { background:var(--blue); border-color:var(--blue); color:#fff; }
-  .tf-btn:hover:not(.active) { color:#fff; border-color:#444; }
-  .chart-wrap { position:relative; padding:10px 14px 4px; }
-  .chart-ohlc { position:absolute; top:14px; left:18px; z-index:5; font-size:.72rem; display:flex; gap:10px; color:var(--text-2); pointer-events:none; }
-  .chart-ohlc b { color:#fff; font-weight:600; }
-  #candleCanvas { width:100%; display:block; cursor:crosshair; }
+    /* ── Balance card ── */
+    .balance-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 12px; padding: 24px 28px; margin-bottom: 24px;
+      display: flex; align-items: center; gap: 32px;
+      position: relative; overflow: hidden; flex-wrap: wrap;
+    }
+    .balance-card::before {
+      content:''; position:absolute; top:-40px; left:-40px;
+      width:220px; height:220px;
+      background: radial-gradient(circle, rgba(59,130,246,.07) 0%, transparent 70%);
+      pointer-events: none;
+    }
+    .balance-main { flex: 1; min-width: 200px; }
+    .balance-label { font-size: .72rem; color: var(--text-3); text-transform: uppercase; letter-spacing: .08em; margin-bottom: 6px; display:flex; align-items:center; gap:8px; }
+    .balance-value {
+      font-size: 2.2rem; font-weight: 800; letter-spacing: -1px;
+      background: linear-gradient(90deg,#fff 0%,#93c5fd 80%);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+    }
+    .balance-value-row { display:flex; align-items:center; gap:10px; }
+    .balance-account { font-size: .78rem; color: var(--text-3); margin-top: 4px; }
+    .balance-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+    .btn-sm {
+      padding: 8px 16px; border-radius: 7px; font-size: .8rem; font-weight: 600;
+      cursor: pointer; text-decoration: none; border: none; transition: all .15s;
+      display: inline-flex; align-items: center; gap: 5px;
+    }
+    .btn-sm.primary { background: var(--blue); color:#fff; }
+    .btn-sm.primary:hover { opacity:.88; }
+    .btn-sm.ghost { background: var(--surface2); border: 1px solid var(--border2); color: var(--text-2); }
+    .btn-sm.ghost:hover { color:#fff; border-color:#444; }
+    .badge-active { background:rgba(34,197,94,.12); color:var(--green); font-size:.7rem; font-weight:700; padding:2px 8px; border-radius:100px; border:1px solid rgba(34,197,94,.2); }
 
-  /* ── Trade panel ── */
-  .trade-panel { border-top:1px solid var(--border); padding:14px; }
-  .side-tabs { display:flex; gap:6px; margin-bottom:12px; }
-  .side-tab {
-    flex:1; padding:9px; border-radius:7px; font-size:.85rem; font-weight:700;
-    border:1px solid var(--border2); background:var(--surface2); color:var(--text-2); cursor:pointer; transition:.15s;
-  }
-  .side-tab.buy.active { background:var(--green-dim); border-color:rgba(34,197,94,.4); color:var(--green); }
-  .side-tab.sell.active { background:var(--red-dim); border-color:rgba(239,68,68,.4); color:var(--red); }
+    /* ── Section head ── */
+    .sec-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; gap: 10px; }
+    .sec-head h3 { font-size: .95rem; font-weight: 700; }
+    .sec-head-left { display:flex; align-items:center; gap:8px; }
 
-  .type-tabs { display:flex; gap:16px; margin-bottom:12px; }
-  .type-tab { font-size:.8rem; font-weight:600; color:var(--text-2); background:none; border:none; cursor:pointer; padding:2px 0; border-bottom:2px solid transparent; }
-  .type-tab.active { color:#fff; border-bottom-color:var(--blue); }
+    /* ── Tables ── */
+    .table-wrap { border: 1px solid var(--border); border-radius: 10px; overflow: hidden; background: var(--surface); }
+    table { width:100%; border-collapse: collapse; }
+    thead { background: var(--surface2); }
+    th { padding: 11px 16px; font-size: .7rem; font-weight: 700; text-transform: uppercase; letter-spacing: .07em; color: var(--text-3); text-align: left; }
+    th:not(:first-child) { text-align: right; }
+    td { padding: 13px 16px; font-size: .86rem; border-bottom: 1px solid var(--border); vertical-align: middle; }
+    td:not(:first-child) { text-align: right; }
+    tbody tr:last-child td { border-bottom: none; }
+    tbody tr:hover td { background: rgba(255,255,255,.015); }
 
-  .bal-row { display:flex; justify-content:space-between; align-items:center; font-size:.74rem; color:var(--text-2); margin-bottom:8px; }
-  .bal-row b { color:#fff; font-weight:600; }
-  .bal-row-right { display:flex; align-items:center; gap:6px; }
-  .balance-refresh-btn {
-    display:flex; align-items:center; justify-content:center;
-    width:20px; height:20px; padding:0; border:none; background:none;
-    color:var(--text-3); cursor:pointer; border-radius:5px; transition:.15s;
-  }
-  .balance-refresh-btn:hover { color:#fff; background:var(--surface2); }
-  .balance-refresh-btn svg { width:13px; height:13px; display:block; }
-  .balance-refresh-btn.spinning svg { animation: spin .7s linear infinite; }
+    .coin-cell { display:flex; align-items:center; gap:10px; }
+    .coin-icon { width:32px; height:32px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:.85rem; font-weight:700; flex-shrink:0; }
+    .coin-icon.btc  { background:rgba(247,147,26,.15); color:#f7931a; }
+    .coin-icon.eth  { background:rgba(98,126,234,.15); color:#627eea; }
+    .coin-icon.sol  { background:rgba(153,69,255,.15); color:#9945ff; }
+    .coin-icon.xrp  { background:rgba(0,170,228,.15); color:#00aae4; }
+    .coin-icon.bnb  { background:rgba(240,185,11,.15); color:#f0b90b; }
+    .coin-icon.usdt { background:rgba(38,161,123,.15); color:#26a17b; }
+    .coin-icon.usdc { background:rgba(39,117,202,.15); color:#2775ca; }
+    .coin-icon.default { background:rgba(136,136,136,.15); color:#aaaaaa; }
+    .coin-name { font-weight:600; font-size:.88rem; }
+    .coin-sym  { font-size:.72rem; color:var(--text-3); }
 
-  .field-row { margin-bottom:10px; }
-  .field-row label { display:block; font-size:.7rem; color:var(--text-3); text-transform:uppercase; letter-spacing:.05em; margin-bottom:5px; }
-  .field-input-wrap { position:relative; }
-  .field-input {
-    width:100%; background:var(--surface2); border:1px solid var(--border2); border-radius:7px;
-    color:#fff; font-size:.85rem; padding:9px 46px 9px 11px; outline:none; transition:border-color .2s;
-    font-variant-numeric:tabular-nums;
-  }
-  .field-input:focus { border-color:#444; }
-  .field-input.invalid { border-color: var(--red); }
-  .field-suffix { position:absolute; right:11px; top:50%; transform:translateY(-50%); font-size:.72rem; color:var(--text-3); font-weight:600; }
+    .empty-state { text-align:center; padding: 46px 20px; color: var(--text-3); }
+    .empty-state .icon { font-size: 1.8rem; margin-bottom: 10px; }
+    .empty-state p { font-size: .84rem; }
 
-  /* ── TP/SL toggle + fields ── */
-  .tpsl-toggle {
-    display:flex; align-items:center; gap:9px; font-size:.8rem; font-weight:600; color:var(--text);
-    cursor:pointer; user-select:none; margin-bottom:10px; padding:2px 0;
-  }
-  .tpsl-toggle input[type="checkbox"] {
-    width:16px; height:16px; accent-color:var(--blue); cursor:pointer; flex-shrink:0;
-  }
-  .tpsl-fields {
-    border:1px dashed var(--border2); border-radius:9px; padding:12px 12px 2px;
-    margin-bottom:12px; background:var(--surface2);
-  }
-  .field-error {
-    font-size:.68rem; color:var(--red); margin-top:5px; display:none; line-height:1.35;
-  }
-  .field-error.show { display:block; }
+    .spinner-inline {
+      display:inline-block; width:14px; height:14px;
+      border:2px solid var(--border2); border-top-color: var(--blue);
+      border-radius:50%; animation: spin .7s linear infinite;
+      vertical-align:middle; margin-right:6px;
+    }
+    @keyframes spin { to { transform:rotate(360deg); } }
 
-  .pct-row { display:flex; gap:6px; margin-bottom:12px; }
-  .pct-slider { flex:1; -webkit-appearance:none; appearance:none; height:4px; border-radius:99px; background:var(--border2); outline:none; }
-  .pct-slider::-webkit-slider-thumb { -webkit-appearance:none; width:14px; height:14px; border-radius:50%; background:var(--blue); cursor:pointer; border:2px solid #fff; }
-  .pct-slider::-moz-range-thumb { width:14px; height:14px; border-radius:50%; background:var(--blue); cursor:pointer; border:2px solid #fff; }
-  .pct-val { width:38px; text-align:right; font-size:.74rem; color:var(--text-2); font-variant-numeric:tabular-nums; }
+    /* ── Small icon buttons (refresh, etc.) ── */
+    .icon-btn {
+      width:26px; height:26px; border-radius:7px;
+      background: var(--surface2); border: 1px solid var(--border2);
+      color: var(--text-2); cursor: pointer; display:inline-flex;
+      align-items:center; justify-content:center; font-size:.85rem;
+      transition: all .15s; flex-shrink:0; line-height:1;
+    }
+    .icon-btn:hover { color:#fff; border-color:#444; background: var(--surface3); }
+    .icon-btn.spinning { animation: spin .7s linear infinite; }
 
-  .total-row { display:flex; justify-content:space-between; font-size:.76rem; color:var(--text-2); margin-bottom:12px; padding-top:8px; border-top:1px dashed var(--border2); }
-  .total-row b { color:#fff; font-variant-numeric:tabular-nums; }
+    /* ── Modal (Internal Transfer) ── */
+    .modal-overlay {
+      display:none; position:fixed; inset:0; background:rgba(0,0,0,.6);
+      z-index:500; align-items:center; justify-content:center; padding:20px;
+    }
+    .modal-overlay.open { display:flex; }
+    .modal-card {
+      width:100%; max-width:420px; background:var(--surface); border:1px solid var(--border);
+      border-radius:12px; overflow:hidden; box-shadow:0 20px 60px rgba(0,0,0,.6);
+    }
+    .modal-header {
+      display:flex; align-items:center; justify-content:space-between;
+      padding:16px 20px; border-bottom:1px solid var(--border);
+    }
+    .modal-header h3 { font-size:1rem; font-weight:700; }
+    .modal-close { background:none; border:none; color:var(--text-2); font-size:1.1rem; cursor:pointer; }
+    .modal-close:hover { color:#fff; }
+    .modal-body { padding:20px; }
 
-  .submit-btn {
-    width:100%; padding:11px; border:none; border-radius:8px; font-size:.9rem; font-weight:700;
-    cursor:pointer; transition:.15s; color:#fff;
-  }
-  .submit-btn.buy { background:var(--green); }
-  .submit-btn.sell { background:var(--red); }
-  .submit-btn:hover { opacity:.88; }
-  .submit-btn:disabled { opacity:.45; cursor:not-allowed; }
+    /* ── Forms (used inside the transfer modal) ── */
+    .form-group { margin-bottom:16px; }
+    .form-group label { display:block; font-size:.78rem; color:var(--text-2); margin-bottom:6px; font-weight:500; }
+    .form-input {
+      width:100%; background: var(--surface2); border: 1px solid var(--border2);
+      border-radius:7px; color: var(--text); font-size:.88rem;
+      padding: 10px 13px; outline:none; transition: border-color .2s;
+    }
+    .form-input:focus { border-color:#444; }
+    .form-input:disabled { color: var(--text-3); cursor:not-allowed; }
+    .form-input::placeholder { color:var(--text-3); }
+    .form-note { font-size:.73rem; color:var(--text-3); margin-top:5px; }
+    .form-submit {
+      width:100%; padding:11px; background: var(--blue); color:#fff;
+      border:none; border-radius:7px; font-size:.9rem; font-weight:600;
+      cursor:pointer; transition:.15s; margin-top:4px;
+    }
+    .form-submit:hover { opacity:.88; }
+    .form-submit:disabled { opacity:.4; cursor:not-allowed; }
+    .msg-box { padding:10px 13px; border-radius:7px; font-size:.82rem; margin-top:12px; }
+    .msg-box.success { background:rgba(34,197,94,.1); border:1px solid rgba(34,197,94,.2); color:var(--green); }
+    .msg-box.error   { background:rgba(239,68,68,.1);  border:1px solid rgba(239,68,68,.2);  color:var(--red); }
 
-  .msg-box { padding:9px 12px; border-radius:7px; font-size:.78rem; margin-top:10px; }
-  .msg-box.success { background:rgba(34,197,94,.1); border:1px solid rgba(34,197,94,.2); color:var(--green); }
-  .msg-box.error   { background:rgba(239,68,68,.1);  border:1px solid rgba(239,68,68,.2);  color:var(--red); }
-  .msg-box.info    { background:var(--surface2); border:1px solid var(--border2); color:var(--text-2); }
+    /* ── Transfer swap button ── */
+    .transfer-swap-row { display:flex; justify-content:center; margin: -6px 0 10px; }
+    .swap-btn {
+      width:32px; height:32px; border-radius:50%;
+      background: var(--surface2); border: 1px solid var(--border2);
+      color: var(--blue); font-size:1rem; cursor:pointer;
+      display:flex; align-items:center; justify-content:center;
+      transition: all .2s;
+    }
+    .swap-btn:hover { background: var(--blue-dim); border-color: var(--blue); transform: rotate(180deg); }
 
-  /* ── Right column tabs ── */
-  .rt-tabs { display:flex; border-bottom:1px solid var(--border); }
-  .rt-tab {
-    flex:1; padding:11px; font-size:.8rem; font-weight:700; text-align:center;
-    background:none; border:none; color:var(--text-2); cursor:pointer; border-bottom:2px solid transparent; transition:.15s;
-  }
-  .rt-tab.active { color:#fff; border-bottom-color:var(--blue); }
-  .rt-body { flex:1; overflow-y:auto; max-height:300px; }
+    /* ── Amount input w/ MAX button ── */
+    .amount-input-wrap { position:relative; }
+    .amount-input-wrap .form-input { padding-right:46px; }
+    .max-btn {
+      position:absolute; right:12px; top:50%; transform:translateY(-50%);
+      background:none; border:none; box-shadow:none; padding:0; margin:0;
+      color: var(--green); font-size:.78rem; font-weight:600; font-family:inherit;
+      cursor:pointer; transition: opacity .15s;
+    }
+    .max-btn:hover { opacity:.7; text-decoration:underline; }
 
-  .asset-icon {
-    width:28px; height:28px; border-radius:50%; background:var(--surface3); flex-shrink:0;
-    display:flex; align-items:center; justify-content:center; font-size:.85rem; color:var(--text-2);
-    border:1px solid var(--border2);
-  }
-  .asset-cell { display:flex; align-items:center; gap:10px; }
-  .asset-cell .asset-name { font-size:.65rem; color:var(--text-3); font-weight:500; }
+    footer {
+      border-top: 1px solid var(--border); background: var(--surface);
+      padding: 18px 32px; display: flex; align-items: center;
+      justify-content: space-between; flex-wrap: wrap; gap: 10px;
+      margin-left: var(--sidebar-w);
+    }
+    footer p { font-size:.75rem; color:var(--text-3); }
+    .footer-links { display:flex; gap:16px; }
+    .footer-links a { font-size:.75rem; color:var(--text-3); text-decoration:none; transition:color .15s; }
+    .footer-links a:hover { color:var(--text-2); }
 
-  .mini-table { width:100%; border-collapse:collapse; }
-  .mini-table th {
-    position:sticky; top:0; background:var(--surface); padding:8px 12px; font-size:.64rem; font-weight:700;
-    text-transform:uppercase; letter-spacing:.05em; color:var(--text-3); text-align:left; border-bottom:1px solid var(--border);
-  }
-  .mini-table th:not(:first-child), .mini-table td:not(:first-child) { text-align:right; }
-  .mini-table td { padding:9px 12px; font-size:.76rem; border-bottom:1px solid var(--border); font-variant-numeric:tabular-nums; }
-  .mini-table tr:last-child td { border-bottom:none; }
-  .side-pill { font-size:.68rem; font-weight:700; padding:2px 7px; border-radius:5px; display:inline-block; }
-  .side-pill.buy { background:var(--green-dim); color:var(--green); }
-  .side-pill.sell { background:var(--red-dim); color:var(--red); }
-  .tpsl-pill {
-    font-size:.62rem; font-weight:700; padding:1px 6px; border-radius:4px; display:inline-block;
-    margin-left:4px; background:var(--surface3); color:var(--text-2); border:1px solid var(--border2);
-  }
-  .cancel-btn {
-    font-size:.68rem; font-weight:600; color:var(--text-2); background:var(--surface2);
-    border:1px solid var(--border2); border-radius:5px; padding:3px 8px; cursor:pointer; transition:.15s;
-  }
-  .cancel-btn:hover { color:var(--red); border-color:rgba(239,68,68,.4); }
-  .empty-state { padding:34px 16px; text-align:center; color:var(--text-3); font-size:.8rem; }
-  .empty-state .icn { font-size:1.6rem; margin-bottom:8px; display:block; }
+    ::-webkit-scrollbar { width:5px; }
+    ::-webkit-scrollbar-track { background:transparent; }
+    ::-webkit-scrollbar-thumb { background:var(--border2); border-radius:99px; }
+    .fade-in { animation: fadeIn .35s ease forwards; }
+    @keyframes fadeIn { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
 
-  .spinner-inline {
-    display:inline-block; width:13px; height:13px; border:2px solid var(--border2); border-top-color:var(--blue);
-    border-radius:50%; animation: spin .7s linear infinite; vertical-align:middle; margin-right:6px;
-  }
-  @keyframes spin { to { transform:rotate(360deg); } }
-
-  .up { color: var(--green); } .down { color: var(--red); }
-
-  ::-webkit-scrollbar { width:5px; height:5px; }
-  ::-webkit-scrollbar-track { background:transparent; }
-  ::-webkit-scrollbar-thumb { background:var(--border2); border-radius:99px; }
-
-  @media (max-width: 980px) {
-    .spot-grid { grid-template-columns: 1fr; }
-    .rt-body { max-height:400px; }
-  }
-</style>
+    @media(max-width:768px) {
+      :root { --sidebar-w: 0px; }
+      .sidebar { display:none; }
+      footer { margin-left:0; }
+      .panel { padding:20px 16px; }
+    }
+  </style>
 </head>
 <body>
 
+<!-- ── Topnav ── -->
 <header class="topnav">
-  <a href="/" class="topnav-logo"><span class="topnav-logo-dot"></span>CryptoTrade</a>
-
-  <div class="market-type-bar">
-    <a href="/spot-trade" class="market-type-btn active">Spot</a>
-    <a href="/futures-trade" class="market-type-btn">Futures</a>
-  </div>
-
+  <a href="/" class="topnav-logo">
+    <span class="topnav-logo-dot"></span>CryptoTrade
+  </a>
   <div class="topnav-right">
-    <a href="/dashboard" class="back-link">← Dashboard</a>
-    <a href="/profile" class="avatar" id="avatarEl">?</a>
+    <a href="/dashboard" class="nav-pill">⊞ Dashboard</a>
+    <a href="/crypto-square" class="nav-pill">🟦 Crypto Square</a>
+    <a href="/chat" class="nav-pill">💬 Live Chat</a>
+    <a href="/profile" class="avatar" id="avatarEl" title="Social Profile">?</a>
   </div>
 </header>
 
-<div class="pair-bar">
-  <div class="pair-select-wrap">
-    <select class="pair-select" id="pairSelect" onchange="onPairChange()"></select>
-  </div>
-  <div class="pair-price" id="pairPrice">—</div>
-  <div class="pair-stat"><label>24h Change</label><span id="pairChange">—</span></div>
-  <div class="pair-stat"><label>24h High</label><span id="pairHigh">—</span></div>
-  <div class="pair-stat"><label>24h Low</label><span id="pairLow">—</span></div>
-  <div class="pair-stat"><label>24h Volume</label><span id="pairVol">—</span></div>
+<div class="layout">
+
+  <!-- ── Sidebar ── -->
+  <aside class="sidebar">
+    <div class="sidebar-section">
+      <div class="sidebar-label">Main</div>
+      <a href="/dashboard" class="sidebar-link">
+        <span class="icon">⊞</span> Overview
+      </a>
+      <a href="/spot-wallet" class="sidebar-link active">
+        <span class="icon">👛</span> Wallets
+      </a>
+      <a href="/dashboard#trade" class="sidebar-link">
+        <span class="icon">📈</span> Trade
+      </a>
+      <a href="/dashboard#account" class="sidebar-link">
+        <span class="icon">👤</span> Account
+      </a>
+      <a href="/dashboard#market" class="sidebar-link">
+        <span class="icon">🌐</span> Markets
+      </a>
+    </div>
+    <hr class="sidebar-divider"/>
+    <div class="sidebar-section">
+      <div class="sidebar-label">Social</div>
+      <a href="/crypto-square" class="sidebar-link">
+        <span class="icon">🟦</span> Crypto Square
+      </a>
+      <a href="/chat" class="sidebar-link">
+        <span class="icon">💬</span> Live Chat
+      </a>
+      <a href="/profile" class="sidebar-link">
+        <span class="icon">🪪</span> Social Profile
+      </a>
+      <a href="/top-creators" class="sidebar-link">
+        <span class="icon">🏆</span> Follow Top Creators
+      </a>
+    </div>
+    <hr class="sidebar-divider"/>
+    <div class="sidebar-section">
+      <div class="sidebar-label">Finance</div>
+      <a href="/dashboard#transfer" class="sidebar-link">
+        <span class="icon">↔</span> Send
+      </a>
+      <a href="/dashboard#demo" class="sidebar-link">
+        <span class="icon">🎁</span> Demo Funds
+      </a>
+    </div>
+    <hr class="sidebar-divider"/>
+    <div class="sidebar-section">
+      <div class="sidebar-label">Help</div>
+      <a href="/dashboard#support" class="sidebar-link">
+        <span class="icon">🛡</span> Support
+      </a>
+    </div>
+    <div class="sidebar-logout">
+      <hr class="sidebar-divider"/>
+      <a href="http://localhost:7070/logout" class="sidebar-link">
+        <span class="icon">⬡</span> Log out
+      </a>
+    </div>
+  </aside>
+
+  <main class="main">
+    <div class="panel fade-in">
+      <div class="page-title">Spot Wallet</div>
+      <div class="page-sub" id="pageSub">Manage(Buy/Sell) your cryptos through the Spot Wallet.</div>
+
+      <div class="wallet-tabs">
+        <a href="/funding-wallet" class="wallet-tab">💰 Funding</a>
+        <a href="/spot-wallet" class="wallet-tab active">📊 Spot</a>
+        <a href="/futures-wallet" class="wallet-tab">📉 Futures</a>
+      </div>
+
+      <div class="balance-card">
+        <div class="balance-main">
+          <div class="balance-label">Spot Wallet — Estimated Value</div>
+          <div class="balance-value-row">
+            <div class="balance-value" id="balanceDisplay">$0.00</div>
+            <button class="icon-btn" id="refreshBalanceBtn" onclick="refreshSpotBalance()" title="Refresh balance">⟳</button>
+          </div>
+          <div class="balance-account" id="accountNum">Wallet ID: —</div>
+        </div>
+        <div class="balance-actions">
+          <a href="/spot-trade" class="btn-sm primary">Trade</a>
+          <button class="btn-sm ghost" onclick="openTransferModal()">Transfer</button>
+          <span class="badge-active" id="statusBadge">ACTIVE</span>
+        </div>
+      </div>
+
+      <div class="sec-head">
+        <h3>Holdings</h3>
+        <button class="icon-btn" id="refreshHoldingsBtn" onclick="refreshHoldings()" title="Refresh holdings">⟳</button>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Asset</th><th>Available Qty</th><th>Locked Qty</th><th>Avg Buy Price</th><th>Current Price</th><th>Value (USD)</th>
+            </tr>
+          </thead>
+          <tbody id="holdingsTable">
+            <tr><td colspan="6" style="text-align:center;padding:30px;color:var(--text-3)">
+              <span class="spinner-inline"></span>Loading spot wallet…
+            </td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </main>
 </div>
 
-<div class="spot-grid">
+<footer>
+  <p>© 2025 CryptoTrade · Demo trading platform · Created by Muneeb</p>
+  <div class="footer-links">
+    <a href="/">Home</a>
+    <a href="/contact">Support</a>
+    <a href="#">Privacy</a>
+    <a href="#">Terms</a>
+  </div>
+</footer>
 
-  <!-- ═══ LEFT: TRADE PANEL ═══ -->
-  <div class="col">
-    <div class="col-head"><span>Trade</span></div>
-    <div class="trade-panel" style="border-top:none;">
-      <div class="side-tabs">
-        <button class="side-tab buy active" id="tabBuy" onclick="setSide('BUY')">Buy</button>
-        <button class="side-tab sell" id="tabSell" onclick="setSide('SELL')">Sell</button>
+<!-- ── Internal Transfer Modal ── -->
+<div class="modal-overlay" id="transferModalOverlay" onclick="if(event.target===this)closeTransferModal()">
+  <div class="modal-card">
+    <div class="modal-header">
+      <h3>Internal Transfer</h3>
+      <button class="modal-close" onclick="closeTransferModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label>From Wallet</label>
+        <select class="form-input" id="tr-from" onchange="onFromWalletChange()">
+          <option value="funding">Funding</option>
+          <option value="spot" selected>Spot</option>
+          <option value="futures">Futures</option>
+        </select>
+        <div class="form-note" id="tr-from-balance">Available: —</div>
       </div>
 
-      <div class="type-tabs">
-        <button class="type-tab active" id="typeMarket" onclick="setOrderType('MARKET')">Market</button>
-        <button class="type-tab" id="typeLimit" onclick="setOrderType('LIMIT')">Limit</button>
+      <div class="transfer-swap-row">
+        <button type="button" class="swap-btn" onclick="swapTransferWallets()" title="Swap wallets">⇅</button>
       </div>
 
-      <div class="bal-row">
-        <span>Spot Balance</span>
-        <div class="bal-row-right">
-          <button type="button" class="balance-refresh-btn" id="balanceRefreshBtn" onclick="refreshBalancePanel()" title="Refresh balance" aria-label="Refresh balance">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
-              <polyline points="23 4 23 10 17 10"></polyline>
-              <polyline points="1 20 1 14 7 14"></polyline>
-              <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
-            </svg>
-          </button>
-          <b id="tpBalance">Loading…</b>
-        </div>
+      <div class="form-group">
+        <label>To Wallet</label>
+        <select class="form-input" id="tr-to" onchange="onToWalletChange()">
+          <option value="funding" selected>Funding</option>
+          <option value="spot">Spot</option>
+          <option value="futures">Futures</option>
+        </select>
       </div>
-
-      <div class="field-row" id="limitPriceRow" style="display:none;">
-        <label>Price</label>
-        <div class="field-input-wrap">
-          <input class="field-input" type="number" id="limitPriceInput" placeholder="0.00" min="0" step="0.00000001" oninput="recalcTotal(); clearFieldError('limitPriceInput')"/>
-          <span class="field-suffix">USDT</span>
-        </div>
-        <div class="field-error" id="limitPriceInputError"></div>
+      <div class="form-group">
+        <label>Currency</label>
+        <input class="form-input" type="text" value="USDT" disabled/>
       </div>
-
-      <div class="field-row">
+      <div class="form-group">
         <label>Amount</label>
-        <div class="field-input-wrap">
-          <input class="field-input" type="number" id="amountInput" placeholder="0.00" min="0" step="0.00000001" oninput="recalcTotal(); clearFieldError('amountInput')"/>
-          <span class="field-suffix" id="amountSuffix">BTC</span>
-        </div>
-        <div class="field-error" id="amountInputError"></div>
-      </div>
-
-      <div class="pct-row">
-        <input type="range" class="pct-slider" id="pctSlider" min="0" max="100" step="1" value="0" oninput="applyPercent(this.value)"/>
-        <span class="pct-val" id="pctVal">0%</span>
-      </div>
-
-      <!-- TP/SL — tickbox reveals the fields below when checked -->
-      <label class="tpsl-toggle" for="tpslCheckbox">
-        <input type="checkbox" id="tpslCheckbox" onchange="toggleTpSl()"/>
-        Take Profit / Stop Loss
-      </label>
-
-      <div class="tpsl-fields" id="tpslFields" style="display:none;">
-        <div class="field-row">
-          <label>Take Profit <span style="color:var(--text-3);font-weight:400;text-transform:none;">(optional)</span></label>
-          <div class="field-input-wrap">
-            <input class="field-input" type="number" id="tpInput" placeholder="0.00" min="0" step="0.00000001" oninput="clearFieldError('tpInput')"/>
-            <span class="field-suffix">USDT</span>
-          </div>
-          <div class="field-error" id="tpInputError"></div>
-        </div>
-        <div class="field-row">
-          <label>Stop Loss <span style="color:var(--text-3);font-weight:400;text-transform:none;">(optional)</span></label>
-          <div class="field-input-wrap">
-            <input class="field-input" type="number" id="slInput" placeholder="0.00" min="0" step="0.00000001" oninput="clearFieldError('slInput')"/>
-            <span class="field-suffix">USDT</span>
-          </div>
-          <div class="field-error" id="slInputError"></div>
+        <div class="amount-input-wrap">
+          <input class="form-input" type="number" id="tr-amount" placeholder="0.00" min="0" step="0.01"/>
+          <button type="button" class="max-btn" onclick="setMaxTransferAmount()">MAX</button>
         </div>
       </div>
-
-      <div class="total-row">
-        <span>Total</span>
-        <b id="totalDisplay">0.00 USDT</b>
-      </div>
-
-      <button class="submit-btn buy" id="submitBtn" onclick="submitOrder()">Buy BTC</button>
-      <div id="tradeMsg" class="msg-box" style="display:none;"></div>
+      <button class="form-submit" id="tr-submit-btn" onclick="submitTransfer()">Transfer</button>
+      <div id="tr-msg" class="msg-box" style="display:none;"></div>
     </div>
   </div>
-
-  <!-- ═══ CENTER: CHART + OPEN ORDERS / HOLDINGS ═══ -->
-  <div class="col chart-col">
-    <div class="chart-toolbar" id="tfToolbar">
-      <button class="tf-btn" data-tf="15m">15m</button>
-      <button class="tf-btn" data-tf="1h">1H</button>
-      <button class="tf-btn" data-tf="4h">4H</button>
-      <button class="tf-btn" data-tf="12h">12H</button>
-      <button class="tf-btn active" data-tf="1d">1D</button>
-      <button class="tf-btn" data-tf="1w">1W</button>
-      <button class="tf-btn" data-tf="1M">1M</button>
-    </div>
-    <div class="chart-wrap">
-      <div class="chart-ohlc" id="chartOhlc"></div>
-      <canvas id="candleCanvas" height="360"></canvas>
-    </div>
-
-    <div class="rt-tabs">
-      <button class="rt-tab active" id="rtOrdersTab" onclick="setRightTab('orders')">Open Orders</button>
-      <button class="rt-tab" id="rtHoldingsTab" onclick="setRightTab('holdings')">Holdings</button>
-    </div>
-    <div class="rt-body" id="rtOrders">
-      <div class="empty-state"><span class="spinner-inline"></span>Loading orders…</div>
-    </div>
-    <div class="rt-body" id="rtHoldings" style="display:none;">
-      <div class="empty-state"><span class="spinner-inline"></span>Loading holdings…</div>
-    </div>
-  </div>
-
-  <!-- ═══ RIGHT: ORDER BOOK ═══ -->
-  <div class="col">
-    <div class="col-head">
-      <span>Order Book</span>
-      <span id="obStatus" style="font-weight:500;text-transform:none;letter-spacing:0;">—</span>
-    </div>
-    <div class="ob-labels"><span>Price (USDT)</span><span>Amount</span><span>Total</span></div>
-
-    <div class="ob-side asks" id="obAsks"></div>
-
-    <div class="ob-spread">
-      <span class="spread-price" id="obSpreadPrice">—</span>
-      <span class="spread-label">Last Price</span>
-    </div>
-
-    <div class="ob-side bids" id="obBids"></div>
-  </div>
-
 </div>
 
 <script>
-const TRADE_COINS = [
-  { id:'bitcoin',     symbol:'BTC',  name:'Bitcoin',  icon:'₿' },
-  { id:'ethereum',    symbol:'ETH',  name:'Ethereum', icon:'Ξ' },
-  { id:'binancecoin', symbol:'BNB',  name:'BNB',      icon:'B' },
-  { id:'solana',      symbol:'SOL',  name:'Solana',   icon:'◎' },
-  { id:'ripple',      symbol:'XRP',  name:'XRP',      icon:'✕' },
-  { id:'usd-coin',    symbol:'USDC', name:'USD Coin', icon:'$' },
-];
-
-let selectedCoinId = 'bitcoin';
-let selectedInterval = '1d';
-let liveData  = {};
-let candles   = [];
-let spotHoldings = [];
-let openOrders   = [];
-let orderSide    = 'BUY';
-let orderType    = 'MARKET';
-let rightTab     = 'orders';
-let tpslEnabled  = false;
-
-document.addEventListener('DOMContentLoaded', () => {
-  populatePairSelect();
-  bindTimeframeButtons();
-  fetchUserAvatar();
-  connectMarketSocket();
-  loadHistoricalCandles();
-  loadWallet();
-  loadOrders();
-  loadOrderBook();
-  window.addEventListener('resize', drawCandles);
-  setInterval(() => { loadOrderBook(); }, 4000);
-  setInterval(() => { loadOrders(); }, 6000);
-});
-
-function populatePairSelect() {
-  const sel = document.getElementById('pairSelect');
-  sel.innerHTML = TRADE_COINS.map(c => `<option value="${c.id}">${c.symbol}/USDT</option>`).join('');
-  sel.value = selectedCoinId;
+/* Icon/colour mapping shared across all three wallet pages */
+const ASSET_META = {
+  BTC:  { name:'Bitcoin',  icon:'₿', cls:'btc'  },
+  ETH:  { name:'Ethereum', icon:'Ξ', cls:'eth'  },
+  SOL:  { name:'Solana',   icon:'◎', cls:'sol'  },
+  XRP:  { name:'XRP',      icon:'✕', cls:'xrp'  },
+  BNB:  { name:'BNB',      icon:'B', cls:'bnb'  },
+  USDT: { name:'Tether',   icon:'₮', cls:'usdt' },
+  USDC: { name:'USD Coin', icon:'$', cls:'usdc' },
+};
+function assetMeta(symbol) {
+  return ASSET_META[symbol] || { name: symbol, icon: (symbol || '?')[0], cls: 'default' };
+}
+function fmtUsd(n) {
+  n = parseFloat(n) || 0;
+  return '$' + n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+function fmtQty(n) {
+  n = parseFloat(n) || 0;
+  return n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 8 });
 }
 
-function bindTimeframeButtons() {
-  document.querySelectorAll('.tf-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      document.querySelectorAll('.tf-btn').forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-      selectedInterval = btn.dataset.tf;
-      loadHistoricalCandles();
-    });
-  });
-}
-
-async function fetchUserAvatar() {
+/* Topnav avatar + username, reusing the same /api/dashboard payload the
+   main dashboard uses (contains user, account, socialProfile). */
+async function loadIdentity() {
   try {
     const r = await fetch('/api/dashboard');
     const d = await r.json();
-    if (!d.success) return;
-    const initials = (d.data.user.username || '?').slice(0, 2).toUpperCase();
+    if (!d.success) { window.location.href = '/login'; return; }
     const avatarEl = document.getElementById('avatarEl');
+    const initials = (d.data.user.username || '?').slice(0, 2).toUpperCase();
     const socialAvatarUrl = d.data.socialProfile && d.data.socialProfile.avatarUrl;
     if (socialAvatarUrl) avatarEl.innerHTML = `<img src="${socialAvatarUrl}" alt="avatar"/>`;
     else avatarEl.textContent = initials;
-  } catch (e) {}
+  } catch (e) { console.error('loadIdentity error:', e); }
 }
 
-function onPairChange() {
-  selectedCoinId = document.getElementById('pairSelect').value;
-  const coin = getCoin();
-  document.getElementById('amountSuffix').textContent = coin.symbol;
-  updateSubmitLabel();
-  loadHistoricalCandles();
-  loadOrderBook();
-  updatePairHeader();
-  recalcTotal();
+/* Applies a status badge (ACTIVE / BLOCKED) consistently wherever it's used. */
+function paintStatusBadge(status) {
+  const badge = document.getElementById('statusBadge');
+  badge.textContent = status || 'ACTIVE';
+  badge.style.color = status === 'BLOCKED' ? 'var(--red)' : 'var(--green)';
+  badge.style.background = status === 'BLOCKED' ? 'rgba(239,68,68,.12)' : 'rgba(34,197,94,.12)';
+  badge.style.borderColor = status === 'BLOCKED' ? 'rgba(239,68,68,.2)' : 'rgba(34,197,94,.2)';
 }
 
-function getCoin() { return TRADE_COINS.find(c => c.id === selectedCoinId); }
-function getHoldingQty(symbol) {
-  const h = spotHoldings.find(x => (x.symbol || '').toUpperCase() === symbol.toUpperCase());
-  return h ? parseFloat(h.available_quantity) || 0 : 0;
-}
+/* Spot wallet = per-asset rows from spot_holdings, joined through spot_wallet.wallet_id.
+   The REST response now includes currentPrice + value per holding (priced
+   from the live Binance cache server-side), so this is a fast first paint
+   that already matches what the portfolio WebSocket will push moments
+   later — no jump/flicker when the socket connects. */
+async function loadSpotWallet() {
+  const tbody = document.getElementById('holdingsTable');
+  try {
+    const r = await fetch('/api/wallets/spot');
+    const d = await r.json();
 
-let marketSocket = null;
-let wsReconnectTimer = null;
-
-function connectMarketSocket() {
-  const proto = location.protocol === 'https:' ? 'wss' : 'ws';
-  const url = `${proto}://${location.host}/ws/market-data`;
-  marketSocket = new WebSocket(url);
-  marketSocket.onopen = () => setObStatus('Live');
-  marketSocket.onerror = () => setObStatus('Reconnecting…');
-  marketSocket.onclose = () => {
-    setObStatus('Reconnecting…');
-    clearTimeout(wsReconnectTimer);
-    wsReconnectTimer = setTimeout(connectMarketSocket, 3000);
-  };
-  marketSocket.onmessage = (event) => {
-    let msg;
-    try { msg = JSON.parse(event.data); } catch (e) { return; }
-    if (msg.type !== 'snapshot') return;
-    if (msg.data) { liveData = msg.data; updatePairHeader(); }
-    if (msg.klines) {
-      const k = msg.klines[selectedCoinId] && msg.klines[selectedCoinId][selectedInterval];
-      if (k) mergeLiveCandle(k);
+    if (!d.success) {
+      tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;padding:30px;color:var(--text-3)">${d.message || 'Could not load spot wallet.'}</td></tr>`;
+      return;
     }
-  };
-}
 
-function setObStatus(text) {
-  const el = document.getElementById('obStatus');
-  if (el) el.textContent = text;
-}
+    const { walletId, status, totalValue, holdings } = d.data;
 
-function fmtPrice(n) {
-  if (n === null || n === undefined || isNaN(n)) return '—';
-  if (n >= 1000) return n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  if (n >= 1)    return n.toFixed(4);
-  return n.toFixed(6);
-}
-function fmtUsd(n) {
-  if (n === null || n === undefined || isNaN(n)) return '—';
-  return '$' + fmtPrice(n);
-}
-function fmtVol(n) {
-  if (!n) return '—';
-  if (n >= 1e9) return '$' + (n / 1e9).toFixed(2) + 'B';
-  if (n >= 1e6) return '$' + (n / 1e6).toFixed(2) + 'M';
-  if (n >= 1e3) return '$' + (n / 1e3).toFixed(2) + 'K';
-  return '$' + n.toLocaleString();
-}
+    document.getElementById('balanceDisplay').textContent = fmtUsd(totalValue);
+    document.getElementById('accountNum').textContent = 'Wallet ID: ' + (walletId != null ? walletId : '—');
+    paintStatusBadge(status);
 
-function updatePairHeader() {
-  const d = liveData[selectedCoinId];
-  if (!d) return;
-  const pct  = d.changePct || 0;
-  const sign = pct >= 0 ? '+' : '';
-  const cls  = pct >= 0 ? 'up' : 'down';
-  document.getElementById('pairPrice').textContent = fmtPrice(d.price);
-  document.getElementById('pairPrice').className = 'pair-price ' + cls;
-  document.getElementById('pairChange').innerHTML = `<span class="${cls}">${sign}${pct.toFixed(2)}%</span>`;
-  document.getElementById('pairHigh').textContent = fmtPrice(d.high);
-  document.getElementById('pairLow').textContent  = fmtPrice(d.low);
-  document.getElementById('pairVol').textContent  = fmtVol(d.quoteVol);
-  const spreadEl = document.getElementById('obSpreadPrice');
-  spreadEl.textContent = fmtPrice(d.price);
-  spreadEl.className = 'spread-price ' + (pct >= 0 ? 'up' : 'down');
-  recalcTotal();
-}
-
-async function loadHistoricalCandles() {
-  const coin = getCoin();
-  const symbol = coin.symbol + 'USDT';
-  document.getElementById('chartOhlc').innerHTML = '<span class="spinner-inline"></span>Loading chart…';
-  try {
-    const r = await fetch(`https://api.binance.com/api/v3/klines?symbol=${symbol}&interval=${selectedInterval}&limit=150`);
-    if (!r.ok) throw new Error('bad response');
-    const raw = await r.json();
-    candles = raw.map(k => ({
-      t: k[0], o: parseFloat(k[1]), h: parseFloat(k[2]), l: parseFloat(k[3]), c: parseFloat(k[4]), v: parseFloat(k[5]),
-    }));
-    document.getElementById('chartOhlc').innerHTML = '';
-    drawCandles();
+    renderHoldingsTable(holdings);
   } catch (e) {
-    document.getElementById('chartOhlc').innerHTML = '<span style="color:var(--text-3)">Chart data unavailable</span>';
+    console.error('loadSpotWallet error:', e);
+    tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;padding:30px;color:var(--text-3)">Network error loading wallet.</td></tr>`;
   }
 }
 
-function mergeLiveCandle(k) {
-  if (!candles.length) return;
-  const last = candles[candles.length - 1];
-  if (k.t === last.t) {
-    last.h = k.h; last.l = k.l; last.c = k.c; last.v = k.v;
-  } else if (k.t > last.t) {
-    candles.push({ t: k.t, o: k.o, h: k.h, l: k.l, c: k.c, v: k.v });
-    if (candles.length > 300) candles.shift();
-  } else { return; }
-  drawCandles();
-}
+/* ═══════════════════════════════════════════════════════
+   Shared renderer — used by the initial REST paint, every subsequent
+   'portfolio' push from the WebSocket, and the manual holdings refresh
+   button, so all three code paths can never drift out of sync visually.
 
-let lastDraw = null;
-
-function drawCandles() {
-  const canvas = document.getElementById('candleCanvas');
-  const wrap = canvas.parentElement;
-  if (!candles.length) return;
-  const dpr = window.devicePixelRatio || 1;
-  const cssW = wrap.clientWidth;
-  const cssH = 360;
-  canvas.style.width = cssW + 'px';
-  canvas.style.height = cssH + 'px';
-  canvas.width = Math.max(1, cssW * dpr);
-  canvas.height = Math.max(1, cssH * dpr);
-  const ctx = canvas.getContext('2d');
-  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  ctx.clearRect(0, 0, cssW, cssH);
-  const padRight = 58, padTop = 10, padBottom = 18;
-  const plotW = cssW - padRight;
-  const plotH = cssH - padTop - padBottom;
-  const visible = candles.slice(-140);
-  let hi = -Infinity, lo = Infinity;
-  visible.forEach(c => { if (c.h > hi) hi = c.h; if (c.l < lo) lo = c.l; });
-  if (!isFinite(hi) || !isFinite(lo)) return;
-  if (hi === lo) { hi += 1; lo -= 1; }
-  const pad = (hi - lo) * 0.08;
-  hi += pad; lo -= pad;
-  const n = visible.length;
-  const slot = plotW / n;
-  const bodyW = Math.max(1.5, slot * 0.62);
-  const yFor = p => padTop + plotH - ((p - lo) / (hi - lo)) * plotH;
-  ctx.strokeStyle = 'rgba(255,255,255,.05)';
-  ctx.fillStyle = '#444';
-  ctx.font = '10px -apple-system,sans-serif';
-  ctx.textAlign = 'left';
-  const gridLines = 5;
-  for (let i = 0; i <= gridLines; i++) {
-    const p = lo + (hi - lo) * (i / gridLines);
-    const y = yFor(p);
-    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(plotW, y); ctx.stroke();
-    ctx.fillText(fmtPrice(p), plotW + 6, y + 3);
+   Sorted by current USD value (h.value = currentPrice × qty, already
+   computed server-side) descending, so the largest holding is always on
+   top. Only a handful of assets are ever held here, so a plain bubble
+   sort is all that's needed — no reason to reach for anything fancier.
+   ═══════════════════════════════════════════════════════ */
+function renderHoldingsTable(holdings) {
+  const tbody = document.getElementById('holdingsTable');
+  if (!holdings || !holdings.length) {
+    tbody.innerHTML = `<tr><td colspan="6"><div class="empty-state"><div class="icon">📊</div><p>No spot holdings yet. Place a trade to see assets here.</p></div></td></tr>`;
+    return;
   }
-  visible.forEach((c, i) => {
-    const x = i * slot + slot / 2;
-    const rising = c.c >= c.o;
-    ctx.strokeStyle = ctx.fillStyle = rising ? '#22c55e' : '#ef4444';
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.moveTo(x, yFor(c.h));
-    ctx.lineTo(x, yFor(c.l));
-    ctx.stroke();
-    const yO = yFor(c.o), yC = yFor(c.c);
-    const top = Math.min(yO, yC), h = Math.max(1, Math.abs(yC - yO));
-    ctx.fillRect(x - bodyW / 2, top, bodyW, h);
-  });
-  lastDraw = { visible, slot, n };
-  const latest = visible[visible.length - 1];
-  renderOhlcReadout(latest);
-  canvas.onmousemove = (ev) => {
-    const rect = canvas.getBoundingClientRect();
-    const x = ev.clientX - rect.left;
-    const idx = Math.min(visible.length - 1, Math.max(0, Math.floor(x / slot)));
-    renderOhlcReadout(visible[idx]);
-  };
-  canvas.onmouseleave = () => renderOhlcReadout(latest);
-}
 
-function renderOhlcReadout(c) {
-  if (!c) return;
-  const cls = c.c >= c.o ? 'up' : 'down';
-  document.getElementById('chartOhlc').innerHTML =
-    `<span>O <b class="${cls}">${fmtPrice(c.o)}</b></span>` +
-    `<span>H <b class="${cls}">${fmtPrice(c.h)}</b></span>` +
-    `<span>L <b class="${cls}">${fmtPrice(c.l)}</b></span>` +
-    `<span>C <b class="${cls}">${fmtPrice(c.c)}</b></span>`;
-}
-
-async function loadOrderBook() {
-  const coin = getCoin();
-  try {
-    const r = await fetch(`/api/spot/orderbook?symbol=${coin.symbol}`);
-    const d = await r.json();
-    if (d.success) { renderOrderBook(d.data.bids || [], d.data.asks || []); }
-    else { renderOrderBookEmpty(); }
-  } catch (e) { renderOrderBookEmpty(); }
-}
-
-function renderOrderBookEmpty() {
-  document.getElementById('obAsks').innerHTML = `<div class="ob-empty">No pending sell orders</div>`;
-  document.getElementById('obBids').innerHTML = `<div class="ob-empty">No pending buy orders</div>`;
-}
-
-function renderOrderBook(bids, asks) {
-  const maxQty = Math.max(1e-9, ...bids.map(b => b[1]), ...asks.map(a => a[1]));
-  const buildRows = (levels, side) => levels.map(([price, qty]) => {
-    const total = price * qty;
-    const depthPct = Math.min(100, (qty / maxQty) * 100);
-    return `<div class="ob-row ${side}">
-      <div class="depth-bar" style="width:${depthPct}%"></div>
-      <span class="ob-cell">${fmtPrice(price)}</span>
-      <span class="ob-cell">${qty.toFixed(5)}</span>
-      <span class="ob-cell">${fmtPrice(total)}</span>
-    </div>`;
-  }).join('');
-  const asksSorted = [...asks].sort((a, b) => b[0] - a[0]).slice(-12);
-  const bidsSorted = [...bids].sort((a, b) => b[0] - a[0]).slice(0, 12);
-  document.getElementById('obAsks').innerHTML = asksSorted.length ? buildRows(asksSorted, 'ask') : `<div class="ob-empty">No pending sell orders</div>`;
-  document.getElementById('obBids').innerHTML = bidsSorted.length ? buildRows(bidsSorted, 'bid') : `<div class="ob-empty">No pending buy orders</div>`;
-  setObStatus('Live');
-}
-
-async function loadWallet() {
-  try {
-    const r = await fetch('/api/spot/wallet');
-    const d = await r.json();
-    if (d.success) { spotHoldings = d.data.holdings || []; renderHoldings(); updateBalanceLabel(); }
-    else { renderHoldingsError(d.message); updateBalanceLabel(); }
-  } catch (e) { renderHoldingsError(); updateBalanceLabel(); }
-}
-
-// Refreshes ONLY the wallet/balance/holdings data — deliberately does
-// NOT touch selectedCoinId, so the trade panel stays on whatever pair
-// the user currently has selected instead of jumping back to the
-// BTC/USDT default. Also does not disturb the chart, order book, right
-// column tab selection, or any in-progress order form input.
-async function refreshBalancePanel() {
-  const btn = document.getElementById('balanceRefreshBtn');
-  if (!btn || btn.classList.contains('spinning')) return;
-  btn.classList.add('spinning');
-  try {
-    await loadWallet();
-  } finally {
-    btn.classList.remove('spinning');
+  // Copy first so we never mutate the array the caller passed in, then
+  // bubble sort descending by value.
+  const sorted = holdings.slice();
+  for (let i = 0; i < sorted.length - 1; i++) {
+    for (let j = 0; j < sorted.length - 1 - i; j++) {
+      if ((sorted[j].value || 0) < (sorted[j + 1].value || 0)) {
+        const tmp = sorted[j];
+        sorted[j] = sorted[j + 1];
+        sorted[j + 1] = tmp;
+      }
+    }
   }
-}
 
-function renderHoldingsError(msg) {
-  document.getElementById('rtHoldings').innerHTML = `<div class="empty-state"><span class="icn">⚠</span>${msg || 'Could not load holdings — check the /api/spot/wallet endpoint.'}</div>`;
-}
-
-function renderHoldings() {
-  const withBal = spotHoldings.filter(h => parseFloat(h.available_quantity) > 0 || parseFloat(h.locked_quantity) > 0);
-  if (!withBal.length) { document.getElementById('rtHoldings').innerHTML = `<div class="empty-state"><span class="icn">👛</span>No spot holdings yet.</div>`; return; }
-  const rows = withBal.map(h => {
-    const sym = (h.symbol || '').toUpperCase();
-    const coinMeta = TRADE_COINS.find(c => c.symbol === sym);
-    const displayName = coinMeta ? coinMeta.name : (sym === 'USDT' ? 'Tether' : sym);
-    const icon = coinMeta ? coinMeta.icon : (sym === 'USDT' ? '₮' : '●');
-    const price = sym === 'USDT' ? 1 : (coinMeta && liveData[coinMeta.id] ? liveData[coinMeta.id].price : parseFloat(h.average_buy_price) || 0);
-    const avail = parseFloat(h.available_quantity) || 0;
-    const locked = parseFloat(h.locked_quantity) || 0;
-    const value = (avail + locked) * price;
+  tbody.innerHTML = sorted.map(h => {
+    const meta = assetMeta(h.symbol);
     return `<tr>
-      <td>
-        <div class="asset-cell">
-          <span class="asset-icon">${icon}</span>
-          <div>
-            <div style="font-weight:600;">${sym}</div>
-            <div class="asset-name">${displayName}</div>
-          </div>
-        </div>
-      </td>
-      <td>${avail.toFixed(6)}</td><td>${locked.toFixed(6)}</td><td>${fmtUsd(value)}</td>
+      <td><div class="coin-cell">
+        <div class="coin-icon ${meta.cls}">${meta.icon}</div>
+        <div><div class="coin-name">${meta.name}</div><div class="coin-sym">${h.symbol}</div></div>
+      </div></td>
+      <td style="font-variant-numeric:tabular-nums;">${fmtQty(h.availableQuantity)}</td>
+      <td style="font-variant-numeric:tabular-nums;color:var(--text-2);">${fmtQty(h.lockedQuantity)}</td>
+      <td style="color:var(--text-2);">${h.averageBuyPrice ? fmtUsd(h.averageBuyPrice) : '—'}</td>
+      <td style="color:var(--text-2);">${fmtUsd(h.currentPrice)}</td>
+      <td style="font-weight:600;">${fmtUsd(h.value)}</td>
     </tr>`;
   }).join('');
-  document.getElementById('rtHoldings').innerHTML = `<table class="mini-table"><thead><tr><th>Asset</th><th>Available</th><th>Locked</th><th>Value</th></tr></thead><tbody>${rows}</tbody></table>`;
 }
 
-function updateBalanceLabel() {
-  const coin = getCoin();
-  const usdt = getHoldingQty('USDT');
-  const base = getHoldingQty(coin.symbol);
-  document.getElementById('tpBalance').textContent = orderSide === 'BUY'
-    ? `${usdt.toLocaleString('en-US', { maximumFractionDigits: 2 })} USDT`
-    : `${base.toFixed(6)} ${coin.symbol}`;
-}
-
-async function loadOrders() {
+/* ═══════════════════════════════════════════════════════
+   MANUAL REFRESH BUTTONS — independent, async, no page reload.
+   Both icons hit the same /api/wallets/spot REST endpoint and repaint
+   the full picture — balance card AND the whole holdings container —
+   so either one always leaves the page fully in sync. Only the icon
+   that was actually clicked shows its own spin animation.
+   ═══════════════════════════════════════════════════════ */
+async function refreshSpotData(btnId) {
+  const btn = document.getElementById(btnId);
+  if (btn) btn.classList.add('spinning');
   try {
-    const r = await fetch('/api/spot/orders');
-    const d = await r.json();
-    if (d.success) { openOrders = d.data || []; renderOrders(); }
-    else { renderOrdersError(d.message); }
-  } catch (e) { renderOrdersError(); }
-}
-
-function renderOrdersError(msg) {
-  document.getElementById('rtOrders').innerHTML = `<div class="empty-state"><span class="icn">⚠</span>${msg || 'Could not load orders — check the /api/spot/orders endpoint.'}</div>`;
-}
-
-function renderOrders() {
-  // Only pending LIMIT orders belong in this tab — MARKET orders fill
-  // immediately and never rest as "open", so they're excluded here.
-  const limitOrders = openOrders.filter(o => (o.order_type || '').toUpperCase() === 'LIMIT');
-  if (!limitOrders.length) { document.getElementById('rtOrders').innerHTML = `<div class="empty-state"><span class="icn">📋</span>No pending limit orders.</div>`; return; }
-  const rows = limitOrders.map(o => {
-    const sideCls = (o.side || '').toUpperCase() === 'BUY' ? 'buy' : 'sell';
-    const price = fmtPrice(parseFloat(o.limit_price));
-    const tpsl = [];
-    if (o.take_profit_price !== null && o.take_profit_price !== undefined) tpsl.push(`<span class="tpsl-pill">TP ${fmtPrice(parseFloat(o.take_profit_price))}</span>`);
-    if (o.stop_loss_price !== null && o.stop_loss_price !== undefined) tpsl.push(`<span class="tpsl-pill">SL ${fmtPrice(parseFloat(o.stop_loss_price))}</span>`);
-    return `<tr><td><div style="font-weight:600;">${o.symbol}/USDT</div><span class="side-pill ${sideCls}">${o.side}</span>${tpsl.join('')}</td><td>${price}</td><td>${parseFloat(o.remaining_quantity ?? o.quantity).toFixed(6)}</td><td><button class="cancel-btn" onclick="cancelOrder('${o.order_id}')">Cancel</button></td></tr>`;
-  }).join('');
-  document.getElementById('rtOrders').innerHTML = `<table class="mini-table"><thead><tr><th>Pair / Side</th><th>Price</th><th>Amount</th><th></th></tr></thead><tbody>${rows}</tbody></table>`;
-}
-
-async function cancelOrder(orderId) {
-  try {
-    const r = await fetch(`/api/spot/order/${orderId}/cancel`, { method: 'POST' });
-    const d = await r.json();
-    if (d.success) { loadOrders(); loadWallet(); loadOrderBook(); } else { alert(d.message || 'Could not cancel order.'); }
-  } catch (e) { alert('Network error while cancelling order.'); }
-}
-
-function setRightTab(tab) {
-  rightTab = tab;
-  document.getElementById('rtOrdersTab').classList.toggle('active', tab === 'orders');
-  document.getElementById('rtHoldingsTab').classList.toggle('active', tab === 'holdings');
-  document.getElementById('rtOrders').style.display = tab === 'orders' ? 'block' : 'none';
-  document.getElementById('rtHoldings').style.display = tab === 'holdings' ? 'block' : 'none';
-}
-
-function setSide(side) {
-  orderSide = side;
-  document.getElementById('tabBuy').classList.toggle('active', side === 'BUY');
-  document.getElementById('tabSell').classList.toggle('active', side === 'SELL');
-  document.getElementById('submitBtn').className = 'submit-btn ' + (side === 'BUY' ? 'buy' : 'sell');
-  document.getElementById('pctSlider').value = 0;
-  document.getElementById('pctVal').textContent = '0%';
-  document.getElementById('amountInput').value = '';
-  clearAllFieldErrors();
-  updateSubmitLabel();
-  updateBalanceLabel();
-  recalcTotal();
-}
-
-function setOrderType(type) {
-  orderType = type;
-  document.getElementById('typeMarket').classList.toggle('active', type === 'MARKET');
-  document.getElementById('typeLimit').classList.toggle('active', type === 'LIMIT');
-  document.getElementById('limitPriceRow').style.display = type === 'LIMIT' ? 'block' : 'none';
-  if (type === 'LIMIT') {
-    const d = liveData[selectedCoinId];
-    const priceInput = document.getElementById('limitPriceInput');
-    if (d && !priceInput.value) priceInput.value = fmtPrice(d.price).replace(/,/g, '');
-  }
-  clearAllFieldErrors();
-  recalcTotal();
-}
-
-function toggleTpSl() {
-  tpslEnabled = document.getElementById('tpslCheckbox').checked;
-  document.getElementById('tpslFields').style.display = tpslEnabled ? 'block' : 'none';
-  if (!tpslEnabled) {
-    document.getElementById('tpInput').value = '';
-    document.getElementById('slInput').value = '';
-    clearFieldError('tpInput');
-    clearFieldError('slInput');
-  }
-}
-
-function clearFieldError(inputId) {
-  const el = document.getElementById(inputId + 'Error');
-  const input = document.getElementById(inputId);
-  if (el) { el.textContent = ''; el.classList.remove('show'); }
-  if (input) input.classList.remove('invalid');
-}
-
-function setFieldError(inputId, msg) {
-  const el = document.getElementById(inputId + 'Error');
-  const input = document.getElementById(inputId);
-  if (el) { el.textContent = msg; el.classList.add('show'); }
-  if (input) input.classList.add('invalid');
-}
-
-function clearAllFieldErrors() {
-  ['amountInput', 'limitPriceInput', 'tpInput', 'slInput'].forEach(clearFieldError);
-}
-
-function updateSubmitLabel() {
-  const coin = getCoin();
-  document.getElementById('submitBtn').textContent = (orderSide === 'BUY' ? 'Buy ' : 'Sell ') + coin.symbol;
-}
-
-function getEffectivePrice() {
-  if (orderType === 'LIMIT') {
-    const v = parseFloat(document.getElementById('limitPriceInput').value);
-    if (v > 0) return v;
-  }
-  const d = liveData[selectedCoinId];
-  return d ? d.price : 0;
-}
-
-function applyPercent(pct) {
-  document.getElementById('pctVal').textContent = pct + '%';
-  const price = getEffectivePrice();
-  const coin = getCoin();
-  if (orderSide === 'BUY') {
-    const usdt = getHoldingQty('USDT');
-    const spend = usdt * (pct / 100);
-    const qty = price > 0 ? spend / price : 0;
-    document.getElementById('amountInput').value = qty > 0 ? qty.toFixed(6) : '';
-  } else {
-    const base = getHoldingQty(coin.symbol);
-    const qty = base * (pct / 100);
-    document.getElementById('amountInput').value = qty > 0 ? qty.toFixed(6) : '';
-  }
-  recalcTotal();
-}
-
-function recalcTotal() {
-  const price = getEffectivePrice();
-  const qty = parseFloat(document.getElementById('amountInput').value) || 0;
-  const total = price * qty;
-  document.getElementById('totalDisplay').textContent = total.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' USDT';
-}
-
-/* ═══════════════════════════════════════════════════════════════════════
-   FRONTEND VALIDATION — mirrors the backend checklist so the user gets
-   instant feedback before anything is sent over the wire. The backend
-   re-validates everything independently against its own live price feed,
-   this is purely a first pass / UX layer.
-   ═══════════════════════════════════════════════════════════════════════ */
-function validateTradeInputs() {
-  clearAllFieldErrors();
-  const coin = getCoin();
-
-  const qty = parseFloat(document.getElementById('amountInput').value);
-  if (!qty || qty <= 0) {
-    setFieldError('amountInput', 'Enter an amount greater than 0.');
-    return { ok: false };
-  }
-
-  let limitPrice = null;
-  if (orderType === 'LIMIT') {
-    limitPrice = parseFloat(document.getElementById('limitPriceInput').value);
-    if (!limitPrice || limitPrice <= 0) {
-      setFieldError('limitPriceInput', 'Enter a limit price greater than 0.');
-      return { ok: false };
-    }
-  }
-
-  const marketData = liveData[selectedCoinId];
-  const marketPrice = marketData ? marketData.price : null;
-  if (!marketPrice) {
-    return { ok: false, generalMsg: 'Live market price unavailable — please wait a moment and try again.' };
-  }
-
-  if (orderType === 'LIMIT') {
-    if (orderSide === 'BUY' && limitPrice >= marketPrice) {
-      setFieldError('limitPriceInput', `Buy limit price must be below the current market price (${fmtPrice(marketPrice)}).`);
-      return { ok: false };
-    }
-    if (orderSide === 'SELL' && limitPrice <= marketPrice) {
-      setFieldError('limitPriceInput', `Sell limit price must be above the current market price (${fmtPrice(marketPrice)}).`);
-      return { ok: false };
-    }
-  }
-
-  const entryPrice = orderType === 'MARKET' ? marketPrice : limitPrice;
-
-  let tp = null, sl = null;
-  if (tpslEnabled) {
-    const tpRaw = document.getElementById('tpInput').value;
-    const slRaw = document.getElementById('slInput').value;
-
-    if (tpRaw !== '') {
-      tp = parseFloat(tpRaw);
-      if (!tp || tp <= 0) { setFieldError('tpInput', 'Take profit must be greater than 0.'); return { ok: false }; }
-    }
-    if (slRaw !== '') {
-      sl = parseFloat(slRaw);
-      if (!sl || sl <= 0) { setFieldError('slInput', 'Stop loss must be greater than 0.'); return { ok: false }; }
-    }
-
-    if (orderSide === 'BUY') {
-      if (tp !== null && tp <= entryPrice) { setFieldError('tpInput', `Take profit must be above ${fmtPrice(entryPrice)}.`); return { ok: false }; }
-      if (sl !== null && sl >= entryPrice) { setFieldError('slInput', `Stop loss must be below ${fmtPrice(entryPrice)}.`); return { ok: false }; }
-    } else {
-      if (tp !== null && tp >= entryPrice) { setFieldError('tpInput', `Take profit must be below ${fmtPrice(entryPrice)}.`); return { ok: false }; }
-      if (sl !== null && sl <= entryPrice) { setFieldError('slInput', `Stop loss must be above ${fmtPrice(entryPrice)}.`); return { ok: false }; }
-    }
-  }
-
-  return { ok: true, qty, limitPrice, tp, sl, entryPrice, marketPrice, coin };
-}
-
-async function submitOrder() {
-  const msgBox = document.getElementById('tradeMsg');
-  msgBox.style.display = 'none';
-
-  const v = validateTradeInputs();
-  if (!v.ok) return showTradeMsg(v.generalMsg || 'Fix the highlighted fields before submitting.', 'error');
-
-  const { qty, limitPrice, tp, sl, coin } = v;
-  const btn = document.getElementById('submitBtn');
-
-  // Balance check against currently loaded wallet holdings
-  if (orderSide === 'BUY') {
-    const usdt = getHoldingQty('USDT');
-    const price = getEffectivePrice();
-    if (price > 0 && qty * price > usdt + 1e-9) return showTradeMsg(`Insufficient USDT balance. Available: ${usdt.toFixed(2)} USDT`, 'error');
-  } else {
-    const base = getHoldingQty(coin.symbol);
-    if (qty > base + 1e-9) return showTradeMsg(`Insufficient ${coin.symbol} balance. Available: ${base.toFixed(6)} ${coin.symbol}`, 'error');
-  }
-
-  // The packet sent to the backend — backend re-validates all of this independently.
-  const orderPayload = {
-    symbol: coin.symbol,
-    side: orderSide,
-    order_type: orderType,
-    quantity: qty,
-    limit_price: orderType === 'LIMIT' ? limitPrice : null,
-    take_profit_price: tp,
-    stop_loss_price: sl,
-  };
-
-  btn.disabled = true;
-  btn.textContent = orderSide === 'BUY' ? 'Buying…' : 'Selling…';
-  try {
-    const r = await fetch('/api/spot/order', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(orderPayload),
-    });
+    const r = await fetch('/api/wallets/spot');
     const d = await r.json();
     if (d.success) {
-      showTradeMsg(`✓ ${orderSide === 'BUY' ? 'Buy' : 'Sell'} order placed for ${qty} ${coin.symbol}` + (tp || sl ? ' with TP/SL attached.' : '.'), 'success');
-      document.getElementById('amountInput').value = '';
-      document.getElementById('pctSlider').value = 0;
-      document.getElementById('pctVal').textContent = '0%';
-      document.getElementById('tpslCheckbox').checked = false;
-      toggleTpSl();
-      recalcTotal();
-      loadWallet(); loadOrders(); loadOrderBook();
-    } else if (d.data && Array.isArray(d.data.errors) && d.data.errors.length) {
-      showTradeMsg(d.data.errors.join(' '), 'error');
-    } else {
-      showTradeMsg(d.message || 'Order failed. Please try again.', 'error');
+      const { walletId, status, totalValue, holdings } = d.data;
+      document.getElementById('balanceDisplay').textContent = fmtUsd(totalValue);
+      document.getElementById('accountNum').textContent = 'Wallet ID: ' + (walletId != null ? walletId : '—');
+      paintStatusBadge(status);
+      renderHoldingsTable(holdings);
     }
-  } catch (e) { showTradeMsg('Network error — please check your connection and try again.', 'error'); }
-  finally { btn.disabled = false; updateSubmitLabel(); }
+  } catch (e) {
+    console.error('refreshSpotData error:', e);
+  } finally {
+    if (btn) btn.classList.remove('spinning');
+  }
 }
 
-function showTradeMsg(text, type) {
-  const el = document.getElementById('tradeMsg');
-  el.textContent = text;
-  el.className = 'msg-box ' + type;
-  el.style.display = 'block';
-  if (type === 'success') setTimeout(() => { el.style.display = 'none'; }, 5000);
+function refreshSpotBalance() { refreshSpotData('refreshBalanceBtn'); }
+function refreshHoldings() { refreshSpotData('refreshHoldingsBtn'); }
+
+/* ═══════════════════════════════════════════════════════
+   LIVE PORTFOLIO — shared /ws/market-data connection.
+   The REST call above fires first for instant paint; this just takes
+   over updates every ~2.5s after that, without any extra Binance calls
+   of its own (server re-reads spot_holdings + prices from its in-memory
+   cache on each tick).
+   ═══════════════════════════════════════════════════════ */
+let portfolioSocket = null;
+
+function connectPortfolioSocket() {
+  const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+  portfolioSocket = new WebSocket(`${proto}://${location.host}/ws/market-data`);
+
+  portfolioSocket.onmessage = (evt) => {
+    let msg;
+    try { msg = JSON.parse(evt.data); } catch (e) { return; }
+    if (msg.type !== 'portfolio') return; // ignore the public 'snapshot' broadcast on this page
+
+    const { totalValue, holdings, status, walletId } = msg.data;
+
+    document.getElementById('balanceDisplay').textContent = fmtUsd(totalValue);
+    document.getElementById('accountNum').textContent = 'Wallet ID: ' + (walletId ?? '—');
+    paintStatusBadge(status);
+
+    renderHoldingsTable(holdings);
+  };
+
+  portfolioSocket.onclose = () => {
+    // simple reconnect — page still works off the last paint meanwhile
+    setTimeout(connectPortfolioSocket, 2000);
+  };
 }
+
+/* ═══════════════════════════════════════════════════════
+   INTERNAL TRANSFER — between this user's own wallets
+   ═══════════════════════════════════════════════════════
+   Backend: POST /api/wallets/transfer (see Wallets_Config/walletTransfer.js)
+   This block is UI-only: the payload shape sent to the backend
+   (fromWallet / toWallet / amount) is unchanged from before, so no
+   backend or validation logic is affected by these changes.
+   ═══════════════════════════════════════════════════════ */
+const WALLET_ENDPOINTS = {
+  funding: '/api/wallets/funding',
+  spot: '/api/wallets/spot',
+  futures: '/api/wallets/futures',
+};
+const WALLET_TYPES = ['funding', 'spot', 'futures'];
+
+/* Raw numeric balance (not the formatted string) of the currently
+   selected "From" wallet, used by the MAX button. */
+let currentFromAvailable = 0;
+
+function openTransferModal() {
+  document.getElementById('transferModalOverlay').classList.add('open');
+  document.getElementById('tr-amount').value = '';
+  document.getElementById('tr-msg').style.display = 'none';
+  updateFromBalanceHint();
+}
+function closeTransferModal() {
+  document.getElementById('transferModalOverlay').classList.remove('open');
+}
+
+/* Keeps From/To always pointing at two different wallets. If the user
+   picks the same wallet on one side as the other, the other side is
+   nudged to the next available option automatically. */
+function onFromWalletChange() {
+  const fromSel = document.getElementById('tr-from');
+  const toSel = document.getElementById('tr-to');
+  if (fromSel.value === toSel.value) {
+    const next = WALLET_TYPES.find(w => w !== fromSel.value);
+    toSel.value = next;
+  }
+  updateFromBalanceHint();
+}
+
+function onToWalletChange() {
+  const fromSel = document.getElementById('tr-from');
+  const toSel = document.getElementById('tr-to');
+  if (fromSel.value === toSel.value) {
+    const next = WALLET_TYPES.find(w => w !== toSel.value);
+    fromSel.value = next;
+    updateFromBalanceHint();
+  }
+}
+
+/* Swap icon — swaps From/To in one click, Binance-style. */
+function swapTransferWallets() {
+  const fromSel = document.getElementById('tr-from');
+  const toSel = document.getElementById('tr-to');
+  const tmp = fromSel.value;
+  fromSel.value = toSel.value;
+  toSel.value = tmp;
+  updateFromBalanceHint();
+}
+
+async function updateFromBalanceHint() {
+  const type = document.getElementById('tr-from').value;
+  const hint = document.getElementById('tr-from-balance');
+  hint.textContent = 'Available: —';
+  currentFromAvailable = 0;
+  try {
+    const r = await fetch(WALLET_ENDPOINTS[type]);
+    const d = await r.json();
+    if (!d.success) return;
+
+    let bal;
+    if (type === 'futures') {
+      bal = d.data.availableMargin;
+    } else if (type === 'spot') {
+      // Spot's totalValue includes every held asset (BTC, ETH, etc.), not
+      // just USDT — and only USDT can be transferred between wallets.
+      // Pull the USDT holding's availableQuantity specifically, which
+      // already excludes locked_quantity (funds reserved by open orders),
+      // matching what the backend actually allows to move.
+      const usdt = (d.data.holdings || []).find(h => h.symbol === 'USDT');
+      bal = usdt ? usdt.availableQuantity : 0;
+    } else {
+      bal = d.data.totalValue;
+    }
+
+    currentFromAvailable = parseFloat(bal) || 0;
+    hint.textContent = 'Available: ' + fmtUsd(currentFromAvailable);
+  } catch (e) { /* leave the dash */ }
+}
+
+/* MAX button — fills the largest safe 2-decimal amount. Flooring
+   (rather than rounding) to 2 decimals guarantees the value never
+   exceeds the true available balance, so it can never trigger an
+   "Insufficient Balance" error server-side due to rounding up. */
+function setMaxTransferAmount() {
+  const amountInput = document.getElementById('tr-amount');
+  if (!currentFromAvailable || currentFromAvailable <= 0) {
+    amountInput.value = '0.00';
+    return;
+  }
+  const maxVal = Math.floor(currentFromAvailable * 100) / 100;
+  amountInput.value = maxVal.toFixed(2);
+}
+
+function showTrMsg(msg, type) {
+  const msgBox = document.getElementById('tr-msg');
+  msgBox.textContent = msg;
+  msgBox.className = 'msg-box ' + type;
+  msgBox.style.display = 'block';
+}
+
+async function submitTransfer() {
+  const fromType = document.getElementById('tr-from').value;
+  const toType   = document.getElementById('tr-to').value;
+  const amount   = parseFloat(document.getElementById('tr-amount').value);
+  const btn      = document.getElementById('tr-submit-btn');
+
+  if (fromType === toType) return showTrMsg('⚠ Choose two different wallets.', 'error');
+  if (!amount || isNaN(amount) || amount <= 0) return showTrMsg('⚠ Enter a valid amount greater than $0.', 'error');
+
+  btn.disabled = true;
+  btn.textContent = 'Transferring…';
+
+  try {
+    const r = await fetch('/api/wallets/transfer', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ fromWallet: fromType, toWallet: toType, amount }),
+    });
+    const d = await r.json();
+
+    if (d.success) {
+      showTrMsg('✓ ' + d.message, 'success');
+      document.getElementById('tr-amount').value = '';
+      updateFromBalanceHint();
+      refreshCurrentWallet();
+      setTimeout(closeTransferModal, 1200);
+    } else {
+      showTrMsg('✕ ' + (d.message || 'Transfer failed.'), 'error');
+    }
+  } catch (e) {
+    showTrMsg('✕ Network error. Please try again.', 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Transfer';
+  }
+}
+
+/* This page shows the Spot wallet. A manual refresh right after a
+   transfer is still nice for instant feedback — the portfolio socket
+   will also reflect the post-transfer balance on its next ~2.5s tick
+   regardless, since it re-reads spot_holdings fresh each time. */
+function refreshCurrentWallet() { loadSpotWallet(); }
+
+document.addEventListener('DOMContentLoaded', () => {
+  loadIdentity();
+  loadSpotWallet();          // fast first paint from REST
+  connectPortfolioSocket();  // live updates every ~2.5s after that
+});
 </script>
 </body>
 </html>

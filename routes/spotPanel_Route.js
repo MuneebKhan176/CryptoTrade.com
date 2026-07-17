@@ -298,18 +298,62 @@ router.get("/api/spot/orders", verifyToken, (req, res) => {
 
 /* ═══════════════════════════════════════════════════════════════════════
    TRADE HISTORY  (GET /api/spot/trades)
+   ───────────────────────────────────────────────────────────────────────
+   Returns BOTH filled trades AND orders that were cancelled before ever
+   generating a fill, merged into one time-ordered list — newest first.
+
+   Why the UNION: spot_trades only ever gets a row when a slice of an
+   order actually executes. An order cancelled with zero fills (e.g. a
+   LIMIT or OCO order the user cancels while it's still resting) never
+   produces a spot_trades row at all, so a query that only reads
+   spot_trades would silently omit it from history entirely.
+
+     Branch 1 — filled slices: spot_trades joined to spot_orders (for
+       side / order_type / current status), exactly as before.
+     Branch 2 — cancelled-with-no-fill orders: read straight from
+       spot_orders where status = 'CANCELLED' and no spot_trades row
+       exists for that order_id. price is NULL here since nothing ever
+       executed; the frontend renders that as a dash. executed_at falls
+       back to the order's created_at so it still sorts sensibly
+       alongside real fills.
+
+   An order that was PARTIALLY_FILLED and then cancelled already has its
+   own fill row(s) from Branch 1 (now correctly labeled CANCELLED via the
+   live join to spot_orders.status) — Branch 2's NOT EXISTS guard keeps
+   it from being double-counted.
+
+   Both branches are combined and re-sorted by executed_at DESC before
+   the LIMIT is applied, so filled and cancelled orders interleave
+   correctly by recency rather than being grouped separately.
    ═══════════════════════════════════════════════════════════════════════ */
 router.get("/api/spot/trades", verifyToken, (req, res) => {
     const userId = req.user.id;
     const limit = Math.min(parseInt(req.query.limit, 10) || 50, 200);
 
     conn.query(
-        `SELECT trade_id, order_id, symbol, quantity, price, commission, executed_at
-         FROM spot_trades
-         WHERE user_id = ?
+        `SELECT * FROM (
+            SELECT t.trade_id AS trade_id, t.order_id AS order_id, t.symbol AS symbol,
+                   t.quantity AS quantity, t.price AS price, t.commission AS commission,
+                   t.executed_at AS executed_at, o.side AS side, o.order_type AS order_type,
+                   o.status AS order_status
+            FROM spot_trades t
+            JOIN spot_orders o ON o.order_id = t.order_id
+            WHERE t.user_id = ?
+
+            UNION ALL
+
+            SELECT NULL AS trade_id, o.order_id AS order_id, o.symbol AS symbol,
+                   o.quantity AS quantity, NULL AS price, 0 AS commission,
+                   o.created_at AS executed_at, o.side AS side, o.order_type AS order_type,
+                   o.status AS order_status
+            FROM spot_orders o
+            WHERE o.user_id = ?
+              AND o.status = 'CANCELLED'
+              AND NOT EXISTS (SELECT 1 FROM spot_trades t2 WHERE t2.order_id = o.order_id)
+         ) combined
          ORDER BY executed_at DESC
          LIMIT ?`,
-        [userId, limit],
+        [userId, userId, limit],
         (err, rows) => {
             if (err) return sendResponse(res, 500, false, "Database error");
 
@@ -318,9 +362,12 @@ router.get("/api/spot/trades", verifyToken, (req, res) => {
                 order_id: t.order_id,
                 symbol: t.symbol,
                 quantity: parseFloat(t.quantity),
-                price: parseFloat(t.price),
+                price: t.price !== null ? parseFloat(t.price) : null,
                 commission: parseFloat(t.commission),
                 executed_at: t.executed_at,
+                side: t.side,
+                order_type: t.order_type,
+                order_status: t.order_status,
             }));
 
             return sendResponse(res, 200, true, "Trade history loaded", trades);
@@ -862,4 +909,12 @@ module.exports = router;
    Requires Web_Sockets/marketData_ws.js to export `notifyUserTradeUpdate`
    (added alongside this file) so fills can push a 'trade_update' event to
    the placing user's browser(s) over the existing market-data WebSocket.
+
+   HISTORY QUERY NOTE: the /api/spot/trades handler now does a UNION ALL
+   across spot_trades and spot_orders so cancelled-with-zero-fills orders
+   show up in trade history too. Both branches read against user_id-
+   scoped, indexed columns (spot_trades.user_id, spot_orders.user_id +
+   status), so this stays cheap even as history grows — no new indexes
+   required beyond what these tables already need for their primary
+   lookups.
    ═══════════════════════════════════════════════════════════════════════ */

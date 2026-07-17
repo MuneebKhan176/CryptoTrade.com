@@ -33,7 +33,6 @@ function initialize(wss) {
     ws.roomId = null;
 
     // ---------------- Incoming Messages ----------------
-
     ws.on('message', (raw) => {
       MessageHandler.handle(ws, raw.toString()).catch((err) => {
         console.error('[chat] Message Handler Error:', err);
@@ -47,7 +46,7 @@ function initialize(wss) {
     });
 
     // ---------------- Errors ----------------
-
+    
     ws.on('error', (err) => {
       console.error('[chat] Socket Error:', err.message);
     });

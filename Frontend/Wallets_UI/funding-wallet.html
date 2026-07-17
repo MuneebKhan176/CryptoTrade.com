@@ -183,7 +183,7 @@
       pointer-events: none;
     }
     .balance-main { flex: 1; min-width: 200px; }
-    .balance-label { font-size: .72rem; color: var(--text-3); text-transform: uppercase; letter-spacing: .08em; margin-bottom: 6px; }
+    .balance-label { font-size: .72rem; color: var(--text-3); text-transform: uppercase; letter-spacing: .08em; margin-bottom: 6px; display:flex; align-items:center; gap:8px; }
     .balance-value {
       font-size: 2.2rem; font-weight: 800; letter-spacing: -1px;
       background: linear-gradient(90deg,#fff 0%,#93c5fd 80%);
@@ -203,8 +203,9 @@
     .badge-active { background:rgba(34,197,94,.12); color:var(--green); font-size:.7rem; font-weight:700; padding:2px 8px; border-radius:100px; border:1px solid rgba(34,197,94,.2); }
 
     /* ── Section head ── */
-    .sec-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+    .sec-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; gap: 10px; }
     .sec-head h3 { font-size: .95rem; font-weight: 700; }
+    .sec-head-left { display:flex; align-items:center; gap:8px; }
 
     /* ── Tables ── */
     .table-wrap { border: 1px solid var(--border); border-radius: 10px; overflow: hidden; background: var(--surface); }
@@ -241,6 +242,17 @@
       vertical-align:middle; margin-right:6px;
     }
     @keyframes spin { to { transform:rotate(360deg); } }
+
+    /* ── Small icon buttons (refresh, etc.) ── */
+    .icon-btn {
+      width:26px; height:26px; border-radius:7px;
+      background: var(--surface2); border: 1px solid var(--border2);
+      color: var(--text-2); cursor: pointer; display:inline-flex;
+      align-items:center; justify-content:center; font-size:.85rem;
+      transition: all .15s; flex-shrink:0; line-height:1;
+    }
+    .icon-btn:hover { color:#fff; border-color:#444; background: var(--surface3); }
+    .icon-btn.spinning { animation: spin .7s linear infinite; }
 
     /* ── Modal (Internal Transfer) ── */
     .modal-overlay {
@@ -283,6 +295,28 @@
     .msg-box { padding:10px 13px; border-radius:7px; font-size:.82rem; margin-top:12px; }
     .msg-box.success { background:rgba(34,197,94,.1); border:1px solid rgba(34,197,94,.2); color:var(--green); }
     .msg-box.error   { background:rgba(239,68,68,.1);  border:1px solid rgba(239,68,68,.2);  color:var(--red); }
+
+    /* ── Transfer swap button ── */
+    .transfer-swap-row { display:flex; justify-content:center; margin: -6px 0 10px; }
+    .swap-btn {
+      width:32px; height:32px; border-radius:50%;
+      background: var(--surface2); border: 1px solid var(--border2);
+      color: var(--blue); font-size:1rem; cursor:pointer;
+      display:flex; align-items:center; justify-content:center;
+      transition: all .2s;
+    }
+    .swap-btn:hover { background: var(--blue-dim); border-color: var(--blue); transform: rotate(180deg); }
+
+    /* ── Amount input w/ MAX button ── */
+    .amount-input-wrap { position:relative; }
+    .amount-input-wrap .form-input { padding-right:46px; }
+    .max-btn {
+      position:absolute; right:12px; top:50%; transform:translateY(-50%);
+      background:none; border:none; box-shadow:none; padding:0; margin:0;
+      color: var(--green); font-size:.78rem; font-weight:600; font-family:inherit;
+      cursor:pointer; transition: opacity .15s;
+    }
+    .max-btn:hover { opacity:.7; text-decoration:underline; }
 
     footer {
       border-top: 1px solid var(--border); background: var(--surface);
@@ -412,7 +446,9 @@
       </div>
 
       <div class="sec-head">
-        <h3>Holdings</h3>
+        <div class="sec-head-left">
+          <h3>Holdings</h3>
+        </div>
       </div>
       <div class="table-wrap">
         <table>
@@ -452,16 +488,21 @@
     <div class="modal-body">
       <div class="form-group">
         <label>From Wallet</label>
-        <select class="form-input" id="tr-from" onchange="updateFromBalanceHint()">
+        <select class="form-input" id="tr-from" onchange="onFromWalletChange()">
           <option value="funding" selected>Funding</option>
           <option value="spot">Spot</option>
           <option value="futures">Futures</option>
         </select>
         <div class="form-note" id="tr-from-balance">Available: —</div>
       </div>
+
+      <div class="transfer-swap-row">
+        <button type="button" class="swap-btn" onclick="swapTransferWallets()" title="Swap wallets">⇅</button>
+      </div>
+
       <div class="form-group">
         <label>To Wallet</label>
-        <select class="form-input" id="tr-to">
+        <select class="form-input" id="tr-to" onchange="onToWalletChange()">
           <option value="funding">Funding</option>
           <option value="spot" selected>Spot</option>
           <option value="futures">Futures</option>
@@ -473,7 +514,10 @@
       </div>
       <div class="form-group">
         <label>Amount</label>
-        <input class="form-input" type="number" id="tr-amount" placeholder="0.00" min="0" step="0.01"/>
+        <div class="amount-input-wrap">
+          <input class="form-input" type="number" id="tr-amount" placeholder="0.00" min="0" step="0.01"/>
+          <button type="button" class="max-btn" onclick="setMaxTransferAmount()">MAX</button>
+        </div>
       </div>
       <button class="form-submit" id="tr-submit-btn" onclick="submitTransfer()">Transfer</button>
       <div id="tr-msg" class="msg-box" style="display:none;"></div>
@@ -575,12 +619,20 @@ function goToSend() {
    INTERNAL TRANSFER — between this user's own wallets
    ═══════════════════════════════════════════════════════
    Backend: POST /api/wallets/transfer (see Wallets/walletTransferService.js)
+   This block is UI-only: the payload shape sent to the backend
+   (fromWallet / toWallet / amount) is unchanged from before, so no
+   backend or validation logic is affected by these changes.
    ═══════════════════════════════════════════════════════ */
 const WALLET_ENDPOINTS = {
   funding: '/api/wallets/funding',
   spot: '/api/wallets/spot',
   futures: '/api/wallets/futures',
 };
+const WALLET_TYPES = ['funding', 'spot', 'futures'];
+
+/* Raw numeric balance (not the formatted string) of the currently
+   selected "From" wallet, used by the MAX button. */
+let currentFromAvailable = 0;
 
 function openTransferModal() {
   document.getElementById('transferModalOverlay').classList.add('open');
@@ -592,17 +644,81 @@ function closeTransferModal() {
   document.getElementById('transferModalOverlay').classList.remove('open');
 }
 
+/* Keeps From/To always pointing at two different wallets. If the user
+   picks the same wallet on one side as the other, the other side is
+   nudged to the next available option automatically. */
+function onFromWalletChange() {
+  const fromSel = document.getElementById('tr-from');
+  const toSel = document.getElementById('tr-to');
+  if (fromSel.value === toSel.value) {
+    const next = WALLET_TYPES.find(w => w !== fromSel.value);
+    toSel.value = next;
+  }
+  updateFromBalanceHint();
+}
+
+function onToWalletChange() {
+  const fromSel = document.getElementById('tr-from');
+  const toSel = document.getElementById('tr-to');
+  if (fromSel.value === toSel.value) {
+    const next = WALLET_TYPES.find(w => w !== toSel.value);
+    fromSel.value = next;
+    updateFromBalanceHint();
+  }
+}
+
+/* Swap icon — swaps From/To in one click, Binance-style. */
+function swapTransferWallets() {
+  const fromSel = document.getElementById('tr-from');
+  const toSel = document.getElementById('tr-to');
+  const tmp = fromSel.value;
+  fromSel.value = toSel.value;
+  toSel.value = tmp;
+  updateFromBalanceHint();
+}
+
 async function updateFromBalanceHint() {
   const type = document.getElementById('tr-from').value;
   const hint = document.getElementById('tr-from-balance');
   hint.textContent = 'Available: —';
+  currentFromAvailable = 0;
   try {
     const r = await fetch(WALLET_ENDPOINTS[type]);
     const d = await r.json();
     if (!d.success) return;
-    const bal = type === 'futures' ? d.data.availableMargin : d.data.totalValue;
-    hint.textContent = 'Available: ' + fmtUsd(bal);
+
+    let bal;
+    if (type === 'futures') {
+      bal = d.data.availableMargin;
+    } else if (type === 'spot') {
+      // Spot's totalValue includes every held asset (BTC, ETH, etc.), not
+      // just USDT — and only USDT can be transferred between wallets.
+      // Pull the USDT holding's availableQuantity specifically, which
+      // already excludes locked_quantity (funds reserved by open orders),
+      // matching what the backend actually allows to move.
+      const usdt = (d.data.holdings || []).find(h => h.symbol === 'USDT');
+      bal = usdt ? usdt.availableQuantity : 0;
+    } else {
+      bal = d.data.totalValue;
+    }
+
+    currentFromAvailable = parseFloat(bal) || 0;
+    hint.textContent = 'Available: ' + fmtUsd(currentFromAvailable);
   } catch (e) { /* leave the dash */ }
+}
+
+/* MAX button — fills the largest safe 2-decimal amount. Flooring
+   (rather than rounding) to 2 decimals guarantees the value never
+   exceeds the true available balance, so it can never trigger an
+   "Insufficient Balance" error server-side due to rounding up. */
+function setMaxTransferAmount() {
+  const amountInput = document.getElementById('tr-amount');
+  if (!currentFromAvailable || currentFromAvailable <= 0) {
+    amountInput.value = '0.00';
+    return;
+  }
+  const maxVal = Math.floor(currentFromAvailable * 100) / 100;
+  amountInput.value = maxVal.toFixed(2);
 }
 
 function showTrMsg(msg, type) {
