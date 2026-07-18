@@ -10,10 +10,11 @@
     --bg:#000000; --surface:#0a0a0a; --surface2:#111111; --surface3:#161616;
     --border:#1a1a1a; --border2:#222222; --text:#ffffff; --text-2:#888888; --text-3:#444444;
     --blue:#3b82f6; --blue-dim:rgba(59,130,246,.12); --green:#22c55e; --red:#ef4444; --red-dim:rgba(239,68,68,.12);
+    --bubble-max:420px;
   }
   html,body{height:100%;}
   body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:var(--bg);color:var(--text);display:flex;flex-direction:column;}
-  .topnav{height:60px;flex-shrink:0;background:rgba(0,0,0,.9);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 20px;gap:14px;backdrop-filter:blur(12px);}
+  .topnav{height:60px;flex-shrink:0;background:rgba(0,0,0,.9);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 20px;gap:14px;backdrop-filter:blur(12px);z-index:30;}
   .topnav-logo{font-size:1.05rem;font-weight:800;letter-spacing:-.5px;background:linear-gradient(90deg,#fff 0%,#93c5fd 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;text-decoration:none;flex-shrink:0;}
   .room-title-wrap{display:flex;flex-direction:column;overflow:hidden;}
   .room-title{font-size:.9rem;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
@@ -28,25 +29,100 @@
   .conn-dot.bad{background:var(--red);}
   @keyframes pdot{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.4;transform:scale(.7)}}
 
-  .layout{flex:1;display:flex;overflow:hidden;}
-  .chat-col{flex:1;display:flex;flex-direction:column;min-width:0;}
+  .layout{flex:1;display:flex;overflow:hidden;position:relative;}
+  .chat-col{flex:1;display:flex;flex-direction:column;min-width:0;position:relative;}
   .msgs{flex:1;overflow-y:auto;padding:20px 24px;display:flex;flex-direction:column;gap:10px;}
 
-  .msg-row{display:flex;flex-direction:column;max-width:65%;}
+  .msg-row{display:flex;flex-direction:column;max-width:var(--bubble-max);}
   .msg-row.mine{align-self:flex-end;align-items:flex-end;}
   .msg-row.theirs{align-self:flex-start;align-items:flex-start;}
+  .msg-row.centered{align-self:center;align-items:stretch;}
+
+  /* ── Avatars ── */
+  .avatar-wrap{border-radius:50%;overflow:hidden;flex-shrink:0;display:flex;align-items:center;justify-content:center;background:var(--surface3);}
+  .avatar-img{width:100%;height:100%;object-fit:cover;display:block;}
+  .avatar-fallback{width:100%;height:100%;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;}
+  .msg-with-avatar{display:flex;gap:8px;align-items:flex-end;max-width:100%;}
+  .msg-col{display:flex;flex-direction:column;min-width:0;max-width:var(--bubble-max);}
+
   .msg-meta{font-size:.7rem;color:var(--text-3);margin-bottom:3px;padding:0 3px;}
-  .msg-bubble{padding:9px 13px;border-radius:12px;font-size:.86rem;line-height:1.5;word-wrap:break-word;}
-  .msg-row.mine .msg-bubble{background:var(--blue);color:#fff;border-bottom-right-radius:3px;}
-  .msg-row.theirs .msg-bubble{background:var(--surface2);border:1px solid var(--border2);color:var(--text);border-bottom-left-radius:3px;}
+  .msg-bubble{
+    width:fit-content;max-width:100%;min-width:56px;
+    padding:9px 13px;border-radius:16px;font-size:.86rem;line-height:1.5;
+    word-wrap:break-word;overflow-wrap:anywhere;white-space:pre-wrap;
+  }
+  .msg-row.mine .msg-bubble{background:var(--blue);color:#fff;border-bottom-right-radius:4px;}
+  .msg-row.theirs .msg-bubble{background:var(--surface2);border:1px solid var(--border2);color:var(--text);border-bottom-left-radius:4px;}
+  .msg-bubble.media-only{padding:3px;background:transparent!important;border:none!important;}
 
   .sys-row{align-self:center;font-size:.74rem;color:var(--text-3);background:var(--surface2);padding:5px 12px;border-radius:100px;margin:4px 0;}
 
-  .input-row{display:flex;gap:10px;padding:14px 20px;border-top:1px solid var(--border);background:var(--surface);flex-shrink:0;position:relative;}
+  .media-grid{display:grid;gap:2px;width:var(--bubble-max);max-width:100%;border-radius:13px;overflow:hidden;}
+  .media-grid.n1{width:280px;}
+  .media-grid.n2{grid-template-columns:1fr 1fr;aspect-ratio:2/1;}
+  .media-grid.n3{grid-template-columns:1.3fr 1fr;grid-template-rows:1fr 1fr;aspect-ratio:4/3;}
+  .media-grid.n3 .media-tile:nth-child(1){grid-row:1/3;}
+  .media-grid.n4plus{grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr;aspect-ratio:1/1;}
+
+  .media-tile{position:relative;overflow:hidden;background:var(--surface2);cursor:pointer;}
+  .media-grid.n1 .media-tile{aspect-ratio:1/1;}
+  .media-tile .tile-bg{position:absolute;inset:0;background-size:cover;background-position:center;filter:blur(14px) saturate(1.1);transform:scale(1.15);}
+  .media-tile img,.media-tile video{position:relative;width:100%;height:100%;object-fit:cover;display:block;opacity:0;transition:opacity .35s ease;}
+  .media-tile img.loaded,.media-tile video.loaded{opacity:1;}
+  .media-tile .tile-spinner{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none;}
+  .media-tile.loaded .tile-spinner{display:none;}
+  .media-tile .play-badge{
+    position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+    width:44px;height:44px;border-radius:50%;background:rgba(0,0,0,.5);
+    display:flex;align-items:center;justify-content:center;color:#fff;pointer-events:none;
+  }
+  .media-tile .more-overlay{
+    position:absolute;inset:0;background:rgba(0,0,0,.55);color:#fff;
+    display:flex;align-items:center;justify-content:center;font-size:1.4rem;font-weight:700;
+  }
+
+  .ring{width:34px;height:34px;transform:rotate(-90deg);}
+  .ring circle{fill:none;stroke-width:3;}
+  .ring .track{stroke:rgba(255,255,255,.25);}
+  .ring .bar{stroke:#fff;stroke-linecap:round;transition:stroke-dashoffset .15s linear;}
+  .ring.spin{animation:ringspin 1s linear infinite;}
+  @keyframes ringspin{to{transform:rotate(270deg)}}
+
+  /* ── WhatsApp-style document card ── */
+  .doc-card{
+    display:flex;align-items:center;gap:12px;padding:11px 12px;border-radius:13px;
+    background:rgba(255,255,255,.05);border:1px solid var(--border2);color:inherit;
+    text-decoration:none;max-width:280px;width:280px;margin-bottom:4px;transition:background .15s,border-color .15s;
+  }
+  .doc-card:hover{background:rgba(255,255,255,.09);border-color:#3a3a3a;}
+  .doc-icon{
+    width:42px;height:42px;border-radius:10px;display:flex;align-items:center;justify-content:center;
+    flex-shrink:0;color:#fff;font-size:.62rem;font-weight:800;letter-spacing:.02em;
+  }
+  .doc-icon.pdf{background:#e53e3e;}
+  .doc-icon.doc{background:#2b6cb0;}
+  .doc-icon.txt{background:#718096;}
+  .doc-icon.generic{background:#4a5568;}
+  .doc-info{display:flex;flex-direction:column;overflow:hidden;min-width:0;flex:1;}
+  .doc-name{font-size:.84rem;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .doc-meta{font-size:.72rem;color:var(--text-2);margin-top:2px;}
+  .doc-download{
+    margin-left:auto;flex-shrink:0;width:30px;height:30px;border-radius:50%;
+    background:rgba(255,255,255,.08);display:flex;align-items:center;justify-content:center;color:var(--text-2);
+  }
+  .doc-card:hover .doc-download{color:#fff;}
+  .doc-card.preview-only{cursor:default;}
+  .doc-card.preview-only:hover{background:rgba(255,255,255,.05);}
+
+  .input-row{display:flex;gap:10px;padding:14px 20px;border-top:1px solid var(--border);background:var(--surface);flex-shrink:0;position:relative;align-items:flex-end;}
   .chat-input{flex:1;background:var(--surface2);border:1px solid var(--border2);border-radius:8px;color:#fff;font-size:.87rem;padding:11px 14px;outline:none;}
   .chat-input:focus{border-color:#444;}
-  .chat-send{background:var(--blue);border:none;border-radius:8px;padding:0 20px;color:#fff;font-size:.86rem;font-weight:600;cursor:pointer;}
+
+  /* Horizontal send button (0°, not diagonal) */
+  .chat-send{background:var(--blue);border:none;border-radius:50%;width:42px;height:42px;padding:0;color:#fff;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center;transition:background .15s;}
+  .chat-send:hover:not(:disabled){background:#2563eb;}
   .chat-send:disabled{opacity:.4;cursor:not-allowed;}
+  .chat-send svg{width:19px;height:19px;}
 
   .emoji-btn{
     flex-shrink:0;width:42px;height:42px;border-radius:8px;border:1px solid var(--border2);
@@ -67,16 +143,69 @@
   .emoji-picker.open{display:flex;}
   .emoji-group-label{font-size:.65rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text-3);padding:2px 2px 0;}
   .emoji-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:2px;}
-  .emoji-grid button{
-    background:none;border:none;font-size:1.25rem;line-height:1;padding:6px 0;
-    border-radius:6px;cursor:pointer;transition:background .15s;
-  }
+  .emoji-grid button{background:none;border:none;font-size:1.25rem;line-height:1;padding:6px 0;border-radius:6px;cursor:pointer;transition:background .15s;}
   .emoji-grid button:hover{background:var(--surface3);}
+
+  /* ── Attach menu (plus button) — plain outline icons, no colors/sizes ── */
+  .attach-menu{
+    position:absolute;bottom:64px;left:20px;width:190px;
+    background:var(--surface2);border:1px solid var(--border2);border-radius:10px;
+    padding:6px;display:none;flex-direction:column;gap:2px;
+    box-shadow:0 8px 24px rgba(0,0,0,.5);z-index:20;
+  }
+  .attach-menu.open{display:flex;}
+  .attach-menu button{display:flex;align-items:center;gap:10px;padding:9px 10px;border:none;background:none;color:var(--text);font-size:.83rem;text-align:left;border-radius:7px;cursor:pointer;}
+  .attach-menu button:hover{background:var(--surface3);}
+  .attach-menu button svg{width:18px;height:18px;stroke:var(--text-2);flex-shrink:0;}
+  .attach-menu button:hover svg{stroke:#fff;}
+
+  .compose-overlay{
+    position:absolute;inset:0;background:#000;display:none;flex-direction:column;z-index:40;
+  }
+  .compose-overlay.open{display:flex;}
+  .compose-top{height:56px;flex-shrink:0;display:flex;align-items:center;gap:14px;padding:0 16px;border-bottom:1px solid var(--border);}
+  .compose-close{background:none;border:none;color:var(--text-2);cursor:pointer;font-size:1.3rem;width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;}
+  .compose-close:hover{background:var(--surface2);color:#fff;}
+  .compose-count{font-size:.85rem;color:var(--text-2);}
+  .compose-main{flex:1;display:flex;align-items:center;justify-content:center;overflow:hidden;padding:16px;position:relative;}
+  .compose-main img,.compose-main video{max-width:100%;max-height:100%;border-radius:10px;object-fit:contain;}
+  .compose-nav{position:absolute;top:50%;transform:translateY(-50%);background:rgba(0,0,0,.5);border:none;color:#fff;width:38px;height:38px;border-radius:50%;cursor:pointer;font-size:1.1rem;}
+  .compose-nav.prev{left:16px;} .compose-nav.next{right:16px;}
+  .compose-thumbs{display:flex;gap:8px;padding:10px 16px;overflow-x:auto;flex-shrink:0;}
+  .compose-thumb{width:56px;height:56px;border-radius:8px;object-fit:cover;flex-shrink:0;cursor:pointer;border:2px solid transparent;opacity:.55;}
+  .compose-thumb.active{opacity:1;border-color:var(--blue);}
+  .compose-bottom{display:flex;gap:10px;padding:12px 16px;align-items:center;border-top:1px solid var(--border);flex-shrink:0;}
+  .compose-caption{flex:1;background:var(--surface2);border:1px solid var(--border2);border-radius:22px;color:#fff;font-size:.87rem;padding:11px 16px;outline:none;}
+  .compose-send{width:42px;height:42px;border-radius:50%;background:var(--blue);border:none;color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;}
+  .compose-send:disabled{opacity:.5;cursor:not-allowed;}
+  .compose-send svg{width:19px;height:19px;}
+
+  .lightbox{position:fixed;inset:0;background:rgba(0,0,0,.92);display:flex;align-items:center;justify-content:center;z-index:2000;opacity:0;pointer-events:none;transition:opacity .18s ease;}
+  .lightbox.open{opacity:1;pointer-events:auto;}
+  .lightbox img,.lightbox video{max-width:92vw;max-height:88vh;border-radius:6px;box-shadow:0 20px 60px rgba(0,0,0,.6);}
+  .lightbox-close{position:absolute;top:18px;right:22px;background:rgba(255,255,255,.08);border:none;color:#fff;width:38px;height:38px;border-radius:50%;font-size:1.2rem;cursor:pointer;}
+  .lightbox-close:hover{background:rgba(255,255,255,.18);}
+  .lightbox-spinner{position:absolute;}
 
   .sidebar{width:220px;flex-shrink:0;border-left:1px solid var(--border);background:var(--surface);display:flex;flex-direction:column;padding:18px 16px;}
   .sidebar h4{font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text-3);margin-bottom:12px;}
-  .user-item{display:flex;align-items:center;gap:8px;padding:6px 0;font-size:.83rem;}
-  .user-dot{width:6px;height:6px;border-radius:50%;background:var(--green);flex-shrink:0;}
+  .user-item{display:flex;align-items:center;gap:9px;padding:6px 0;font-size:.83rem;}
+  .user-item .avatar-wrap{width:24px;height:24px;}
+  .user-item .avatar-fallback{font-size:.65rem;}
+  .user-item .user-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .user-dot{width:6px;height:6px;border-radius:50%;background:var(--green);flex-shrink:0;margin-left:auto;}
+
+  /* ── Typing indicator ── */
+  .typing-indicator{display:none;align-items:center;gap:8px;padding:6px 20px;font-size:.78rem;color:var(--text-2);border-top:1px solid var(--border);background:var(--surface);flex-shrink:0;}
+  .typing-avatars{display:flex;align-items:center;}
+  .typing-avatars .avatar-wrap{width:20px;height:20px;margin-left:-7px;border:2px solid var(--surface);}
+  .typing-avatars .avatar-wrap:first-child{margin-left:0;}
+  .typing-text{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .typing-dots{display:inline-flex;gap:3px;flex-shrink:0;}
+  .typing-dots span{width:4px;height:4px;border-radius:50%;background:var(--text-2);animation:typingBounce 1.2s infinite ease-in-out;}
+  .typing-dots span:nth-child(2){animation-delay:.15s;}
+  .typing-dots span:nth-child(3){animation-delay:.3s;}
+  @keyframes typingBounce{0%,60%,100%{transform:translateY(0);opacity:.5;}30%{transform:translateY(-3px);opacity:1;}}
 
   .center-state{flex:1;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:10px;color:var(--text-2);font-size:.9rem;text-align:center;padding:40px;}
   .spinner{width:22px;height:22px;border:2.5px solid var(--border2);border-top-color:var(--blue);border-radius:50%;animation:spin .7s linear infinite;}
@@ -84,40 +213,76 @@
 
   ::-webkit-scrollbar{width:5px;} ::-webkit-scrollbar-track{background:transparent;} ::-webkit-scrollbar-thumb{background:var(--border2);border-radius:99px;}
 
-  /* ── Delete-room confirmation modal ── */
-  .modal-overlay{
-    position:fixed;inset:0;background:rgba(0,0,0,0.65);backdrop-filter:blur(3px);
-    display:flex;align-items:center;justify-content:center;z-index:1000;
-    opacity:0;pointer-events:none;transition:opacity .18s ease;
-  }
+  .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.65);backdrop-filter:blur(3px);display:flex;align-items:center;justify-content:center;z-index:1000;opacity:0;pointer-events:none;transition:opacity .18s ease;}
   .modal-overlay.open{opacity:1;pointer-events:auto;}
-  .modal-card{
-    width:100%;max-width:380px;margin:0 20px;
-    background:var(--surface2);border:1px solid var(--border2);border-radius:16px;
-    padding:26px 26px 22px;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,0.5);
-    transform:translateY(8px) scale(.97);transition:transform .18s ease;
-  }
+  .modal-card{width:100%;max-width:380px;margin:0 20px;background:var(--surface2);border:1px solid var(--border2);border-radius:16px;padding:26px 26px 22px;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,0.5);transform:translateY(8px) scale(.97);transition:transform .18s ease;}
   .modal-overlay.open .modal-card{transform:translateY(0) scale(1);}
-  .modal-icon{
-    width:52px;height:52px;margin:0 auto 16px;border-radius:50%;
-    background:var(--red-dim);border:1px solid rgba(239,68,68,.3);
-    display:flex;align-items:center;justify-content:center;color:var(--red);
-  }
+  .modal-icon{width:52px;height:52px;margin:0 auto 16px;border-radius:50%;background:var(--red-dim);border:1px solid rgba(239,68,68,.3);display:flex;align-items:center;justify-content:center;color:var(--red);}
   .modal-icon svg{width:24px;height:24px;}
   .modal-title{font-size:1.05rem;font-weight:700;letter-spacing:-.2px;margin-bottom:8px;}
   .modal-text{font-size:.85rem;color:var(--text-2);line-height:1.55;margin-bottom:22px;}
   .modal-actions{display:flex;gap:10px;}
-  .modal-btn{
-    flex:1;padding:11px 0;border-radius:9px;font-size:.86rem;font-weight:700;
-    cursor:pointer;border:1px solid var(--border2);transition:all .15s;
-  }
+  .modal-btn{flex:1;padding:11px 0;border-radius:9px;font-size:.86rem;font-weight:700;cursor:pointer;border:1px solid var(--border2);transition:all .15s;}
   .modal-btn-cancel{background:var(--surface3);color:var(--text-2);}
   .modal-btn-cancel:hover{background:#ffffff;color:#000000;border-color:#ffffff;}
   .modal-btn-delete{background:var(--red);color:#fff;border-color:var(--red);}
   .modal-btn-delete:hover{background:#dc2626;border-color:#dc2626;}
   .modal-btn:disabled{opacity:.5;cursor:not-allowed;}
 
-  @media(max-width:700px){ .sidebar{display:none;} .msg-row{max-width:82%;} .emoji-picker{width:250px;left:12px;} }
+  /* ── Poll creation modal ── */
+  .poll-modal-card{max-width:420px;text-align:left;}
+  .poll-q-row{display:flex;gap:6px;margin-bottom:14px;align-items:stretch;}
+  .poll-q-input{width:100%;background:var(--surface3);border:1px solid var(--border2);border-radius:8px;padding:10px 12px;color:#fff;font-size:.85rem;outline:none;}
+  .poll-q-row .poll-q-input{margin-bottom:0;flex:1;}
+  .poll-q-input:focus{border-color:#444;}
+  .poll-options-list{display:flex;flex-direction:column;gap:8px;margin-bottom:12px;max-height:260px;overflow-y:auto;}
+  .poll-option-input-row{display:flex;gap:6px;align-items:center;}
+  .poll-option-input{flex:1;background:var(--surface3);border:1px solid var(--border2);border-radius:8px;padding:8px 10px;color:#fff;font-size:.82rem;outline:none;}
+  .poll-option-input:focus{border-color:#444;}
+  .poll-option-remove{background:none;border:none;color:var(--text-3);cursor:pointer;font-size:1rem;width:26px;height:26px;flex-shrink:0;border-radius:6px;}
+  .poll-option-remove:hover{color:var(--red);background:var(--red-dim);}
+  .poll-add-option-btn{width:100%;justify-content:center;margin-bottom:18px;}
+
+  .poll-emoji-btn{
+    flex-shrink:0;width:30px;height:30px;border-radius:7px;border:1px solid var(--border2);
+    background:var(--surface3);color:var(--text-2);cursor:pointer;font-size:.95rem;
+    display:flex;align-items:center;justify-content:center;transition:all .15s;
+  }
+  .poll-emoji-btn:hover{color:#fff;border-color:#444;background:var(--surface2);}
+
+  .mini-emoji-popover{
+    position:fixed;width:232px;max-height:200px;overflow-y:auto;
+    background:var(--surface2);border:1px solid var(--border2);border-radius:10px;
+    padding:8px;display:none;z-index:1100;box-shadow:0 8px 24px rgba(0,0,0,.5);
+  }
+  .mini-emoji-popover.open{display:grid;grid-template-columns:repeat(7,1fr);gap:2px;}
+  .mini-emoji-popover button{background:none;border:none;font-size:1.1rem;line-height:1;padding:6px 0;border-radius:6px;cursor:pointer;}
+  .mini-emoji-popover button:hover{background:var(--surface3);}
+
+  /* ── Poll card (rendered inline in the chat feed) — single-select ── */
+  .poll-card{width:290px;max-width:100%;background:var(--surface2);border:1px solid var(--border2);border-radius:14px;padding:14px;}
+  .poll-question{font-size:.88rem;font-weight:700;margin-bottom:10px;line-height:1.4;}
+  .poll-options{display:flex;flex-direction:column;gap:6px;}
+  .poll-option{position:relative;overflow:hidden;text-align:left;width:100%;background:var(--surface3);border:1px solid var(--border2);border-radius:8px;padding:8px 10px;cursor:pointer;color:var(--text);font-size:.8rem;display:flex;justify-content:space-between;align-items:center;gap:8px;}
+  .poll-option:hover{border-color:#444;}
+  .poll-option-fill{position:absolute;left:0;top:0;bottom:0;background:var(--blue-dim);transition:width .25s ease;z-index:0;}
+  .poll-option-text{position:relative;z-index:1;display:flex;align-items:center;gap:7px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .poll-option-radio{position:relative;z-index:1;flex-shrink:0;width:14px;height:14px;border-radius:50%;border:1.5px solid var(--text-3);display:flex;align-items:center;justify-content:center;}
+  .poll-option-radio::after{content:'';width:7px;height:7px;border-radius:50%;background:var(--blue);opacity:0;transition:opacity .15s;}
+  .poll-option.voted .poll-option-radio{border-color:var(--blue);}
+  .poll-option.voted .poll-option-radio::after{opacity:1;}
+  .poll-option-pct{position:relative;z-index:1;color:var(--text-2);flex-shrink:0;font-size:.72rem;}
+  .poll-option.voted{border-color:var(--blue);}
+  .poll-option.voted .poll-option-fill{background:rgba(59,130,246,.3);}
+  .poll-option.voted .poll-option-text{font-weight:700;}
+  .poll-footer{margin-top:10px;font-size:.7rem;color:var(--text-3);}
+
+  .pending-attach{display:none;}
+
+  @media(max-width:700px){
+    .sidebar{display:none;} :root{--bubble-max:82vw;} .emoji-picker{width:250px;left:12px;} .attach-menu{left:12px;}
+    .media-grid.n1{width:220px;} .doc-card{width:auto;}
+  }
 </style>
 </head>
 <body>
@@ -137,20 +302,74 @@
 <div class="layout" id="layout" style="display:none;">
   <div class="chat-col">
     <div class="msgs" id="msgs"></div>
+
+    <div class="typing-indicator" id="typingIndicator">
+      <div class="typing-avatars" id="typingAvatars"></div>
+      <span class="typing-text" id="typingText"></span>
+      <span class="typing-dots"><span></span><span></span><span></span></span>
+    </div>
+
     <div class="input-row">
+      <button class="emoji-btn" id="attachBtn" type="button" title="Attach file" disabled>
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+        </svg>
+      </button>
+      <div class="attach-menu" id="attachMenu">
+        <button type="button" data-kind="image">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
+          Photos
+        </button>
+        <button type="button" data-kind="video">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>
+          Video
+        </button>
+        <button type="button" data-kind="document">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+          Document
+        </button>
+      </div>
+      <input type="file" id="fileInput" style="display:none"/>
+
+      <button class="emoji-btn" id="pollBtn" type="button" title="Create a poll" disabled>
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/>
+        </svg>
+      </button>
+
       <button class="emoji-btn" id="emojiBtn" type="button" title="Insert emoji" disabled>
         <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-          <circle cx="12" cy="12" r="9"/>
-          <path d="M8.5 14.5c1 1.2 2.2 1.8 3.5 1.8s2.5-.6 3.5-1.8"/>
-          <line x1="8.5" y1="9.5" x2="8.5" y2="9.51"/>
-          <line x1="15.5" y1="9.5" x2="15.5" y2="9.51"/>
+          <circle cx="12" cy="12" r="9"/><path d="M8.5 14.5c1 1.2 2.2 1.8 3.5 1.8s2.5-.6 3.5-1.8"/>
+          <line x1="8.5" y1="9.5" x2="8.5" y2="9.51"/><line x1="15.5" y1="9.5" x2="15.5" y2="9.51"/>
         </svg>
      </button>
       <div class="emoji-picker" id="emojiPicker"></div>
       <input class="chat-input" id="msgInput" type="text" placeholder="Type a message…" maxlength="2000" disabled/>
-      <button class="chat-send" id="sendBtn" onclick="sendMessage()" disabled>Send</button>
+      <button class="chat-send" id="sendBtn" onclick="sendMessage()" disabled title="Send">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="4" y1="12" x2="20" y2="12"/><polyline points="13 5 20 12 13 19"/>
+        </svg>
+      </button>
+    </div>
+
+    <div class="compose-overlay" id="composeOverlay">
+      <div class="compose-top">
+        <button class="compose-close" id="composeCloseBtn" type="button">✕</button>
+        <span class="compose-count" id="composeCount"></span>
+      </div>
+      <div class="compose-main" id="composeMain"></div>
+      <div class="compose-thumbs" id="composeThumbs"></div>
+      <div class="compose-bottom">
+        <input class="compose-caption" id="composeCaption" type="text" placeholder="Add a caption…" maxlength="2000"/>
+        <button class="compose-send" id="composeSendBtn" type="button" title="Send">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="4" y1="12" x2="20" y2="12"/><polyline points="13 5 20 12 13 19"/>
+          </svg>
+        </button>
+      </div>
     </div>
   </div>
+
   <aside class="sidebar">
     <h4 id="usersHeading">Online — 0</h4>
     <div id="usersList"></div>
@@ -162,16 +381,17 @@
   <div>Connecting to the room…</div>
 </div>
 
-<!-- ── Delete-room confirmation modal (replaces window.confirm) ── -->
+<div class="lightbox" id="lightbox">
+  <button class="lightbox-close" id="lightboxClose">✕</button>
+  <div id="lightboxContent"></div>
+</div>
+
 <div class="modal-overlay" id="deleteModalOverlay">
   <div class="modal-card">
     <div class="modal-icon">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-        <polyline points="3 6 5 6 21 6"/>
-        <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
-        <path d="M10 11v6"/>
-        <path d="M14 11v6"/>
-        <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
+        <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+        <path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
       </svg>
     </div>
     <div class="modal-title">Delete this room?</div>
@@ -183,6 +403,25 @@
   </div>
 </div>
 
+<!-- ── Poll creation modal ── -->
+<div class="modal-overlay" id="pollModalOverlay">
+  <div class="modal-card poll-modal-card">
+    <div class="modal-title">Create a poll</div>
+    <div class="poll-q-row">
+      <input type="text" id="pollQuestionInput" class="poll-q-input" placeholder="Ask a question…" maxlength="200"/>
+      <button type="button" class="poll-emoji-btn" id="pollQuestionEmojiBtn" title="Add emoji">🙂</button>
+    </div>
+    <div class="poll-options-list" id="pollOptionsList"></div>
+    <button type="button" class="nav-pill poll-add-option-btn" id="pollAddOptionBtn">+ Add option</button>
+    <div class="modal-actions">
+      <button class="modal-btn modal-btn-cancel" id="pollCancelBtn">Cancel</button>
+      <button class="modal-btn" id="pollCreateBtn" style="background:var(--blue);color:#fff;border-color:var(--blue);">Create</button>
+    </div>
+  </div>
+</div>
+
+<div class="mini-emoji-popover" id="miniEmojiPopover"></div>
+
 <script>
 const roomId = window.location.pathname.split('/').pop();
 let ws = null;
@@ -191,11 +430,51 @@ let isOwner = false;
 let manualLeave = false;
 
 function $(id) { return document.getElementById(id); }
+function escapeHtml(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+
+/* ═══════════════════════════════════════════════════════
+   AVATARS — small helper used everywhere a user needs a
+   profile picture (messages, sidebar, typing indicator).
+   Falls back to a colored initial when no avatarUrl is set
+   or the image fails to load.
+   ═══════════════════════════════════════════════════════ */
+const AVATAR_COLORS = ['#f56565','#ed8936','#ecc94b','#48bb78','#38b2ac','#4299e1','#667eea','#9f7aea','#ed64a6'];
+function colorForName(name) {
+  let hash = 0;
+  const s = name || '?';
+  for (let i = 0; i < s.length; i++) hash = s.charCodeAt(i) + ((hash << 5) - hash);
+  return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length];
+}
+function fallbackAvatar(username, size) {
+  const div = document.createElement('div');
+  div.className = 'avatar-fallback';
+  div.style.background = colorForName(username);
+  div.style.fontSize = Math.round(size * 0.42) + 'px';
+  div.textContent = (username || '?').trim().charAt(0).toUpperCase() || '?';
+  return div;
+}
+function avatarNode(username, avatarUrl, size) {
+  size = size || 28;
+  const wrap = document.createElement('div');
+  wrap.className = 'avatar-wrap';
+  wrap.style.width = size + 'px';
+  wrap.style.height = size + 'px';
+  if (avatarUrl) {
+    const img = document.createElement('img');
+    img.className = 'avatar-img';
+    img.src = avatarUrl;
+    img.alt = username || '';
+    img.loading = 'lazy';
+    img.onerror = () => { wrap.innerHTML = ''; wrap.appendChild(fallbackAvatar(username, size)); };
+    wrap.appendChild(img);
+  } else {
+    wrap.appendChild(fallbackAvatar(username, size));
+  }
+  return wrap;
+}
 
 /* ═══════════════════════════════════════════════════════
    DELETE CONFIRMATION MODAL
-   Promise-based replacement for window.confirm(). Resolves
-   true if the user clicks Delete, false for Cancel/backdrop/Esc.
    ═══════════════════════════════════════════════════════ */
 const deleteModalOverlay = document.getElementById('deleteModalOverlay');
 const modalCancelBtn      = document.getElementById('modalCancelBtn');
@@ -210,61 +489,38 @@ function openDeleteModal() {
     modalDeleteBtn.textContent = 'Delete';
   });
 }
-
 function closeDeleteModal(result) {
   deleteModalOverlay.classList.remove('open');
-  if (modalResolver) {
-    modalResolver(result);
-    modalResolver = null;
-  }
+  if (modalResolver) { modalResolver(result); modalResolver = null; }
 }
-
 modalCancelBtn.addEventListener('click', () => closeDeleteModal(false));
 modalDeleteBtn.addEventListener('click', () => closeDeleteModal(true));
-deleteModalOverlay.addEventListener('click', (e) => {
-  if (e.target === deleteModalOverlay) closeDeleteModal(false);
-});
-document.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape' && deleteModalOverlay.classList.contains('open')) closeDeleteModal(false);
-});
+deleteModalOverlay.addEventListener('click', (e) => { if (e.target === deleteModalOverlay) closeDeleteModal(false); });
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && deleteModalOverlay.classList.contains('open')) closeDeleteModal(false); });
 
 // ---------- Emoji Picker ----------
 const EMOJI_GROUPS = [
-  {
-    label: 'Crypto & Trading',
-    emojis: ['🪙','💰','💸','📈','📉','💹','🚀','⚡','🔥','💎','🏦','💳','⚖️','🔒','🔓','🌕','🐂','🐻','⛏️','🧾']
-  },
-  {
-    label: 'Faces',
-    emojis: ['😀','😁','😂','🤣','😊','😍','😘','😎','🤔','😅','🙂','😢','😭','😡','😱','🥳','😴','😇','🤯','🥶']
-  },
-  {
-    label: 'Tasks & Important',
-    emojis: ['✅','❌','⚠️','📌','📝','🕒','⏰','🔔','📢','❗','❓','💡','🔧','📊','🎯','🚩','👍','👎','🙌','🙏']
-  }
+  { label: 'Crypto & Trading', emojis: ['🪙','💰','💸','📈','📉','💹','🚀','⚡','🔥','💎','🏦','💳','⚖️','🔒','🔓','🌕','🐂','🐻','⛏️','🧾'] },
+  { label: 'Faces', emojis: ['😀','😁','😂','🤣','😊','😍','😘','😎','🤔','😅','🙂','😢','😭','😡','😱','🥳','😴','😇','🤯','🥶'] },
+  { label: 'Tasks & Important', emojis: ['✅','❌','⚠️','📌','📝','🕒','⏰','🔔','📢','❗','❓','💡','🔧','📊','🎯','🚩','👍','👎','🙌','🙏'] }
 ];
+const MINI_EMOJI_LIST = EMOJI_GROUPS.reduce((acc, g) => acc.concat(g.emojis), []);
 
 function buildEmojiPicker() {
   const picker = $('emojiPicker');
   picker.innerHTML = EMOJI_GROUPS.map(group => `
     <div class="emoji-group">
       <div class="emoji-group-label">${group.label}</div>
-      <div class="emoji-grid">
-        ${group.emojis.map(e => `<button type="button" data-emoji="${e}">${e}</button>`).join('')}
-      </div>
-    </div>
-  `).join('');
-
+      <div class="emoji-grid">${group.emojis.map(e => `<button type="button" data-emoji="${e}">${e}</button>`).join('')}</div>
+    </div>`).join('');
   picker.addEventListener('click', (e) => {
     const btn = e.target.closest('button[data-emoji]');
     if (!btn) return;
-    insertEmoji(btn.dataset.emoji);
+    insertEmojiInto($('msgInput'), btn.dataset.emoji);
   });
 }
-
-function insertEmoji(emoji) {
-  const input = $('msgInput');
-  if (input.disabled) return;
+function insertEmojiInto(input, emoji) {
+  if (!input || input.disabled) return;
   const start = input.selectionStart ?? input.value.length;
   const end = input.selectionEnd ?? input.value.length;
   input.value = input.value.slice(0, start) + emoji + input.value.slice(end);
@@ -272,27 +528,439 @@ function insertEmoji(emoji) {
   input.focus();
   input.setSelectionRange(newPos, newPos);
 }
-
 function toggleEmojiPicker(force) {
-  const picker = $('emojiPicker');
-  const btn = $('emojiBtn');
+  const picker = $('emojiPicker'); const btn = $('emojiBtn');
   const open = force !== undefined ? force : !picker.classList.contains('open');
   picker.classList.toggle('open', open);
   btn.classList.toggle('active', open);
 }
-// -----------------------------------
 
+/* ── Mini emoji popover — shared by the poll question + option inputs ── */
+let miniEmojiTarget = null;
+function buildMiniEmojiPopover() {
+  const pop = $('miniEmojiPopover');
+  pop.innerHTML = MINI_EMOJI_LIST.map(e => `<button type="button" data-emoji="${e}">${e}</button>`).join('');
+  pop.addEventListener('click', (e) => {
+    const btn = e.target.closest('button[data-emoji]');
+    if (!btn || !miniEmojiTarget) return;
+    insertEmojiInto(miniEmojiTarget, btn.dataset.emoji);
+  });
+}
+function openMiniEmojiPopover(anchorEl, targetInput) {
+  miniEmojiTarget = targetInput;
+  const pop = $('miniEmojiPopover');
+  const rect = anchorEl.getBoundingClientRect();
+  const top = Math.min(rect.bottom + 6, window.innerHeight - 210);
+  const left = Math.max(8, Math.min(rect.left - 180, window.innerWidth - 240));
+  pop.style.top = top + 'px';
+  pop.style.left = left + 'px';
+  pop.classList.add('open');
+}
+function closeMiniEmojiPopover() {
+  $('miniEmojiPopover').classList.remove('open');
+  miniEmojiTarget = null;
+}
+
+// ---------- Attach Menu (plus button) ----------
+const ATTACH_LIMITS = { image: 5 * 1024 * 1024, video: 200 * 1024 * 1024, document: 50 * 1024 * 1024 };
+const ATTACH_ACCEPT = {
+  image: 'image/png,image/jpeg,image/gif,image/webp',
+  video: 'video/mp4,video/webm,video/quicktime',
+  document: '.pdf,.doc,.docx,.txt',
+};
+const ATTACH_MULTIPLE = { image: true, video: false, document: false };
+
+function toggleAttachMenu(force) {
+  const menu = $('attachMenu');
+  const open = force !== undefined ? force : !menu.classList.contains('open');
+  menu.classList.toggle('open', open);
+}
+document.querySelectorAll('#attachMenu button[data-kind]').forEach((btn) => {
+  btn.addEventListener('click', () => {
+    const kind = btn.dataset.kind;
+    const input = $('fileInput');
+    input.accept = ATTACH_ACCEPT[kind];
+    input.multiple = ATTACH_MULTIPLE[kind];
+    input.dataset.kind = kind;
+    input.value = '';
+    input.click();
+    toggleAttachMenu(false);
+  });
+});
+$('fileInput').addEventListener('change', () => {
+  const kind = $('fileInput').dataset.kind;
+  const files = Array.from($('fileInput').files || []);
+  if (!files.length) return;
+
+  const oversized = files.find((f) => f.size > ATTACH_LIMITS[kind]);
+  if (oversized) {
+    appendSystem(`⚠ ${kind} files must be under ${(ATTACH_LIMITS[kind] / (1024 * 1024)).toFixed(0)}MB`);
+    return;
+  }
+  openComposeOverlay(files.map((f) => ({ file: f, kind })));
+});
+
+/* ── File-size / doc-type helpers, shared by bubbles + compose preview ── */
+function formatFileSize(bytes) {
+  if (bytes === null || bytes === undefined || isNaN(bytes)) return '';
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(0) + ' KB';
+  return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+}
+function docExtInfo(name) {
+  const ext = ((name || '').split('.').pop() || '').toLowerCase();
+  const map = {
+    pdf:  { label: 'PDF', cls: 'pdf' },
+    doc:  { label: 'DOC', cls: 'doc' },
+    docx: { label: 'DOC', cls: 'doc' },
+    txt:  { label: 'TXT', cls: 'txt' },
+  };
+  return map[ext] || { label: ext ? ext.toUpperCase().slice(0, 4) : 'FILE', cls: 'generic' };
+}
+function buildDocCard(att) {
+  const info = docExtInfo(att.name || '');
+  const a = document.createElement('a');
+  a.href = att.url; a.target = '_blank'; a.rel = 'noopener noreferrer';
+  a.className = 'doc-card';
+  a.innerHTML = `
+    <div class="doc-icon ${info.cls}">${info.label}</div>
+    <div class="doc-info">
+      <span class="doc-name">${escapeHtml(att.name || 'Document')}</span>
+      <span class="doc-meta">${formatFileSize(att.size)}</span>
+    </div>
+    <div class="doc-download">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+      </svg>
+    </div>`;
+  return a;
+}
+function buildDocPreview(file) {
+  const info = docExtInfo(file.name || '');
+  const div = document.createElement('div');
+  div.className = 'doc-card preview-only';
+  div.innerHTML = `
+    <div class="doc-icon ${info.cls}">${info.label}</div>
+    <div class="doc-info">
+      <span class="doc-name">${escapeHtml(file.name || 'Document')}</span>
+      <span class="doc-meta">${formatFileSize(file.size)}</span>
+    </div>`;
+  return div;
+}
+
+/* ══════════════════════════════════════════════════════
+   COMPOSE OVERLAY — preview + caption before send
+   ══════════════════════════════════════════════════════ */
+let composeItems = [];
+let composeActiveIdx = 0;
+
+function openComposeOverlay(items) {
+  composeItems = items.map((it) => ({ ...it, objectUrl: it.kind === 'document' ? null : URL.createObjectURL(it.file) }));
+  composeActiveIdx = 0;
+  renderCompose();
+  $('composeOverlay').classList.add('open');
+  $('composeCaption').value = '';
+  $('composeCaption').focus();
+}
+function closeComposeOverlay() {
+  composeItems.forEach((it) => { if (it.objectUrl) URL.revokeObjectURL(it.objectUrl); });
+  composeItems = [];
+  $('composeOverlay').classList.remove('open');
+}
+function renderCompose() {
+  const item = composeItems[composeActiveIdx];
+  const main = $('composeMain');
+  main.innerHTML = '';
+  if (!item) return;
+
+  if (item.kind === 'image') {
+    const img = document.createElement('img');
+    img.src = item.objectUrl;
+    main.appendChild(img);
+  } else if (item.kind === 'video') {
+    const vid = document.createElement('video');
+    vid.src = item.objectUrl; vid.controls = true;
+    main.appendChild(vid);
+  } else {
+    main.appendChild(buildDocPreview(item.file));
+  }
+
+  if (composeItems.length > 1) {
+    const prev = document.createElement('button');
+    prev.className = 'compose-nav prev'; prev.textContent = '‹';
+    prev.onclick = () => { composeActiveIdx = (composeActiveIdx - 1 + composeItems.length) % composeItems.length; renderCompose(); };
+    const next = document.createElement('button');
+    next.className = 'compose-nav next'; next.textContent = '›';
+    next.onclick = () => { composeActiveIdx = (composeActiveIdx + 1) % composeItems.length; renderCompose(); };
+    main.appendChild(prev); main.appendChild(next);
+  }
+
+  $('composeCount').textContent = composeItems.length > 1 ? `${composeActiveIdx + 1} / ${composeItems.length}` : '';
+
+  const thumbs = $('composeThumbs');
+  thumbs.innerHTML = '';
+  if (composeItems.length > 1) {
+    composeItems.forEach((it, i) => {
+      const t = document.createElement('img');
+      t.className = 'compose-thumb' + (i === composeActiveIdx ? ' active' : '');
+      t.src = it.kind === 'image' ? it.objectUrl : '';
+      if (it.kind !== 'image') { t.style.background = 'var(--surface3)'; }
+      t.onclick = () => { composeActiveIdx = i; renderCompose(); };
+      thumbs.appendChild(t);
+    });
+  }
+}
+$('composeCloseBtn').addEventListener('click', closeComposeOverlay);
+$('composeSendBtn').addEventListener('click', () => sendComposedFiles());
+$('composeCaption').addEventListener('keydown', (e) => { if (e.key === 'Enter') sendComposedFiles(); });
+
+/* ══════════════════════════════════════════════════════
+   Uploading bubble — blurred, with circular progress ring
+   ══════════════════════════════════════════════════════ */
+function ringSvg(percent, indeterminate) {
+  const r = 15, c = 2 * Math.PI * r;
+  const offset = indeterminate ? c * 0.25 : c - (percent / 100) * c;
+  return `<svg class="ring${indeterminate ? ' spin' : ''}" viewBox="0 0 36 36">
+    <circle class="track" cx="18" cy="18" r="${r}"></circle>
+    <circle class="bar" cx="18" cy="18" r="${r}" stroke-dasharray="${c}" stroke-dashoffset="${offset}"></circle>
+  </svg>`;
+}
+
+async function sendComposedFiles() {
+  if (!composeItems.length) return;
+  const caption = $('composeCaption').value.trim();
+  const items = composeItems;
+  const isDocOnly = items.length === 1 && items[0].kind === 'document';
+  closeComposeOverlayKeepingUrls();
+
+  const row = document.createElement('div');
+  row.className = 'msg-row mine';
+
+  if (isDocOnly) {
+    const pending = buildDocPreview(items[0].file);
+    row.appendChild(pending);
+  } else {
+    const previewUrls = items.map((it) => it.objectUrl);
+    const kinds = items.map((it) => it.kind);
+    const grid = buildUploadingGrid(previewUrls, kinds);
+    row.appendChild(grid);
+  }
+  if (caption) {
+    const bubble = document.createElement('div');
+    bubble.className = 'msg-bubble'; bubble.textContent = caption; bubble.style.marginTop = '4px';
+    row.appendChild(bubble);
+  }
+  $('msgs').appendChild(row);
+  scrollToBottom();
+
+  try {
+    const fd = new FormData();
+    items.forEach((it) => fd.append('files', it.file));
+    fd.append('roomId', roomId);
+
+    const data = await uploadWithProgress(fd, (pct) => {
+      row.querySelectorAll('.tile-spinner').forEach((el) => { el.innerHTML = ringSvg(pct, false); });
+    });
+
+    if (!data.success) {
+      appendSystem('⚠ ' + data.message);
+      row.remove();
+      return;
+    }
+
+    ws.send(JSON.stringify({ type: 'message', text: caption, attachments: data.data }));
+  } catch (e) {
+    appendSystem('⚠ Upload failed');
+  } finally {
+    row.remove();
+    items.forEach((it) => { if (it.objectUrl) URL.revokeObjectURL(it.objectUrl); });
+  }
+}
+
+function closeComposeOverlayKeepingUrls() {
+  $('composeOverlay').classList.remove('open');
+  composeItems = [];
+}
+
+function buildUploadingGrid(previewUrls, kinds) {
+  const n = previewUrls.length;
+  const grid = document.createElement('div');
+  grid.className = 'media-grid ' + (n === 1 ? 'n1' : n === 2 ? 'n2' : n === 3 ? 'n3' : 'n4plus');
+  previewUrls.slice(0, 4).forEach((url, i) => {
+    const tile = document.createElement('div');
+    tile.className = 'media-tile';
+    const bg = document.createElement('div');
+    bg.className = 'tile-bg';
+    bg.style.backgroundImage = kinds[i] === 'image' ? `url(${url})` : 'none';
+    bg.style.background = kinds[i] === 'image' ? bg.style.backgroundImage : 'var(--surface3)';
+    tile.appendChild(bg);
+    const spinner = document.createElement('div');
+    spinner.className = 'tile-spinner';
+    spinner.innerHTML = ringSvg(0, true);
+    tile.appendChild(spinner);
+    grid.appendChild(tile);
+  });
+  return grid;
+}
+
+function uploadWithProgress(formData, onProgress) {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', '/api/chat/upload');
+    xhr.upload.onprogress = (e) => {
+      if (e.lengthComputable) onProgress(Math.round((e.loaded / e.total) * 100));
+    };
+    xhr.onload = () => {
+      try { resolve(JSON.parse(xhr.responseText)); }
+      catch (e) { reject(e); }
+    };
+    xhr.onerror = () => reject(new Error('network error'));
+    xhr.send(formData);
+  });
+}
+
+/* ══════════════════════════════════════════════════════
+   POLLS — single-select (radio-style). A user's vote moves
+   between options; clicking their current option again clears it.
+   ══════════════════════════════════════════════════════ */
+function computePollMeta(poll) {
+  const voterSet = new Set();
+  poll.options.forEach((o) => o.voterIds.forEach((id) => voterSet.add(id)));
+  return { totalVoters: voterSet.size };
+}
+
+function buildPollCard(poll) {
+  const card = document.createElement('div');
+  card.className = 'poll-card';
+  card.dataset.pollId = poll.pollId;
+
+  const meta = computePollMeta(poll);
+
+  const q = document.createElement('div');
+  q.className = 'poll-question';
+  q.textContent = poll.question;
+  card.appendChild(q);
+
+  const optsWrap = document.createElement('div');
+  optsWrap.className = 'poll-options';
+
+  poll.options.forEach((opt) => {
+    const mine = !!(currentUser && opt.voterIds.includes(currentUser.id));
+    const pct = meta.totalVoters ? Math.round((opt.voterIds.length / meta.totalVoters) * 100) : 0;
+
+    const row = document.createElement('button');
+    row.type = 'button';
+    row.className = 'poll-option' + (mine ? ' voted' : '');
+    row.innerHTML = `
+      <div class="poll-option-fill" style="width:${pct}%"></div>
+      <span class="poll-option-text"><span class="poll-option-radio"></span>${escapeHtml(opt.text)}</span>
+      <span class="poll-option-pct">${pct}% · ${opt.voterIds.length}</span>
+    `;
+    row.addEventListener('click', () => votePoll(poll.pollId, opt.id));
+    optsWrap.appendChild(row);
+  });
+
+  card.appendChild(optsWrap);
+
+  const footer = document.createElement('div');
+  footer.className = 'poll-footer';
+  footer.textContent = `${meta.totalVoters} vote${meta.totalVoters === 1 ? '' : 's'} · poll by ${poll.createdBy} · pick one`;
+  card.appendChild(footer);
+
+  return card;
+}
+
+function renderOrUpdatePoll(poll) {
+  const existingCard = document.querySelector(`.poll-card[data-poll-id="${poll.pollId}"]`);
+  const freshCard = buildPollCard(poll);
+  if (existingCard) {
+    existingCard.replaceWith(freshCard);
+  } else {
+    const row = document.createElement('div');
+    row.className = 'msg-row centered';
+    row.appendChild(freshCard);
+    $('msgs').appendChild(row);
+    scrollToBottom();
+  }
+}
+
+function votePoll(pollId, optionId) {
+  if (!ws || ws.readyState !== WebSocket.OPEN) return;
+  ws.send(JSON.stringify({ type: 'vote_poll', pollId, optionId }));
+}
+
+// ---- Poll creation modal ----
+const pollModalOverlay = $('pollModalOverlay');
+const pollOptionsList = $('pollOptionsList');
+
+function createPollOptionRow(value) {
+  const row = document.createElement('div');
+  row.className = 'poll-option-input-row';
+  row.innerHTML = `
+    <input type="text" class="poll-option-input" maxlength="80" placeholder="Option" value="${escapeHtml(value || '')}"/>
+    <button type="button" class="poll-emoji-btn" title="Add emoji">🙂</button>
+    <button type="button" class="poll-option-remove" title="Remove">✕</button>
+  `;
+  const input = row.querySelector('.poll-option-input');
+  const emojiBtn = row.querySelector('.poll-emoji-btn');
+  emojiBtn.addEventListener('click', (e) => { e.stopPropagation(); openMiniEmojiPopover(emojiBtn, input); });
+  row.querySelector('.poll-option-remove').addEventListener('click', () => {
+    if (pollOptionsList.children.length > 2) row.remove();
+  });
+  return row;
+}
+
+function openPollModal() {
+  $('pollQuestionInput').value = '';
+  pollOptionsList.innerHTML = '';
+  pollOptionsList.appendChild(createPollOptionRow());
+  pollOptionsList.appendChild(createPollOptionRow());
+  pollModalOverlay.classList.add('open');
+  $('pollQuestionInput').focus();
+}
+function closePollModal() {
+  pollModalOverlay.classList.remove('open');
+  closeMiniEmojiPopover();
+}
+
+$('pollQuestionEmojiBtn').addEventListener('click', (e) => {
+  e.stopPropagation();
+  openMiniEmojiPopover(e.currentTarget, $('pollQuestionInput'));
+});
+$('pollAddOptionBtn').addEventListener('click', () => {
+  if (pollOptionsList.children.length >= 10) return;
+  const row = createPollOptionRow();
+  pollOptionsList.appendChild(row);
+  row.querySelector('.poll-option-input').focus();
+});
+$('pollCancelBtn').addEventListener('click', closePollModal);
+pollModalOverlay.addEventListener('click', (e) => { if (e.target === pollModalOverlay) closePollModal(); });
+
+$('pollCreateBtn').addEventListener('click', () => {
+  const question = $('pollQuestionInput').value.trim();
+  if (!question) { $('pollQuestionInput').focus(); return; }
+
+  const options = Array.from(pollOptionsList.querySelectorAll('.poll-option-input'))
+    .map((inp) => inp.value.trim())
+    .filter(Boolean);
+
+  const unique = [...new Set(options)];
+  if (unique.length < 2) { appendSystem('⚠ A poll needs at least 2 options'); return; }
+
+  if (!ws || ws.readyState !== WebSocket.OPEN) return;
+  ws.send(JSON.stringify({ type: 'create_poll', question, options: unique }));
+  closePollModal();
+});
+
+/* ══════════════════════════════════════════════════════
+   Rendering finished messages (own + incoming)
+   ══════════════════════════════════════════════════════ */
 function setConn(state, label) {
   const dot = $('connDot');
   dot.className = 'conn-dot ' + (state === 'live' ? 'live' : state === 'bad' ? 'bad' : '');
   $('roomSub').lastChild.textContent = ' ' + label;
 }
-
-function showChatUI() {
-  $('loadingState').style.display = 'none';
-  $('layout').style.display = 'flex';
-}
-
+function showChatUI() { $('loadingState').style.display = 'none'; $('layout').style.display = 'flex'; }
 function showCenterMessage(text, isError) {
   $('layout').style.display = 'none';
   const el = $('loadingState');
@@ -301,53 +969,223 @@ function showCenterMessage(text, isError) {
     ? `<div style="font-size:1.6rem;">⚠</div><div>${escapeHtml(text)}</div><a href="/chat" class="nav-pill" style="margin-top:6px;">← Back to Rooms</a>`
     : `<div class="spinner"></div><div>${escapeHtml(text)}</div>`;
 }
-
-function escapeHtml(s) {
-  const d = document.createElement('div');
-  d.textContent = s;
-  return d.innerHTML;
-}
-
-function scrollToBottom() {
-  const m = $('msgs');
-  m.scrollTop = m.scrollHeight;
-}
-
+function scrollToBottom() { const m = $('msgs'); m.scrollTop = m.scrollHeight; }
 function appendSystem(text) {
-  const div = document.createElement('div');
-  div.className = 'sys-row';
-  div.textContent = text;
-  $('msgs').appendChild(div);
-  scrollToBottom();
+  const div = document.createElement('div'); div.className = 'sys-row'; div.textContent = text;
+  $('msgs').appendChild(div); scrollToBottom();
 }
 
-function appendMessage(from, fromId, text, timestamp) {
+function buildMediaGrid(mediaAtts) {
+  const n = mediaAtts.length;
+  const grid = document.createElement('div');
+  grid.className = 'media-grid ' + (n === 1 ? 'n1' : n === 2 ? 'n2' : n === 3 ? 'n3' : 'n4plus');
+
+  const shown = mediaAtts.slice(0, 4);
+  shown.forEach((att, i) => {
+    const tile = document.createElement('div');
+    tile.className = 'media-tile';
+
+    if (att.lqip) {
+      const bg = document.createElement('div');
+      bg.className = 'tile-bg';
+      bg.style.backgroundImage = `url(${att.lqip})`;
+      tile.appendChild(bg);
+    }
+
+    const spinner = document.createElement('div');
+    spinner.className = 'tile-spinner';
+    spinner.innerHTML = ringSvg(0, true);
+    tile.appendChild(spinner);
+
+    if (att.kind === 'image') {
+      const img = document.createElement('img');
+      img.loading = 'lazy';
+      img.src = att.thumbUrl || att.url;
+      img.alt = att.name || 'image';
+      img.onload = () => { img.classList.add('loaded'); tile.classList.add('loaded'); };
+      tile.appendChild(img);
+      tile.addEventListener('click', () => openLightbox(att));
+    } else if (att.kind === 'video') {
+      const vid = document.createElement('video');
+      vid.src = att.url; vid.muted = true; vid.preload = 'metadata';
+      vid.onloadeddata = () => { vid.classList.add('loaded'); tile.classList.add('loaded'); };
+      tile.appendChild(vid);
+      const badge = document.createElement('div');
+      badge.className = 'play-badge';
+      badge.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><polygon points="6 3 20 12 6 21 6 3"/></svg>`;
+      tile.appendChild(badge);
+      tile.addEventListener('click', () => openLightbox(att));
+    }
+
+    if (i === 3 && n > 4) {
+      const more = document.createElement('div');
+      more.className = 'more-overlay';
+      more.textContent = `+${n - 4}`;
+      tile.appendChild(more);
+    }
+
+    grid.appendChild(tile);
+  });
+  return grid;
+}
+
+function appendMessage(from, fromId, text, timestamp, attachments, fromAvatar) {
   const mine = currentUser && fromId === currentUser.id;
-  const row = document.createElement('div');
-  row.className = 'msg-row ' + (mine ? 'mine' : 'theirs');
+  const time = timestamp ? new Date(timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+
+  const atts = Array.isArray(attachments) ? attachments : (attachments ? [attachments] : []);
+  const mediaAtts = atts.filter((a) => a.kind === 'image' || a.kind === 'video');
+  const docAtts = atts.filter((a) => a.kind === 'document');
+
+  const col = document.createElement('div');
+  col.className = 'msg-col';
 
   const meta = document.createElement('div');
   meta.className = 'msg-meta';
-  const time = timestamp ? new Date(timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
   meta.textContent = (mine ? 'You' : from) + (time ? ' · ' + time : '');
+  col.appendChild(meta);
 
-  const bubble = document.createElement('div');
-  bubble.className = 'msg-bubble';
-  bubble.textContent = text;
+  if (mediaAtts.length) {
+    const bubble = document.createElement('div');
+    bubble.className = 'msg-bubble media-only';
+    bubble.appendChild(buildMediaGrid(mediaAtts));
+    col.appendChild(bubble);
+  }
 
-  row.appendChild(meta);
-  row.appendChild(bubble);
+  docAtts.forEach((att) => { col.appendChild(buildDocCard(att)); });
+
+  if (text) {
+    const bubble = document.createElement('div');
+    bubble.className = 'msg-bubble';
+    bubble.textContent = text;
+    if (mediaAtts.length || docAtts.length) bubble.style.marginTop = '4px';
+    col.appendChild(bubble);
+  }
+
+  const row = document.createElement('div');
+  row.className = 'msg-row ' + (mine ? 'mine' : 'theirs');
+
+  if (mine) {
+    row.appendChild(col);
+  } else {
+    const withAvatar = document.createElement('div');
+    withAvatar.className = 'msg-with-avatar';
+    withAvatar.appendChild(avatarNode(from, fromAvatar, 30));
+    withAvatar.appendChild(col);
+    row.appendChild(withAvatar);
+  }
+
   $('msgs').appendChild(row);
   scrollToBottom();
 }
 
 function updateUsersList(users) {
   $('usersHeading').textContent = `Online — ${users.length}`;
-  $('usersList').innerHTML = users.map(u =>
-    `<div class="user-item"><span class="user-dot"></span>${escapeHtml(u)}</div>`
-  ).join('');
+  const container = $('usersList');
+  container.innerHTML = '';
+  users.forEach((u) => {
+    const username = typeof u === 'string' ? u : u.username;
+    const avatarUrl = typeof u === 'string' ? null : u.avatarUrl;
+    const row = document.createElement('div');
+    row.className = 'user-item';
+    row.appendChild(avatarNode(username, avatarUrl, 24));
+    const name = document.createElement('span');
+    name.className = 'user-name';
+    name.textContent = username;
+    row.appendChild(name);
+    const dot = document.createElement('span');
+    dot.className = 'user-dot';
+    row.appendChild(dot);
+    container.appendChild(row);
+  });
 }
 
+/* ══════════════════════════════════════════════════════
+   TYPING INDICATOR
+   ══════════════════════════════════════════════════════ */
+const typingUsers = new Map(); // userId -> { username, avatarUrl, timer }
+let myTypingActive = false;
+let myTypingTimer = null;
+
+function sendTyping(isTyping) {
+  if (!ws || ws.readyState !== WebSocket.OPEN) return;
+  ws.send(JSON.stringify({ type: 'typing', isTyping }));
+}
+function stopMyTyping() {
+  clearTimeout(myTypingTimer);
+  if (myTypingActive) { myTypingActive = false; sendTyping(false); }
+}
+function renderTypingIndicator() {
+  const el = $('typingIndicator');
+  const list = Array.from(typingUsers.values());
+  if (!list.length) { el.style.display = 'none'; return; }
+  el.style.display = 'flex';
+
+  const avatarsEl = $('typingAvatars');
+  avatarsEl.innerHTML = '';
+  list.slice(0, 3).forEach((u) => avatarsEl.appendChild(avatarNode(u.username, u.avatarUrl, 20)));
+
+  const names = list.map((u) => u.username);
+  let text;
+  if (names.length === 1) text = `${names[0]} is typing`;
+  else if (names.length === 2) text = `${names[0]} and ${names[1]} are typing`;
+  else if (names.length === 3) text = `${names[0]}, ${names[1]} and ${names[2]} are typing`;
+  else text = `${names[0]}, ${names[1]} +${names.length - 2} typing`;
+  $('typingText').textContent = text;
+}
+function handleTypingEvent(msg) {
+  if (!currentUser || msg.userId === currentUser.id) return;
+  const existing = typingUsers.get(msg.userId);
+  if (existing) clearTimeout(existing.timer);
+
+  if (msg.isTyping) {
+    const timer = setTimeout(() => { typingUsers.delete(msg.userId); renderTypingIndicator(); }, 4000);
+    typingUsers.set(msg.userId, { username: msg.username, avatarUrl: msg.avatarUrl, timer });
+  } else {
+    typingUsers.delete(msg.userId);
+  }
+  renderTypingIndicator();
+}
+function clearAllTyping() {
+  typingUsers.forEach((u) => clearTimeout(u.timer));
+  typingUsers.clear();
+  renderTypingIndicator();
+}
+
+/* ══════════════════════════════════════════════════════
+   Lightbox
+   ══════════════════════════════════════════════════════ */
+function openLightbox(att) {
+  const lb = $('lightbox');
+  const content = $('lightboxContent');
+  content.innerHTML = '';
+
+  const spinner = document.createElement('div');
+  spinner.className = 'lightbox-spinner';
+  spinner.innerHTML = ringSvg(0, true);
+  content.appendChild(spinner);
+
+  if (att.kind === 'image') {
+    const img = document.createElement('img');
+    img.src = att.url;
+    img.style.opacity = '0'; img.style.transition = 'opacity .2s ease';
+    img.onload = () => { img.style.opacity = '1'; spinner.remove(); };
+    content.appendChild(img);
+  } else {
+    const vid = document.createElement('video');
+    vid.src = att.url; vid.controls = true; vid.autoplay = true;
+    vid.oncanplay = () => spinner.remove();
+    content.appendChild(vid);
+  }
+  lb.classList.add('open');
+}
+$('lightboxClose').addEventListener('click', () => $('lightbox').classList.remove('open'));
+$('lightbox').addEventListener('click', (e) => { if (e.target.id === 'lightbox') $('lightbox').classList.remove('open'); });
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') $('lightbox').classList.remove('open'); });
+
+/* ══════════════════════════════════════════════════════
+   Connection / lifecycle
+   ══════════════════════════════════════════════════════ */
 async function init() {
   try {
     const meRes = await fetch('/api/chat/me');
@@ -358,7 +1196,6 @@ async function init() {
     showCenterMessage('Could not verify your session. Please log in again.', true);
     return;
   }
-
   connect();
 }
 
@@ -385,19 +1222,20 @@ function connect() {
         $('msgInput').disabled = false;
         $('sendBtn').disabled = false;
         $('emojiBtn').disabled = false;
+        $('attachBtn').disabled = false;
+        $('pollBtn').disabled = false;
         updateUsersList(msg.users || []);
         showChatUI();
+        // Existing polls (with everyone's stored votes) come back on join —
+        // this is what makes a poll survive the user leaving and returning.
+        (msg.polls || []).forEach((p) => renderOrUpdatePoll(p));
         $('msgInput').focus();
         break;
-      case 'system':
-        appendSystem(msg.text);
-        break;
-      case 'user_list':
-        updateUsersList(msg.users || []);
-        break;
-      case 'message':
-        appendMessage(msg.from, msg.fromId, msg.text, msg.timestamp);
-        break;
+      case 'system': appendSystem(msg.text); break;
+      case 'user_list': updateUsersList(msg.users || []); break;
+      case 'message': appendMessage(msg.from, msg.fromId, msg.text, msg.timestamp, msg.attachments, msg.fromAvatar); break;
+      case 'poll_update': renderOrUpdatePoll(msg.poll); break;
+      case 'typing': handleTypingEvent(msg); break;
       case 'room_deleted':
         manualLeave = true;
         showCenterMessage(msg.message || 'This room was closed.', false);
@@ -415,46 +1253,50 @@ function connect() {
 
   ws.onclose = () => {
     setConn('bad', 'Disconnected');
-    $('msgInput').disabled = true;
-    $('sendBtn').disabled = true;
-    $('emojiBtn').disabled = true;
-    toggleEmojiPicker(false);
+    $('msgInput').disabled = true; $('sendBtn').disabled = true;
+    $('emojiBtn').disabled = true; $('attachBtn').disabled = true; $('pollBtn').disabled = true;
+    toggleEmojiPicker(false); toggleAttachMenu(false); clearAllTyping();
     if (!manualLeave) {
       appendSystem('Connection lost. Returning to the room list…');
       setTimeout(() => { window.location.href = '/chat'; }, 2000);
     }
   };
-
   ws.onerror = () => setConn('bad', 'Connection error');
 }
 
 function sendMessage() {
   const input = $('msgInput');
   const text = input.value.trim();
-  if (!text || !ws || ws.readyState !== WebSocket.OPEN) return;
-  ws.send(JSON.stringify({ type: 'message', text }));
+  if (!ws || ws.readyState !== WebSocket.OPEN) return;
+  if (!text) return;
+  stopMyTyping();
+  ws.send(JSON.stringify({ type: 'message', text, attachments: [] }));
   input.value = '';
 }
 
 document.addEventListener('DOMContentLoaded', () => {
   buildEmojiPicker();
+  buildMiniEmojiPopover();
 
-  document.getElementById('msgInput').addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') sendMessage();
+  $('msgInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') sendMessage(); });
+  $('msgInput').addEventListener('input', () => {
+    if ($('msgInput').disabled) return;
+    if (!myTypingActive) { myTypingActive = true; sendTyping(true); }
+    clearTimeout(myTypingTimer);
+    myTypingTimer = setTimeout(() => { myTypingActive = false; sendTyping(false); }, 2500);
   });
 
-  $('emojiBtn').addEventListener('click', (e) => {
-    e.stopPropagation();
-    toggleEmojiPicker();
-  });
+  $('emojiBtn').addEventListener('click', (e) => { e.stopPropagation(); toggleEmojiPicker(); });
+  $('attachBtn').addEventListener('click', (e) => { e.stopPropagation(); toggleAttachMenu(); });
+  $('pollBtn').addEventListener('click', (e) => { e.stopPropagation(); openPollModal(); });
 
   document.addEventListener('click', (e) => {
     const picker = $('emojiPicker');
-    if (picker.classList.contains('open') &&
-        !picker.contains(e.target) &&
-        e.target !== $('emojiBtn')) {
-      toggleEmojiPicker(false);
-    }
+    if (picker.classList.contains('open') && !picker.contains(e.target) && e.target !== $('emojiBtn')) toggleEmojiPicker(false);
+    const menu = $('attachMenu');
+    if (menu.classList.contains('open') && !menu.contains(e.target) && e.target !== $('attachBtn')) toggleAttachMenu(false);
+    const mini = $('miniEmojiPopover');
+    if (mini.classList.contains('open') && !mini.contains(e.target) && !e.target.closest('.poll-emoji-btn')) closeMiniEmojiPopover();
   });
 
   init();
@@ -462,31 +1304,21 @@ document.addEventListener('DOMContentLoaded', () => {
 
 function leaveRoom() {
   manualLeave = true;
-  if (ws && ws.readyState === WebSocket.OPEN) {
-    ws.send(JSON.stringify({ type: 'leave' }));
-    ws.close();
-  }
+  stopMyTyping();
+  if (ws && ws.readyState === WebSocket.OPEN) { ws.send(JSON.stringify({ type: 'leave' })); ws.close(); }
   window.location.href = '/chat';
 }
 
 async function confirmDelete() {
   const confirmed = await openDeleteModal();
   if (!confirmed) return;
-
   modalDeleteBtn.disabled = true;
   modalDeleteBtn.textContent = 'Deleting…';
-
-  if (ws && ws.readyState === WebSocket.OPEN) {
-    manualLeave = true;
-    ws.send(JSON.stringify({ type: 'delete_room' }));
-  }
+  if (ws && ws.readyState === WebSocket.OPEN) { manualLeave = true; ws.send(JSON.stringify({ type: 'delete_room' })); }
 }
 
 window.addEventListener('beforeunload', () => {
-  if (ws && ws.readyState === WebSocket.OPEN) {
-    manualLeave = true;
-    ws.close();
-  }
+  if (ws && ws.readyState === WebSocket.OPEN) { manualLeave = true; ws.close(); }
 });
 </script>
 </body>

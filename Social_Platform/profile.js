@@ -6,8 +6,15 @@ const mongoose = require('mongoose');
 const verifyToken = require('../middle/middleware');
 const { SocialProfile, Post } = require('./social_models');
 
-// Max accepted size for a base64 avatar data URL (~2MB decoded).
-// Base64 inflates size by ~4/3, so we check the raw string length.
+// NOTE ON REQUIRE PATHS: these assume `Social_Platform/` and `chat/` are
+// sibling directories under the same backend root. Adjust if your layout
+// differs.
+const { uploadAvatar } = require('../chat/services/uploadService');
+const avatarService = require('../chat/services/avatarService');
+
+// Max accepted size for the incoming base64 avatar data URL (~2MB decoded).
+// Base64 inflates size by ~4/3, so we check the raw string length before
+// ever decoding it.
 const MAX_AVATAR_BYTES = 2 * 1024 * 1024;
 
 function sendResponse(res, statusCode, success, message, data = null) {
@@ -92,10 +99,17 @@ router.put('/api/profile', verifyToken, async (req, res) => {
 // ================= UPDATE PROFILE PHOTO =================
 // Expects { imageData: "data:image/png;base64,...." } — the frontend reads
 // the picked file from the user's computer with FileReader and sends it
-// as a base64 data URL. We store it directly on SocialProfile.avatarUrl
-// (a plain String field), so no extra file storage / multer setup is
-// required. Good enough for demo-scale profile photos; swap for real
-// object storage (S3, etc.) if avatars need to scale up later.
+// as a base64 data URL.
+//
+// CHANGED: rather than storing that base64 string directly on
+// SocialProfile.avatarUrl (which was slow to load — every profile fetch
+// shipped the full image inline), we now decode it and push it to
+// Cloudflare R2 via uploadAvatar(), and store only the resulting CDN URL.
+//
+// avatarVersion is incremented first so the R2 object key
+// (`avatars/{userId}_v{version}.jpg`) is unique per upload — that lets us
+// cache the image forever (immutable) on R2/the browser without ever
+// risking a viewer seeing a stale photo after someone updates theirs.
 router.post('/api/profile/avatar', verifyToken, async (req, res) => {
 
     try {
@@ -110,20 +124,45 @@ router.post('/api/profile/avatar', verifyToken, async (req, res) => {
         if (approxBytes > MAX_AVATAR_BYTES)
             return sendResponse(res, 400, false, 'Image is too large. Max size is 2MB');
 
-        const profile = await SocialProfile.findOneAndUpdate(
+        const matches = imageData.match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,(.+)$/);
+        if (!matches)
+            return sendResponse(res, 400, false, 'Invalid image data');
+
+        const mimetype = matches[1];
+        const buffer = Buffer.from(matches[2], 'base64');
+
+        // Bump the version first so this upload always gets a fresh,
+        // cache-busted key — even if two uploads race, each still lands
+        // on its own unique object.
+        const bumped = await SocialProfile.findOneAndUpdate(
             { userId },
-            { $set: { avatarUrl: imageData } },
+            { $inc: { avatarVersion: 1 } },
             { new: true }
         );
 
-        if (!profile)
+        if (!bumped)
             return sendResponse(res, 404, false, 'Social profile not found for this account');
+
+        const avatarUrl = await uploadAvatar(buffer, mimetype, userId, bumped.avatarVersion);
+
+        const profile = await SocialProfile.findOneAndUpdate(
+            { userId },
+            { $set: { avatarUrl } },
+            { new: true }
+        );
+
+        // So the next chat join/message picks up the new photo right away
+        // instead of waiting out avatarService's TTL.
+        avatarService.invalidate(userId);
 
         return sendResponse(res, 200, true, 'Profile photo updated successfully', {
             avatarUrl: profile.avatarUrl,
         });
 
     } catch (err) {
+        if (err.code === 'UNSUPPORTED_TYPE' || err.code === 'TOO_LARGE') {
+            return sendResponse(res, 400, false, err.message);
+        }
         console.error('⚠️ POST /api/profile/avatar error:', err);
         return sendResponse(res, 500, false, 'Failed to update profile photo');
     }

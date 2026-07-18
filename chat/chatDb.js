@@ -1,5 +1,5 @@
 
-const { conn } = require('../../db_connection');
+const { conn } = require('../db_connection');
 const pool = conn.promise();
 
 /**

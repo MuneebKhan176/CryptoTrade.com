@@ -5,21 +5,37 @@
  * passwords, joining/removing users, checking capacity, broadcasting
  * events, and keeping MySQL in sync with in-memory state.
  *
- * Rooms live in an in-memory Map because each room holds live WebSocket
- * references — those can never be persisted. `chatDb` mirrors metadata
- * and current_users for visibility/reporting only.
+ * Rooms now also own a `polls` map. Because polls live on the in-memory
+ * room object (same lifetime as everything else — members, etc.), a
+ * poll and every user's votes on it persist for as long as the room
+ * exists, regardless of whether any individual user leaves and rejoins.
+ * They're handed back to a (re)joining client via getPollsList().
+ *
+ * Polls are single-select: votePoll() clears a user's vote from every
+ * option before (optionally) re-adding it to the chosen one, so a user
+ * can only ever be "voted" on one option at a time in a given poll.
+ *
+ * Members now also carry an `avatarUrl`, resolved once at join time via
+ * avatarService (backed by the SocialProfile collection + Cloudflare R2
+ * URLs) and cached briefly there. This is what lets the chat UI show
+ * profile photos next to messages, in the sidebar, and in the typing
+ * indicator without a round trip per message.
  * -----------------------------------------------------------------------
  */
 
 const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
-const chatDb = require('../db/chatDb');
+const chatDb = require('../chatDb');
+const { deleteRoomAttachments } = require('../services/uploadService');
+const avatarService = require('../services/avatarService');
 
 const HARD_CAPACITY_LIMIT = 100;
 
 /** roomId -> { roomId, roomName, description, ownerId, ownerUsername,
  *              visibility, passwordHash, maxUsers, createdAt,
- *              members: Map<ws, { userId, username }> } */
+ *              members: Map<ws, { userId, username, avatarUrl }>,
+ *              polls: Map<pollId, { pollId, question, createdBy, createdById,
+ *                                    createdAt, options: [{ id, text, voterIds: Set<userId> }] }> } */
 const rooms = new Map();
 
 async function init() {
@@ -76,6 +92,7 @@ async function createRoom({ ownerId, ownerUsername, roomName, description, visib
     passwordHash,
     maxUsers: capacity,
     members: new Map(),
+    polls: new Map(),
     createdAt: new Date(),
   };
 
@@ -141,7 +158,16 @@ async function joinRoom(roomId, password, ws, user) {
     }
   }
 
-  room.members.set(ws, { userId: user.id, username: user.username });
+  // Resolved once per join (avatarService keeps its own short-lived cache,
+  // so this is cheap even across many joins for the same user).
+  let avatarUrl = null;
+  try {
+    avatarUrl = await avatarService.getAvatarUrl(user.id);
+  } catch (err) {
+    console.error('[chat] avatar lookup failed for user', user.id, err);
+  }
+
+  room.members.set(ws, { userId: user.id, username: user.username, avatarUrl });
   await chatDb.updateUserCount(roomId, room.members.size);
 
   return { ok: true, room };
@@ -176,6 +202,14 @@ async function deleteRoom(roomId, requesterId) {
   rooms.delete(roomId);
   await chatDb.deleteRoomById(roomId);
 
+  // Fire-and-forget-but-logged: don't block the delete response on R2
+  // cleanup, but don't silently swallow failures either.
+  deleteRoomAttachments(roomId)
+    .then((count) => {
+      if (count) console.log(`[chat] cleaned up ${count} R2 object(s) for room ${roomId}`);
+    })
+    .catch((err) => console.error('[chat] R2 cleanup failed for room', roomId, err));
+
   return { ok: true };
 }
 
@@ -189,10 +223,95 @@ function broadcast(roomId, payload, excludeWs) {
   }
 }
 
+/** Rich member list — {userId, username, avatarUrl} — used for the sidebar
+ *  and for the roster sent back on join. */
 function getMemberList(roomId) {
   const room = rooms.get(roomId);
   if (!room) return [];
-  return Array.from(room.members.values()).map((m) => m.username);
+  return Array.from(room.members.values()).map((m) => ({
+    userId: m.userId,
+    username: m.username,
+    avatarUrl: m.avatarUrl || null,
+  }));
+}
+
+/** Looks up a single connected member's avatar (used to stamp outgoing
+ *  chat messages and typing events without re-querying the DB). */
+function getMemberAvatar(roomId, userId) {
+  const room = rooms.get(roomId);
+  if (!room) return null;
+  for (const info of room.members.values()) {
+    if (info.userId === userId) return info.avatarUrl || null;
+  }
+  return null;
+}
+
+/* ────────────────────────────────────────────────────────────
+   POLLS
+   Stored on the room itself (in-memory, same lifetime as the
+   room), so leaving/rejoining a room never loses poll state —
+   only deleting the room (or a server restart) does.
+
+   Single-select: a user's userId can appear in at most one
+   option's voterIds at any time.
+   ──────────────────────────────────────────────────────────── */
+
+function toPublicPoll(poll) {
+  return {
+    pollId: poll.pollId,
+    question: poll.question,
+    createdBy: poll.createdBy,
+    createdAt: poll.createdAt,
+    options: poll.options.map((o) => ({ id: o.id, text: o.text, voterIds: Array.from(o.voterIds) })),
+  };
+}
+
+function createPoll(roomId, user, question, optionTexts) {
+  const room = rooms.get(roomId);
+  if (!room) return null;
+
+  const poll = {
+    pollId: crypto.randomUUID(),
+    question,
+    createdBy: user.username,
+    createdById: user.id,
+    createdAt: new Date(),
+    options: optionTexts.map((text) => ({ id: crypto.randomUUID(), text, voterIds: new Set() })),
+  };
+
+  room.polls.set(poll.pollId, poll);
+  return toPublicPoll(poll);
+}
+
+/**
+ * Single-select vote: clicking an option clears the user's vote from every
+ * other option in the poll first, then adds them to the clicked option —
+ * unless they were already on that exact option, in which case it's
+ * treated as an un-vote (click your current choice again to clear it).
+ */
+function votePoll(roomId, userId, pollId, optionId) {
+  const room = rooms.get(roomId);
+  if (!room) return null;
+  const poll = room.polls.get(pollId);
+  if (!poll) return null;
+  const targetOption = poll.options.find((o) => o.id === optionId);
+  if (!targetOption) return null;
+
+  const alreadyOnTarget = targetOption.voterIds.has(userId);
+
+  // Clear this user from every option (enforces single-select).
+  poll.options.forEach((o) => o.voterIds.delete(userId));
+
+  // Re-add only if they weren't already on the option they just clicked.
+  if (!alreadyOnTarget) targetOption.voterIds.add(userId);
+
+  return toPublicPoll(poll);
+}
+
+function getPollsList(roomId) {
+  const room = rooms.get(roomId);
+  if (!room) return [];
+  return Array.from(room.polls.values()).map(toPublicPoll);
 }
 
 module.exports = {
@@ -206,4 +325,8 @@ module.exports = {
   deleteRoom,
   broadcast,
   getMemberList,
+  getMemberAvatar,
+  createPoll,
+  votePoll,
+  getPollsList,
 };

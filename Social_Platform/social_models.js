@@ -7,6 +7,20 @@
  *   } = require('./social_models');
  * ----------------------------------------------------------------------------
  *  CHANGELOG (this revision):
+ *   - SocialProfile.avatarVersion -> NEW. Monotonically increasing counter,
+ *                                bumped once per avatar upload (see
+ *                                Social_Platform routes: POST
+ *                                /api/profile/avatar). Used to build a
+ *                                unique, cache-bustable R2 object key
+ *                                (`avatars/{userId}_v{version}.jpg`) so
+ *                                avatarUrl can be cached immutably forever
+ *                                on the CDN/browser and still update
+ *                                instantly whenever someone changes their
+ *                                photo. avatarUrl itself now stores a
+ *                                Cloudflare R2 URL rather than a raw
+ *                                base64 data string, which is what makes
+ *                                profile photos load quickly wherever
+ *                                they're shown (feed, profile, chat).
  *   - Post.sentiment          -> "bullish" | "bearish" | null (the button the
  *                                 user taps on the composer; rendered as a
  *                                 green ▲ / red ▼ pill next to the display
@@ -56,7 +70,14 @@ const SocialProfileSchema = new Schema(
 
     displayName: { type: String, default: "", trim: true, maxlength: 60 },
     bio: { type: String, default: "", maxlength: 300 },
+
+    // Cloudflare R2 CDN URL of the current avatar (not raw base64 — see
+    // POST /api/profile/avatar). Empty string until the user uploads one.
     avatarUrl: { type: String, default: "" },
+    // Bumped on every avatar upload; used to build the R2 object key so
+    // each new photo gets its own immutable, instantly-cacheable URL.
+    avatarVersion: { type: Number, default: 0 },
+
     coverUrl: { type: String, default: "" },
 
     isVerified: { type: Boolean, default: false },

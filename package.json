@@ -5,8 +5,7 @@
   "main": "web.js",
   "scripts": {
     "app": "nodemon web.js",
-    "dev": "nodemon web.js", 
-
+    "dev": "nodemon web.js",
     "build:engine": "\"C:\\msys64\\ucrt64\\bin\\g++.exe\" Spot_Engine/trade_engine.cpp -std=c++20 -D_WIN32_WINNT=0x0601 -IC:/Libraries/asio-1.36.0/include -lws2_32 -o engine.exe",
     "start:engine": "engine.exe",
     "spot": "npm run build:engine && npm run start:engine"
@@ -14,6 +13,7 @@
   "author": "Muneeb Khan",
   "license": "ISC",
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1089.0",
     "bcrypt": "^6.0.0",
     "bcryptjs": "^3.0.3",
     "cookie-parser": "^1.4.7",
@@ -25,6 +25,7 @@
     "mysql2": "^3.22.5",
     "nodemailer": "^9.0.0",
     "nodemon": "^3.1.14",
+    "sharp": "^0.35.3",
     "ws": "^8.21.0"
   }
 }
