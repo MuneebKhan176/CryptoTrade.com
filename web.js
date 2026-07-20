@@ -4,6 +4,8 @@ const http = require('http');
 
 const mongoConnection = require('./Social_Platform/mongo_connection');
 
+const verifyToken = require('./middle/middleware');
+
 // ---------------- MongoDB ----------------
 
 mongoConnection();
@@ -23,6 +25,7 @@ const create_Post = require('./Social_Platform/posts');
 const crypto_square=require('./Social_Platform/insights')
 const spotPanel = require('./routes/spotPanel_Route');
 const futuresPanel= require('./routes/futuresPanel_Route');
+const uploadRoutes = require('./routes/uploadRoutes');
 
 // ---------------- Managers ----------------
 
@@ -49,6 +52,7 @@ app.use(express.json({ limit: '5mb' }));
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 app.use(express.static(path.join(__dirname), { index: false }));
 
+
 // ---------------- Routes ----------------
 
 app.use(homeRoutes);
@@ -63,6 +67,8 @@ app.use(create_Post);
 app.use(crypto_square);
 app.use(spotPanel);
 app.use(futuresPanel);
+app.use('/api/chat', verifyToken, uploadRoutes);
+
 
 // ---------------- 404 ----------------
 

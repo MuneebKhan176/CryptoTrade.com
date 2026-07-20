@@ -7,6 +7,9 @@ const verifyToken = require('../middle/middleware');
 const RoomManager = require('../chat/managers/RoomManager');
 const { uploadAttachments } = require('../chat/services/uploadService');
 
+const ROOM_NAME_MAX = 30;
+const ROOM_DESC_MAX = 100;
+
 /* ────────────────────────────────────────────────────────────
    PAGES
    ──────────────────────────────────────────────────────────── */
@@ -46,8 +49,11 @@ router.post('/api/chat/rooms', verifyToken, async (req, res) => {
     if (!roomName || typeof roomName !== 'string' || !roomName.trim()) {
       return res.status(400).json({ success: false, message: 'Room name is required' });
     }
-    if (roomName.trim().length > 60) {
-      return res.status(400).json({ success: false, message: 'Room name must be 60 characters or fewer' });
+    if (roomName.trim().length > ROOM_NAME_MAX) {
+      return res.status(400).json({ success: false, message: `Room name must be ${ROOM_NAME_MAX} characters or fewer` });
+    }
+    if (description && description.toString().trim().length > ROOM_DESC_MAX) {
+      return res.status(400).json({ success: false, message: `Description must be ${ROOM_DESC_MAX} characters or fewer` });
     }
     if (!['public', 'private'].includes(visibility)) {
       return res.status(400).json({ success: false, message: 'Visibility must be public or private' });
@@ -60,7 +66,7 @@ router.post('/api/chat/rooms', verifyToken, async (req, res) => {
       ownerId: req.user.id,
       ownerUsername: req.user.username,
       roomName: roomName.trim(),
-      description: (description || '').toString().trim().slice(0, 200),
+      description: (description || '').toString().trim().slice(0, ROOM_DESC_MAX),
       visibility,
       password,
       maxUsers,

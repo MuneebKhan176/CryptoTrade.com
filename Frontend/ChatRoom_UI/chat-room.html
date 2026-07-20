@@ -3,13 +3,14 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>Room — CryptoTrade Chat</title>
+<title>Room — cordEX Chat</title>
 <style>
   *,*::before,*::after{margin:0;padding:0;box-sizing:border-box;}
   :root{
     --bg:#000000; --surface:#0a0a0a; --surface2:#111111; --surface3:#161616;
     --border:#1a1a1a; --border2:#222222; --text:#ffffff; --text-2:#888888; --text-3:#444444;
     --blue:#3b82f6; --blue-dim:rgba(59,130,246,.12); --green:#22c55e; --red:#ef4444; --red-dim:rgba(239,68,68,.12);
+    --amber:#f59e0b;
     --bubble-max:420px;
   }
   html,body{height:100%;}
@@ -24,6 +25,7 @@
   .nav-pill:hover{color:#fff;border-color:#444;background:var(--surface2);}
   .nav-pill.danger{border-color:rgba(239,68,68,.3);color:var(--red);}
   .nav-pill.danger:hover{background:rgba(239,68,68,.1);}
+  .nav-pill.icon-only{padding:7px 9px;}
   .conn-dot{width:7px;height:7px;border-radius:50%;background:var(--text-3);flex-shrink:0;}
   .conn-dot.live{background:var(--green);animation:pdot 1.5s infinite;}
   .conn-dot.bad{background:var(--red);}
@@ -33,20 +35,25 @@
   .chat-col{flex:1;display:flex;flex-direction:column;min-width:0;position:relative;}
   .msgs{flex:1;overflow-y:auto;padding:20px 24px;display:flex;flex-direction:column;gap:10px;}
 
-  .msg-row{display:flex;flex-direction:column;max-width:var(--bubble-max);}
+  .msg-row{position:relative;display:flex;flex-direction:column;max-width:var(--bubble-max);scroll-margin:80px;}
   .msg-row.mine{align-self:flex-end;align-items:flex-end;}
   .msg-row.theirs{align-self:flex-start;align-items:flex-start;}
   .msg-row.centered{align-self:center;align-items:stretch;}
+  .msg-row.search-active .msg-bubble{outline:2px solid var(--amber);outline-offset:1px;}
+  .msg-row.flash-highlight .msg-bubble{animation:flashHighlight 1.6s ease;}
+  @keyframes flashHighlight{0%,100%{box-shadow:none;}20%{box-shadow:0 0 0 3px rgba(59,130,246,.55);}}
 
   /* ── Avatars ── */
-  .avatar-wrap{border-radius:50%;overflow:hidden;flex-shrink:0;display:flex;align-items:center;justify-content:center;background:var(--surface3);}
+  .avatar-wrap{border-radius:50%;overflow:hidden;flex-shrink:0;display:flex;align-items:center;justify-content:center;background:var(--surface3);cursor:pointer;}
   .avatar-img{width:100%;height:100%;object-fit:cover;display:block;}
   .avatar-fallback{width:100%;height:100%;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;}
-  .msg-with-avatar{display:flex;gap:8px;align-items:flex-end;max-width:100%;}
+  .msg-with-avatar{display:flex;gap:8px;align-items:flex-start;max-width:100%;}
   .msg-col{display:flex;flex-direction:column;min-width:0;max-width:var(--bubble-max);}
 
-  .msg-meta{font-size:.7rem;color:var(--text-3);margin-bottom:3px;padding:0 3px;}
+  .msg-meta{font-size:.7rem;color:var(--text-3);margin-bottom:3px;padding:0 3px;display:flex;align-items:center;gap:4px;}
+  .msg-meta .edited-tag{font-style:italic;opacity:.8;}
   .msg-bubble{
+    position:relative;
     width:fit-content;max-width:100%;min-width:56px;
     padding:9px 13px;border-radius:16px;font-size:.86rem;line-height:1.5;
     word-wrap:break-word;overflow-wrap:anywhere;white-space:pre-wrap;
@@ -54,9 +61,141 @@
   .msg-row.mine .msg-bubble{background:var(--blue);color:#fff;border-bottom-right-radius:4px;}
   .msg-row.theirs .msg-bubble{background:var(--surface2);border:1px solid var(--border2);color:var(--text);border-bottom-left-radius:4px;}
   .msg-bubble.media-only{padding:3px;background:transparent!important;border:none!important;}
+  .msg-bubble.deleted{font-style:italic;color:var(--text-2)!important;background:var(--surface2)!important;border:1px dashed var(--border2)!important;}
+  .edit-input{width:100%;min-width:180px;background:rgba(0,0,0,.2);border:1px solid rgba(255,255,255,.3);border-radius:8px;color:inherit;font:inherit;padding:6px 8px;resize:vertical;}
+
+  /* ── WhatsApp-style single bubble: media (flush) + caption + time,
+     all inside one rounded card instead of separate stacked bubbles. ── */
+  .msg-bubble-wrap{position:relative;width:fit-content;max-width:100%;border-radius:16px;overflow:hidden;}
+  .msg-row.mine .msg-bubble-wrap{background:var(--blue);color:#fff;border-bottom-right-radius:4px;}
+  .msg-row.theirs .msg-bubble-wrap{background:var(--surface2);border:1px solid var(--border2);color:var(--text);border-bottom-left-radius:4px;}
+  .msg-bubble-wrap.deleted{background:var(--surface2)!important;border:1px dashed var(--border2)!important;}
+  .msg-bubble-wrap.deleted .msg-text-content{font-style:italic;color:var(--text-2)!important;}
+  .msg-media{position:relative;display:block;line-height:0;}
+  .msg-text-content{padding:9px 13px;font-size:.86rem;line-height:1.5;word-wrap:break-word;overflow-wrap:anywhere;white-space:pre-wrap;}
+  .msg-text-content.with-media{padding-top:6px;}
+  .msg-bottom-row{display:flex;align-items:center;justify-content:flex-end;gap:4px;padding:0 13px 7px;margin-top:-2px;}
+  .msg-bottom-row.no-text{padding-top:7px;}
+  .msg-time-text{font-size:.68rem;color:rgba(255,255,255,.7);white-space:nowrap;}
+  .msg-row.theirs .msg-time-text{color:var(--text-3);}
+  .edited-tag-inline{font-size:.68rem;font-style:italic;opacity:.75;white-space:nowrap;}
+  .media-time-overlay{
+    position:absolute;bottom:7px;right:9px;background:rgba(0,0,0,.55);color:#fff;
+    font-size:.68rem;font-weight:600;padding:2px 7px;border-radius:20px;
+    display:flex;align-items:center;gap:3px;pointer-events:none;z-index:2;
+  }
+  .media-time-overlay .status-icon{width:13px;height:13px;color:rgba(255,255,255,.85);}
+  .media-time-overlay .status-icon.read{color:#60a5fa;}
+
+  /* ── In-container header row for incoming messages: sender name
+     (top-left) + options/menu button (top-right), on the same row,
+     living INSIDE the message bubble itself. Colored per sender so the
+     black text/icon stay readable regardless of the (dark) bubble
+     background beneath it. Own (sent) messages no longer render a
+     dedicated header row/line at all — their menu button floats as an
+     absolutely-positioned overlay in the corner of the bubble instead
+     (see .msg-header-menu-btn.own-floating below), revealed on hover
+     only, so it never consumes an extra line of vertical space. ── */
+  .msg-header-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:6px 10px 4px;}
+  .msg-header-name{font-size:.78rem;font-weight:800;color:#000;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:200px;}
+  .msg-header-menu-btn{
+    flex-shrink:0;width:22px;height:22px;border-radius:50%;border:none;
+    background:rgba(0,0,0,.14);color:#000;cursor:pointer;
+    display:flex;align-items:center;justify-content:center;
+    transition:background .15s,opacity .15s;
+    opacity:0;
+  }
+  /* Hidden by default; revealed only while hovering the message row —
+     applies to both incoming (in-row) and own (floating) buttons. */
+  .msg-row:hover .msg-header-menu-btn{opacity:1;}
+  .msg-header-menu-btn:hover{background:rgba(0,0,0,.26);}
+  .msg-header-menu-btn.own{background:rgba(255,255,255,.18);color:#fff;}
+  .msg-header-menu-btn.own:hover{background:rgba(255,255,255,.3);}
+  .msg-header-menu-btn svg{width:14px;height:14px;stroke:currentColor;}
+  /* Own (sent) message menu button: floats over the top-right corner of
+     the bubble instead of occupying its own row/line. */
+  .msg-header-menu-btn.own-floating{
+    position:absolute;
+    top:6px;right:6px;
+    z-index:4;
+  }
 
   .sys-row{align-self:center;font-size:.74rem;color:var(--text-3);background:var(--surface2);padding:5px 12px;border-radius:100px;margin:4px 0;}
 
+  .date-separator{align-self:center;display:flex;align-items:center;justify-content:center;gap:10px;margin:10px 0 4px;width:100%;}
+  .date-separator span{font-size:.7rem;font-weight:700;color:var(--text-2);background:var(--surface2);border:1px solid var(--border2);padding:4px 12px;border-radius:100px;white-space:nowrap;}
+
+  /* ── Reply quote (rendered directly below the sender name inside a
+     message's own bubble container, above the message content) ── */
+  .reply-quote{display:flex;flex-direction:column;gap:1px;padding:5px 9px;border-left:3px solid var(--blue);background:rgba(255,255,255,.06);border-radius:6px;margin-bottom:3px;cursor:pointer;max-width:100%;}
+  .msg-row.mine .reply-quote{background:#000000;}
+  .reply-quote:hover{background:rgba(255,255,255,.1);}
+  .reply-quote-from{font-size:.72rem;font-weight:700;color:var(--blue);}
+  .msg-row.mine .reply-quote-from{color:var(--blue);}
+  .reply-quote-text{font-size:.76rem;color:var(--text-2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .msg-row.mine .reply-quote-text{color:#ffffff;}
+  /* Small inset when nested inside a bubble wrap (below the name /
+     below the top corner) so it doesn't butt up against the rounded
+     bubble edges or the floating own menu button. */
+  .msg-bubble-wrap .reply-quote{margin:4px 8px 0px;}
+  .msg-bubble-wrap .reply-quote:first-child{margin-top:6px;}
+
+  .msg-bubble-wrap .reply-quote{margin:4px 8px 0px;}
+.msg-bubble-wrap .reply-quote:first-child{margin-top:6px;}
+/* NEW — tighten the gap between the quote box and the real message
+   text that follows it, so it matches the compact 1px gap already
+   used *inside* the quote (name → quoted text). */
+.msg-bubble-wrap .reply-quote + .msg-text-content{padding-top:3px;}
+.msg-bubble-wrap .reply-quote{padding-bottom:4px;}
+
+  /* ── Reply preview bar above the composer ── */
+  .reply-preview-bar{display:none;align-items:center;gap:10px;padding:8px 16px;border-top:1px solid var(--border);background:var(--surface2);flex-shrink:0;}
+  .reply-preview-bar{border-left:3px solid var(--blue);}
+  .reply-preview-content{flex:1;min-width:0;display:flex;flex-direction:column;}
+  .reply-preview-label{font-size:.72rem;font-weight:700;color:var(--blue);}
+  .reply-preview-text{font-size:.78rem;color:var(--text-2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .reply-preview-close{background:none;border:none;color:var(--text-2);cursor:pointer;font-size:1rem;width:26px;height:26px;border-radius:50%;flex-shrink:0;}
+  .reply-preview-close:hover{background:var(--surface3);color:#fff;}
+
+  /* ── Reactions ── */
+  .reaction-bar{display:flex;flex-wrap:wrap;justify-content:flex-start;gap:4px;margin-top:4px;}
+  .msg-row.mine .reaction-bar{justify-content:flex-end;}
+  .reaction-pill{display:inline-flex;align-items:center;gap:4px;background:var(--surface2);border:1px solid var(--border2);border-radius:100px;padding:2px 8px;font-size:.74rem;cursor:pointer;transition:all .12s;}
+  .reaction-pill:hover{border-color:#555;}
+  .reaction-pill.mine{background:var(--blue-dim);border-color:var(--blue);}
+  .reaction-pill .r-count{color:var(--text-2);font-size:.7rem;}
+  .reaction-pill.mine .r-count{color:#bfdbfe;}
+
+  /* ── Hover action cluster (emoji react trigger) — sits outside the
+     bubble, vertically centered on it, transparent icons matching the
+     composer's emoji button style rather than a filled colored circle.
+     The options/menu button no longer lives here for either side — it
+     now lives inside each message's own container (see
+     .msg-header-row / .msg-header-menu-btn.own-floating above), so
+     this cluster is now just the quick-react trigger for both incoming
+     and own messages. ── */
+  .msg-hover-actions{
+    opacity:0;transition:opacity .12s;position:absolute;top:50%;transform:translateY(-50%);
+    display:flex;align-items:center;gap:1px;
+  }
+  .msg-row.mine .msg-hover-actions{left:-38px;}
+  .msg-row.theirs .msg-hover-actions{right:-38px;}
+  .msg-row:hover .msg-hover-actions{opacity:1;}
+  .msg-hover-btn{
+    width:28px;height:28px;border-radius:50%;background:transparent;border:none;
+    display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--text-2);
+    transition:background .15s,color .15s;flex-shrink:0;
+  }
+  .msg-hover-btn:hover{background:rgba(255,255,255,.08);color:#fff;}
+  .msg-hover-btn svg{width:17px;height:17px;stroke:currentColor;}
+
+  /* ── Message status ticks (own messages only) ── */
+  .status-icon{width:14px;height:14px;flex-shrink:0;color:rgba(255,255,255,.6);}
+  .status-icon.read{color:#60a5fa;}
+  .status-icon.failed{color:var(--red);cursor:pointer;}
+  .status-icon.spin{animation:spin .8s linear infinite;}
+
+  /* ── Media grid ── */
   .media-grid{display:grid;gap:2px;width:var(--bubble-max);max-width:100%;border-radius:13px;overflow:hidden;}
   .media-grid.n1{width:280px;}
   .media-grid.n2{grid-template-columns:1fr 1fr;aspect-ratio:2/1;}
@@ -80,6 +219,10 @@
     position:absolute;inset:0;background:rgba(0,0,0,.55);color:#fff;
     display:flex;align-items:center;justify-content:center;font-size:1.4rem;font-weight:700;
   }
+  .media-tile .duration-badge{
+    position:absolute;bottom:6px;left:6px;background:rgba(0,0,0,.7);color:#fff;
+    font-size:.68rem;font-weight:600;padding:2px 6px;border-radius:5px;pointer-events:none;letter-spacing:.02em;
+  }
 
   .ring{width:34px;height:34px;transform:rotate(-90deg);}
   .ring circle{fill:none;stroke-width:3;}
@@ -87,6 +230,7 @@
   .ring .bar{stroke:#fff;stroke-linecap:round;transition:stroke-dashoffset .15s linear;}
   .ring.spin{animation:ringspin 1s linear infinite;}
   @keyframes ringspin{to{transform:rotate(270deg)}}
+  @keyframes spin{to{transform:rotate(360deg)}}
 
   /* ── WhatsApp-style document card ── */
   .doc-card{
@@ -124,6 +268,15 @@
   .chat-send:disabled{opacity:.4;cursor:not-allowed;}
   .chat-send svg{width:19px;height:19px;}
 
+  /* Tighten the space between message text and the timestamp/ticks row
+   that follows it — the general .msg-text-content padding (9px bottom)
+   was built for the case where nothing sits under it, but now that
+   .msg-bottom-row always sits directly underneath, that bottom padding
+   is redundant and stacks with the row's own spacing. */
+   .msg-text-content{padding-bottom:0px;}
+   .msg-bottom-row{margin-top:0;}
+   .msg-text-content .md-content p:empty{display:none;}
+
   .emoji-btn{
     flex-shrink:0;width:42px;height:42px;border-radius:8px;border:1px solid var(--border2);
     background:var(--surface2);color:var(--text-2);cursor:pointer;
@@ -159,6 +312,33 @@
   .attach-menu button svg{width:18px;height:18px;stroke:var(--text-2);flex-shrink:0;}
   .attach-menu button:hover svg{stroke:#fff;}
 
+  /* ── Right-click / long-press context menu on a message ── */
+  .context-menu{
+    position:fixed;width:190px;background:var(--surface2);border:1px solid var(--border2);border-radius:10px;
+    padding:6px;display:none;flex-direction:column;gap:1px;box-shadow:0 8px 24px rgba(0,0,0,.55);z-index:1200;
+  }
+  .context-menu.open{display:flex;}
+  .context-menu button{display:block;width:100%;text-align:left;padding:9px 10px;border:none;background:none;color:var(--text);font-size:.83rem;border-radius:7px;cursor:pointer;}
+  .context-menu button:hover{background:var(--surface3);}
+  .context-menu button.danger{color:var(--red);}
+  .context-menu button.danger:hover{background:var(--red-dim);}
+
+  /* ── Pinned message banner ── */
+  .pinned-banner{display:none;align-items:center;gap:10px;padding:9px 20px;background:var(--surface2);border-bottom:1px solid var(--border);cursor:pointer;flex-shrink:0;}
+  .pinned-banner:hover{background:var(--surface3);}
+  .pinned-banner svg{width:16px;height:16px;color:var(--amber);flex-shrink:0;}
+  .pinned-text{flex:1;min-width:0;font-size:.8rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text-2);}
+  .pinned-unpin{background:none;border:none;color:var(--text-2);cursor:pointer;width:26px;height:26px;border-radius:50%;flex-shrink:0;}
+  .pinned-unpin:hover{background:var(--surface3);color:#fff;}
+
+  /* ── Search bar ── */
+  .search-bar{display:none;align-items:center;gap:8px;padding:10px 20px;background:var(--surface2);border-bottom:1px solid var(--border);flex-shrink:0;}
+  .search-bar input{flex:1;background:var(--surface3);border:1px solid var(--border2);border-radius:8px;color:#fff;font-size:.84rem;padding:8px 12px;outline:none;}
+  .search-bar input:focus{border-color:#444;}
+  .search-count{font-size:.76rem;color:var(--text-2);white-space:nowrap;min-width:64px;text-align:center;}
+  .search-bar button{background:var(--surface3);border:1px solid var(--border2);border-radius:7px;color:var(--text-2);width:30px;height:30px;cursor:pointer;flex-shrink:0;}
+  .search-bar button:hover{color:#fff;border-color:#444;}
+
   .compose-overlay{
     position:absolute;inset:0;background:#000;display:none;flex-direction:column;z-index:40;
   }
@@ -180,12 +360,24 @@
   .compose-send:disabled{opacity:.5;cursor:not-allowed;}
   .compose-send svg{width:19px;height:19px;}
 
-  .lightbox{position:fixed;inset:0;background:rgba(0,0,0,.92);display:flex;align-items:center;justify-content:center;z-index:2000;opacity:0;pointer-events:none;transition:opacity .18s ease;}
+  .lightbox{position:fixed;inset:0;background:rgba(0,0,0,.92);display:flex;align-items:center;justify-content:center;z-index:2000;opacity:0;pointer-events:none;transition:opacity .18s ease;overflow:hidden;}
   .lightbox.open{opacity:1;pointer-events:auto;}
-  .lightbox img,.lightbox video{max-width:92vw;max-height:88vh;border-radius:6px;box-shadow:0 20px 60px rgba(0,0,0,.6);}
-  .lightbox-close{position:absolute;top:18px;right:22px;background:rgba(255,255,255,.08);border:none;color:#fff;width:38px;height:38px;border-radius:50%;font-size:1.2rem;cursor:pointer;}
+  .lightbox-stage{position:relative;width:100%;height:100%;display:flex;align-items:center;justify-content:center;touch-action:none;}
+  .lightbox img,.lightbox video{max-width:92vw;max-height:88vh;border-radius:6px;box-shadow:0 20px 60px rgba(0,0,0,.6);user-select:none;-webkit-user-drag:none;}
+  .lightbox img{cursor:zoom-in;transition:transform .08s ease-out;}
+  .lightbox img.zoomed{cursor:grab;}
+  .lightbox img.panning{cursor:grabbing;transition:none;}
+  .lightbox-close{position:absolute;top:18px;right:22px;background:rgba(255,255,255,.08);border:none;color:#fff;width:38px;height:38px;border-radius:50%;font-size:1.2rem;cursor:pointer;z-index:5;}
   .lightbox-close:hover{background:rgba(255,255,255,.18);}
   .lightbox-spinner{position:absolute;}
+  .lightbox-nav{position:absolute;top:50%;transform:translateY(-50%);background:rgba(255,255,255,.08);border:none;color:#fff;width:44px;height:44px;border-radius:50%;cursor:pointer;font-size:1.3rem;z-index:5;display:flex;align-items:center;justify-content:center;transition:background .15s;}
+  .lightbox-nav:hover{background:rgba(255,255,255,.2);}
+  .lightbox-nav.prev{left:18px;} .lightbox-nav.next{right:18px;}
+  .lightbox-counter{position:absolute;top:22px;left:22px;color:rgba(255,255,255,.7);font-size:.8rem;font-weight:600;background:rgba(255,255,255,.08);padding:5px 12px;border-radius:100px;z-index:5;}
+  .lightbox-video-controls{position:absolute;bottom:24px;left:50%;transform:translateX(-50%);display:flex;gap:8px;z-index:5;}
+  .lightbox-video-btn{background:rgba(255,255,255,.1);border:none;color:#fff;width:38px;height:38px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;}
+  .lightbox-video-btn:hover{background:rgba(255,255,255,.22);}
+  .lightbox-video-btn svg{width:17px;height:17px;}
 
   .sidebar{width:220px;flex-shrink:0;border-left:1px solid var(--border);background:var(--surface);display:flex;flex-direction:column;padding:18px 16px;}
   .sidebar h4{font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text-3);margin-bottom:12px;}
@@ -209,7 +401,7 @@
 
   .center-state{flex:1;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:10px;color:var(--text-2);font-size:.9rem;text-align:center;padding:40px;}
   .spinner{width:22px;height:22px;border:2.5px solid var(--border2);border-top-color:var(--blue);border-radius:50%;animation:spin .7s linear infinite;}
-  @keyframes spin{to{transform:rotate(360deg)}}
+  .history-spinner{align-self:center;padding:6px;}
 
   ::-webkit-scrollbar{width:5px;} ::-webkit-scrollbar-track{background:transparent;} ::-webkit-scrollbar-thumb{background:var(--border2);border-radius:99px;}
 
@@ -243,12 +435,17 @@
   .poll-option-remove:hover{color:var(--red);background:var(--red-dim);}
   .poll-add-option-btn{width:100%;justify-content:center;margin-bottom:18px;}
 
-  .poll-emoji-btn{
-    flex-shrink:0;width:30px;height:30px;border-radius:7px;border:1px solid var(--border2);
-    background:var(--surface3);color:var(--text-2);cursor:pointer;font-size:.95rem;
+  /* Single shared, transparent emoji trigger for the whole poll modal —
+     inserts into whichever question/option field the user last focused,
+     instead of every field having its own icon. */
+  .poll-emoji-toggle-btn{
+    flex-shrink:0;width:30px;height:30px;border-radius:50%;border:none;
+    background:transparent;color:var(--text-2);cursor:pointer;
     display:flex;align-items:center;justify-content:center;transition:all .15s;
   }
-  .poll-emoji-btn:hover{color:#fff;border-color:#444;background:var(--surface2);}
+  .poll-emoji-toggle-btn svg{width:18px;height:18px;stroke:currentColor;}
+  .poll-emoji-toggle-btn:hover{color:#fff;background:rgba(255,255,255,.08);}
+  .poll-emoji-toggle-btn.active{color:var(--blue);background:var(--blue-dim);}
 
   .mini-emoji-popover{
     position:fixed;width:232px;max-height:200px;overflow-y:auto;
@@ -279,34 +476,124 @@
 
   .pending-attach{display:none;}
 
+  /* ── PHASE 2: Markdown rendering inside bubbles ── */
+  .msg-bubble .md-content p, .msg-text-content .md-content p{margin:0;}
+  .msg-bubble .md-content p + p, .msg-text-content .md-content p + p{margin-top:6px;}
+  .msg-bubble .md-content strong, .msg-text-content .md-content strong{font-weight:700;}
+  .msg-bubble .md-content em, .msg-text-content .md-content em{font-style:italic;}
+  .msg-bubble .md-content del, .msg-text-content .md-content del{opacity:.75;}
+  .msg-bubble .md-content code, .msg-text-content .md-content code{background:rgba(255,255,255,.14);padding:1px 5px;border-radius:4px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.82em;}
+  .msg-bubble .md-content pre, .msg-text-content .md-content pre{background:rgba(0,0,0,.28);border:1px solid rgba(255,255,255,.08);border-radius:8px;padding:8px 10px;overflow-x:auto;margin:6px 0;}
+  .msg-bubble .md-content pre code, .msg-text-content .md-content pre code{background:none;padding:0;}
+  .msg-bubble .md-content blockquote, .msg-text-content .md-content blockquote{border-left:3px solid rgba(255,255,255,.35);padding:2px 0 2px 10px;margin:6px 0;opacity:.85;}
+  .msg-bubble .md-content ul, .msg-bubble .md-content ol, .msg-text-content .md-content ul, .msg-text-content .md-content ol{margin:4px 0 4px 18px;}
+  .msg-bubble .md-content a, .msg-text-content .md-content a{color:inherit;text-decoration:underline;text-underline-offset:2px;word-break:break-all;}
+  .msg-row.theirs .msg-bubble .md-content a, .msg-row.theirs .msg-text-content .md-content a{color:var(--blue);}
+
+  /* ── PHASE 2: Link preview card ── */
+  .link-preview-card{display:flex;flex-direction:column;width:280px;max-width:100%;border:1px solid var(--border2);border-radius:12px;overflow:hidden;text-decoration:none;color:inherit;background:rgba(255,255,255,.04);margin-top:4px;transition:background .15s,border-color .15s;}
+  .link-preview-card:hover{background:rgba(255,255,255,.08);border-color:#3a3a3a;}
+  .link-preview-image{width:100%;height:130px;object-fit:cover;background:var(--surface3);display:block;}
+  .link-preview-body{padding:9px 11px;display:flex;flex-direction:column;gap:3px;}
+  .link-preview-site{display:flex;align-items:center;gap:6px;font-size:.68rem;color:var(--text-2);text-transform:uppercase;letter-spacing:.03em;}
+  .link-preview-favicon{width:13px;height:13px;border-radius:3px;flex-shrink:0;}
+  .link-preview-title{font-size:.8rem;font-weight:700;line-height:1.3;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;}
+  .link-preview-desc{font-size:.74rem;color:var(--text-2);line-height:1.35;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;}
+
+  /* ── PHASE 2: Upload progress bubble (speed / ETA / pause / cancel) ── */
+  .upload-card{width:280px;max-width:100%;background:rgba(255,255,255,.05);border:1px solid var(--border2);border-radius:13px;padding:11px 12px;display:flex;flex-direction:column;gap:8px;}
+  .upload-card-top{display:flex;align-items:center;gap:10px;}
+  .upload-card-icon{width:36px;height:36px;border-radius:9px;background:var(--surface3);display:flex;align-items:center;justify-content:center;flex-shrink:0;color:var(--text-2);}
+  .upload-card-icon svg{width:18px;height:18px;}
+  .upload-card-info{flex:1;min-width:0;display:flex;flex-direction:column;}
+  .upload-card-name{font-size:.8rem;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .upload-card-meta{font-size:.7rem;color:var(--text-2);margin-top:1px;}
+  .upload-card-actions{display:flex;gap:4px;flex-shrink:0;}
+  .upload-card-btn{width:28px;height:28px;border-radius:50%;border:1px solid var(--border2);background:var(--surface3);color:var(--text-2);cursor:pointer;display:flex;align-items:center;justify-content:center;}
+  .upload-card-btn:hover{color:#fff;border-color:#555;}
+  .upload-card-btn svg{width:13px;height:13px;}
+  .upload-progress-track{height:5px;border-radius:99px;background:rgba(255,255,255,.08);overflow:hidden;}
+  .upload-progress-bar{height:100%;background:var(--blue);border-radius:99px;transition:width .2s ease;width:0%;}
+  .upload-progress-bar.failed{background:var(--red);}
+  .upload-progress-bar.paused{background:var(--amber);}
+
+  /* ── PHASE 2: Drag & drop overlay ── */
+  .drop-overlay{position:absolute;inset:0;z-index:60;display:none;align-items:center;justify-content:center;flex-direction:column;gap:12px;background:rgba(59,130,246,.12);backdrop-filter:blur(2px);border:3px dashed var(--blue);border-radius:0;pointer-events:none;}
+  .drop-overlay.active{display:flex;}
+  .drop-overlay svg{width:46px;height:46px;color:var(--blue);}
+  .drop-overlay span{font-size:1rem;font-weight:700;color:#fff;}
+
   @media(max-width:700px){
-    .sidebar{display:none;} :root{--bubble-max:82vw;} .emoji-picker{width:250px;left:12px;} .attach-menu{left:12px;}
+    .sidebar{display:none;} :root{--bubble-max:78vw;} .emoji-picker{width:250px;left:12px;} .attach-menu{left:12px;}
     .media-grid.n1{width:220px;} .doc-card{width:auto;}
+    /* Keep the hover-react cluster reachable at narrow widths instead of
+       hiding it outright — it only needs a smaller offset now that it's
+       a single button per side, so it still lands on-screen when the
+       message row is hovered. */
+    .msg-row.mine .msg-hover-actions{left:-36px;}
+    .msg-row.theirs .msg-hover-actions{right:-36px;}
+    .link-preview-card,.upload-card{width:100%;}
+  }
+  @media(max-width:460px){
+    .msg-row.mine .msg-hover-actions{left:-32px;}
+    .msg-row.theirs .msg-hover-actions{right:-32px;}
+    .msg-hover-btn{width:26px;height:26px;}
+    .msg-hover-btn svg{width:15px;height:15px;}
   }
 </style>
 </head>
 <body>
 
 <header class="topnav">
-  <a href="/dashboard" class="topnav-logo">CryptoTrade</a>
+  <a href="/dashboard" class="topnav-logo">cordEX</a>
   <div class="room-title-wrap">
     <span class="room-title" id="roomTitle">Loading room…</span>
     <span class="room-sub" id="roomSub"><span class="conn-dot" id="connDot"></span> Connecting…</span>
   </div>
   <div class="topnav-right">
+    <button class="nav-pill icon-only" id="searchToggleBtn" title="Search messages" style="display:none;">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+    </button>
     <button class="nav-pill danger" id="deleteBtn" style="display:none;" onclick="confirmDelete()">Delete Room</button>
     <button class="nav-pill" onclick="leaveRoom()">Leave</button>
   </div>
 </header>
 
 <div class="layout" id="layout" style="display:none;">
-  <div class="chat-col">
+  <div class="chat-col" id="chatCol">
+    <div class="drop-overlay" id="dropOverlay">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+      <span>Drop to upload</span>
+    </div>
+
+    <div class="pinned-banner" id="pinnedBanner">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="17" x2="12" y2="22"/><path d="M5 17h14l-1.5-1.5A3.5 3.5 0 0 1 16 13V8a4 4 0 0 0-8 0v5a3.5 3.5 0 0 1-1.5 2.5z"/></svg>
+      <span class="pinned-text" id="pinnedText"></span>
+      <button class="pinned-unpin" id="pinnedUnpinBtn" title="Unpin" style="display:none;">✕</button>
+    </div>
+
+    <div class="search-bar" id="searchBar">
+      <input type="text" id="searchInput" placeholder="Search usernames, messages, files…"/>
+      <span class="search-count" id="searchCount"></span>
+      <button type="button" id="searchPrevBtn" title="Previous match">↑</button>
+      <button type="button" id="searchNextBtn" title="Next match">↓</button>
+      <button type="button" id="searchCloseBtn" title="Close search">✕</button>
+    </div>
+
     <div class="msgs" id="msgs"></div>
 
     <div class="typing-indicator" id="typingIndicator">
       <div class="typing-avatars" id="typingAvatars"></div>
       <span class="typing-text" id="typingText"></span>
       <span class="typing-dots"><span></span><span></span><span></span></span>
+    </div>
+
+    <div class="reply-preview-bar" id="replyPreviewBar">
+      <div class="reply-preview-content">
+        <span class="reply-preview-label" id="replyPreviewLabel"></span>
+        <span class="reply-preview-text" id="replyPreviewText"></span>
+      </div>
+      <button class="reply-preview-close" id="replyPreviewClose" type="button" title="Cancel reply">✕</button>
     </div>
 
     <div class="input-row">
@@ -344,7 +631,7 @@
         </svg>
      </button>
       <div class="emoji-picker" id="emojiPicker"></div>
-      <input class="chat-input" id="msgInput" type="text" placeholder="Type a message…" maxlength="2000" disabled/>
+      <input class="chat-input" id="msgInput" type="text" placeholder="Message" maxlength="2000" disabled/>
       <button class="chat-send" id="sendBtn" onclick="sendMessage()" disabled title="Send">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
           <line x1="4" y1="12" x2="20" y2="12"/><polyline points="13 5 20 12 13 19"/>
@@ -394,8 +681,8 @@
         <path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
       </svg>
     </div>
-    <div class="modal-title">Delete this room?</div>
-    <div class="modal-text">Are you sure you want to permanently delete this room for everyone? This action cannot be undone.</div>
+    <div class="modal-title" id="deleteModalTitle">Delete this room?</div>
+    <div class="modal-text" id="deleteModalText">Are you sure you want to permanently delete this room for everyone? This action cannot be undone.</div>
     <div class="modal-actions">
       <button class="modal-btn modal-btn-cancel" id="modalCancelBtn">Cancel</button>
       <button class="modal-btn modal-btn-delete" id="modalDeleteBtn">Delete</button>
@@ -409,7 +696,12 @@
     <div class="modal-title">Create a poll</div>
     <div class="poll-q-row">
       <input type="text" id="pollQuestionInput" class="poll-q-input" placeholder="Ask a question…" maxlength="200"/>
-      <button type="button" class="poll-emoji-btn" id="pollQuestionEmojiBtn" title="Add emoji">🙂</button>
+      <button type="button" class="poll-emoji-toggle-btn" id="pollEmojiToggleBtn" title="Insert emoji">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="9"/><path d="M8.5 14.5c1 1.2 2.2 1.8 3.5 1.8s2.5-.6 3.5-1.8"/>
+          <line x1="8.5" y1="9.5" x2="8.5" y2="9.51"/><line x1="15.5" y1="9.5" x2="15.5" y2="9.51"/>
+        </svg>
+      </button>
     </div>
     <div class="poll-options-list" id="pollOptionsList"></div>
     <button type="button" class="nav-pill poll-add-option-btn" id="pollAddOptionBtn">+ Add option</button>
@@ -421,6 +713,11 @@
 </div>
 
 <div class="mini-emoji-popover" id="miniEmojiPopover"></div>
+<div class="context-menu" id="contextMenu"></div>
+
+<!-- PHASE 2: markdown render + sanitize (CDN, no build step needed) -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/marked/9.1.6/marked.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
 
 <script>
 const roomId = window.location.pathname.split('/').pop();
@@ -474,20 +771,35 @@ function avatarNode(username, avatarUrl, size) {
 }
 
 /* ═══════════════════════════════════════════════════════
-   DELETE CONFIRMATION MODAL
+   Generic id generator — used for message clientIds. Falls
+   back gracefully if crypto.randomUUID isn't available.
+   ═══════════════════════════════════════════════════════ */
+function generateId() {
+  if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
+  return 'id-' + Date.now() + '-' + Math.random().toString(16).slice(2);
+}
+
+/* ═══════════════════════════════════════════════════════
+   DELETE CONFIRMATION MODAL — reused for both "delete room"
+   and "delete message" confirmations (see confirmDeleteMessage).
    ═══════════════════════════════════════════════════════ */
 const deleteModalOverlay = document.getElementById('deleteModalOverlay');
 const modalCancelBtn      = document.getElementById('modalCancelBtn');
 const modalDeleteBtn      = document.getElementById('modalDeleteBtn');
 let modalResolver = null;
 
-function openDeleteModal() {
+function openConfirmModal(title, text, confirmLabel) {
   return new Promise((resolve) => {
     modalResolver = resolve;
+    $('deleteModalTitle').textContent = title;
+    $('deleteModalText').textContent = text;
+    modalDeleteBtn.textContent = confirmLabel || 'Delete';
     deleteModalOverlay.classList.add('open');
     modalDeleteBtn.disabled = false;
-    modalDeleteBtn.textContent = 'Delete';
   });
+}
+function openDeleteModal() {
+  return openConfirmModal('Delete this room?', 'Are you sure you want to permanently delete this room for everyone? This action cannot be undone.', 'Delete');
 }
 function closeDeleteModal(result) {
   deleteModalOverlay.classList.remove('open');
@@ -505,6 +817,8 @@ const EMOJI_GROUPS = [
   { label: 'Tasks & Important', emojis: ['✅','❌','⚠️','📌','📝','🕒','⏰','🔔','📢','❗','❓','💡','🔧','📊','🎯','🚩','👍','👎','🙌','🙏'] }
 ];
 const MINI_EMOJI_LIST = EMOJI_GROUPS.reduce((acc, g) => acc.concat(g.emojis), []);
+// Quick-react set — the handful shown as one-tap reactions (Discord-style).
+const REACTION_EMOJIS = ['👍','❤️','😂','😮','😢','🎉'];
 
 function buildEmojiPicker() {
   const picker = $('emojiPicker');
@@ -535,23 +849,59 @@ function toggleEmojiPicker(force) {
   btn.classList.toggle('active', open);
 }
 
-/* ── Mini emoji popover — shared by the poll question + option inputs ── */
-let miniEmojiTarget = null;
+/* ── Mini emoji popover — shared by the poll question + option inputs.
+   Also reused (with a different callback) for message reactions, so
+   we don't duplicate a second identical popover component. ── */
+let miniEmojiTarget = null;      // an <input> to insert into, OR...
+let miniEmojiOnPick = null;      // ...a callback(emoji) for non-input use (reactions)
 function buildMiniEmojiPopover() {
   const pop = $('miniEmojiPopover');
   pop.innerHTML = MINI_EMOJI_LIST.map(e => `<button type="button" data-emoji="${e}">${e}</button>`).join('');
   pop.addEventListener('click', (e) => {
     const btn = e.target.closest('button[data-emoji]');
-    if (!btn || !miniEmojiTarget) return;
-    insertEmojiInto(miniEmojiTarget, btn.dataset.emoji);
+    if (!btn) return;
+    if (miniEmojiOnPick) miniEmojiOnPick(btn.dataset.emoji);
+    else if (miniEmojiTarget) insertEmojiInto(miniEmojiTarget, btn.dataset.emoji);
+    closeMiniEmojiPopover();
   });
 }
-function openMiniEmojiPopover(anchorEl, targetInput) {
-  miniEmojiTarget = targetInput;
+/**
+ * Opens the shared mini emoji popover anchored to `anchorEl`.
+ * Vertical placement prefers opening BELOW the anchor and flips ABOVE
+ * it if there isn't enough room beneath. Horizontal placement prefers
+ * right-aligning the popover to the anchor's right edge (so it opens
+ * leftward, which suits both incoming-message and own/sent-message
+ * anchors sitting near the right side of the screen) and flips to
+ * left-aligning with the anchor if that would run off the left edge.
+ * Both axes clamp to the viewport as a final safety net so the
+ * popover is never clipped or rendered off-screen.
+ */
+function openMiniEmojiPopover(anchorEl, targetInputOrCallback) {
+  closeMiniEmojiPopover();
+  if (typeof targetInputOrCallback === 'function') { miniEmojiTarget = null; miniEmojiOnPick = targetInputOrCallback; }
+  else { miniEmojiTarget = targetInputOrCallback; miniEmojiOnPick = null; }
   const pop = $('miniEmojiPopover');
   const rect = anchorEl.getBoundingClientRect();
-  const top = Math.min(rect.bottom + 6, window.innerHeight - 210);
-  const left = Math.max(8, Math.min(rect.left - 180, window.innerWidth - 240));
+  const popW = 232, popH = 200, margin = 8;
+
+  let top;
+  const spaceBelow = window.innerHeight - rect.bottom;
+  if (spaceBelow >= popH + margin || rect.top < popH) {
+    top = Math.min(rect.bottom + 6, window.innerHeight - popH - margin);
+  } else {
+    top = Math.max(margin, rect.top - popH - 6);
+  }
+
+  let left;
+  const preferredLeft = rect.right - popW;
+  if (preferredLeft >= margin) {
+    left = preferredLeft;
+  } else if (rect.left + popW <= window.innerWidth - margin) {
+    left = rect.left;
+  } else {
+    left = Math.max(margin, Math.min(preferredLeft, window.innerWidth - popW - margin));
+  }
+
   pop.style.top = top + 'px';
   pop.style.left = left + 'px';
   pop.classList.add('open');
@@ -559,6 +909,9 @@ function openMiniEmojiPopover(anchorEl, targetInput) {
 function closeMiniEmojiPopover() {
   $('miniEmojiPopover').classList.remove('open');
   miniEmojiTarget = null;
+  miniEmojiOnPick = null;
+  const pollBtn = document.getElementById('pollEmojiToggleBtn');
+  if (pollBtn) pollBtn.classList.remove('active');
 }
 
 // ---------- Attach Menu (plus button) ----------
@@ -647,6 +1000,16 @@ function buildDocPreview(file) {
     </div>`;
   return div;
 }
+/** Same summary text the server uses for reply previews of media-only
+ *  messages — kept in sync so a locally-built reply preview matches
+ *  what the server would have produced. */
+function attachmentSummaryLabel(atts) {
+  if (!atts || !atts.length) return '';
+  const a = atts[0];
+  if (a.kind === 'image') return atts.length > 1 ? `📷 ${atts.length} photos` : '📷 Photo';
+  if (a.kind === 'video') return '🎬 Video';
+  return `📄 ${a.name || 'Document'}`;
+}
 
 /* ══════════════════════════════════════════════════════
    COMPOSE OVERLAY — preview + caption before send
@@ -731,7 +1094,9 @@ async function sendComposedFiles() {
   const caption = $('composeCaption').value.trim();
   const items = composeItems;
   const isDocOnly = items.length === 1 && items[0].kind === 'document';
+  const replyToSend = replyTarget;
   closeComposeOverlayKeepingUrls();
+  clearReplyTarget();
 
   const row = document.createElement('div');
   row.className = 'msg-row mine';
@@ -762,18 +1127,21 @@ async function sendComposedFiles() {
       row.querySelectorAll('.tile-spinner').forEach((el) => { el.innerHTML = ringSvg(pct, false); });
     });
 
+    row.remove();
+    items.forEach((it) => { if (it.objectUrl) URL.revokeObjectURL(it.objectUrl); });
+
     if (!data.success) {
       appendSystem('⚠ ' + data.message);
-      row.remove();
       return;
     }
 
-    ws.send(JSON.stringify({ type: 'message', text: caption, attachments: data.data }));
+    // Attachments are already uploaded — hand off to the normal message
+    // pipeline so status ticks / retry work exactly like a text message.
+    dispatchMessage(caption, data.data, replyToSend);
   } catch (e) {
-    appendSystem('⚠ Upload failed');
-  } finally {
     row.remove();
     items.forEach((it) => { if (it.objectUrl) URL.revokeObjectURL(it.objectUrl); });
+    appendSystem('⚠ Upload failed');
   }
 }
 
@@ -893,17 +1261,23 @@ function votePoll(pollId, optionId) {
 const pollModalOverlay = $('pollModalOverlay');
 const pollOptionsList = $('pollOptionsList');
 
+// One shared emoji trigger for the whole modal (question + every option)
+// instead of a separate icon per field — it inserts into whichever field
+// the user last focused/clicked into, tracked here.
+let lastFocusedPollInput = null;
+function trackPollFocus(input) {
+  input.addEventListener('focus', () => { lastFocusedPollInput = input; });
+}
+
 function createPollOptionRow(value) {
   const row = document.createElement('div');
   row.className = 'poll-option-input-row';
   row.innerHTML = `
     <input type="text" class="poll-option-input" maxlength="80" placeholder="Option" value="${escapeHtml(value || '')}"/>
-    <button type="button" class="poll-emoji-btn" title="Add emoji">🙂</button>
     <button type="button" class="poll-option-remove" title="Remove">✕</button>
   `;
   const input = row.querySelector('.poll-option-input');
-  const emojiBtn = row.querySelector('.poll-emoji-btn');
-  emojiBtn.addEventListener('click', (e) => { e.stopPropagation(); openMiniEmojiPopover(emojiBtn, input); });
+  trackPollFocus(input);
   row.querySelector('.poll-option-remove').addEventListener('click', () => {
     if (pollOptionsList.children.length > 2) row.remove();
   });
@@ -915,6 +1289,7 @@ function openPollModal() {
   pollOptionsList.innerHTML = '';
   pollOptionsList.appendChild(createPollOptionRow());
   pollOptionsList.appendChild(createPollOptionRow());
+  lastFocusedPollInput = $('pollQuestionInput');
   pollModalOverlay.classList.add('open');
   $('pollQuestionInput').focus();
 }
@@ -923,9 +1298,12 @@ function closePollModal() {
   closeMiniEmojiPopover();
 }
 
-$('pollQuestionEmojiBtn').addEventListener('click', (e) => {
+trackPollFocus($('pollQuestionInput'));
+$('pollEmojiToggleBtn').addEventListener('click', (e) => {
   e.stopPropagation();
-  openMiniEmojiPopover(e.currentTarget, $('pollQuestionInput'));
+  const target = (lastFocusedPollInput && document.body.contains(lastFocusedPollInput)) ? lastFocusedPollInput : $('pollQuestionInput');
+  $('pollEmojiToggleBtn').classList.add('active');
+  openMiniEmojiPopover(e.currentTarget, target);
 });
 $('pollAddOptionBtn').addEventListener('click', () => {
   if (pollOptionsList.children.length >= 10) return;
@@ -953,6 +1331,33 @@ $('pollCreateBtn').addEventListener('click', () => {
 });
 
 /* ══════════════════════════════════════════════════════
+   MESSAGE STATE
+   messagesById: id (real or "pending-<clientId>") -> {
+     row, message, textBubbleEl, reactionsEl, statusEl, readObserved
+   }
+   Kept so status/edits/reactions/reads can update a message
+   in place without re-rendering the whole feed.
+   ══════════════════════════════════════════════════════ */
+const messagesById = new Map();
+const pendingByClientId = new Map();   // clientId -> local (pending-) message id
+const pendingPayloads = new Map();     // clientId -> ws payload, for retry
+const pendingTimeouts = new Map();     // clientId -> ack timeout handle
+
+let replyTarget = null;       // {id, from, textPreview, kind}
+let contextMenuMessageId = null;
+let pinnedMessage = null;
+let earliestLoadedId = null;
+let hasMoreHistory = false;
+let loadingHistory = false;
+
+const deletedForMeKey = 'chat_deleted_for_me_' + roomId;
+let deletedForMeIds = new Set();
+try { deletedForMeIds = new Set(JSON.parse(localStorage.getItem(deletedForMeKey) || '[]')); } catch (e) { /* ignore */ }
+function persistDeletedForMe() {
+  try { localStorage.setItem(deletedForMeKey, JSON.stringify(Array.from(deletedForMeIds))); } catch (e) { /* storage full/unavailable */ }
+}
+
+/* ══════════════════════════════════════════════════════
    Rendering finished messages (own + incoming)
    ══════════════════════════════════════════════════════ */
 function setConn(state, label) {
@@ -970,9 +1375,42 @@ function showCenterMessage(text, isError) {
     : `<div class="spinner"></div><div>${escapeHtml(text)}</div>`;
 }
 function scrollToBottom() { const m = $('msgs'); m.scrollTop = m.scrollHeight; }
+function isNearBottom() { const m = $('msgs'); return m.scrollHeight - m.scrollTop - m.clientHeight < 120; }
 function appendSystem(text) {
   const div = document.createElement('div'); div.className = 'sys-row'; div.textContent = text;
   $('msgs').appendChild(div); scrollToBottom();
+}
+
+/* ── Date separators ──
+   Rebuilt from scratch on every batch update rather than tracked
+   incrementally — simplest way to stay correct whether messages were
+   appended at the bottom or prepended at the top via infinite scroll. */
+function dateKeyOf(ts) { return new Date(ts).toDateString(); }
+function formatDateLabel(ts) {
+  const date = new Date(ts);
+  const today = new Date();
+  const yest = new Date(); yest.setDate(today.getDate() - 1);
+  if (dateKeyOf(date) === dateKeyOf(today)) return 'Today';
+  if (dateKeyOf(date) === dateKeyOf(yest)) return 'Yesterday';
+  const opts = { month: 'long', day: 'numeric' };
+  if (date.getFullYear() !== today.getFullYear()) opts.year = 'numeric';
+  return date.toLocaleDateString([], opts);
+}
+function rebuildDateSeparators() {
+  const container = $('msgs');
+  container.querySelectorAll('.date-separator').forEach((el) => el.remove());
+  let lastKey = null;
+  Array.from(container.children).forEach((row) => {
+    if (!row.classList.contains('msg-row') || !row.dataset.timestamp) return;
+    const key = dateKeyOf(row.dataset.timestamp);
+    if (key !== lastKey) {
+      const sep = document.createElement('div');
+      sep.className = 'date-separator';
+      sep.innerHTML = `<span>${escapeHtml(formatDateLabel(row.dataset.timestamp))}</span>`;
+      container.insertBefore(sep, row);
+      lastKey = key;
+    }
+  });
 }
 
 function buildMediaGrid(mediaAtts) {
@@ -1004,17 +1442,23 @@ function buildMediaGrid(mediaAtts) {
       img.alt = att.name || 'image';
       img.onload = () => { img.classList.add('loaded'); tile.classList.add('loaded'); };
       tile.appendChild(img);
-      tile.addEventListener('click', () => openLightbox(att));
+      tile.addEventListener('click', () => openLightbox(mediaAtts, i));
     } else if (att.kind === 'video') {
       const vid = document.createElement('video');
       vid.src = att.url; vid.muted = true; vid.preload = 'metadata';
       vid.onloadeddata = () => { vid.classList.add('loaded'); tile.classList.add('loaded'); };
+      vid.onloadedmetadata = () => {
+        const badge = document.createElement('div');
+        badge.className = 'duration-badge';
+        badge.textContent = formatDuration(vid.duration);
+        tile.appendChild(badge);
+      };
       tile.appendChild(vid);
       const badge = document.createElement('div');
       badge.className = 'play-badge';
       badge.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><polygon points="6 3 20 12 6 21 6 3"/></svg>`;
       tile.appendChild(badge);
-      tile.addEventListener('click', () => openLightbox(att));
+      tile.addEventListener('click', () => openLightbox(mediaAtts, i));
     }
 
     if (i === 3 && n > 4) {
@@ -1028,56 +1472,950 @@ function buildMediaGrid(mediaAtts) {
   });
   return grid;
 }
+function formatDuration(seconds) {
+  if (!isFinite(seconds) || seconds < 0) return '0:00';
+  const m = Math.floor(seconds / 60);
+  const s = Math.floor(seconds % 60);
+  return `${m}:${String(s).padStart(2, '0')}`;
+}
 
-function appendMessage(from, fromId, text, timestamp, attachments, fromAvatar) {
-  const mine = currentUser && fromId === currentUser.id;
-  const time = timestamp ? new Date(timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+/* ── Status ticks (own messages only) ── */
+function statusIconSvg(status) {
+  if (status === 'sending') return `<svg class="status-icon spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="8" stroke-dasharray="38" stroke-dashoffset="12"/></svg>`;
+  if (status === 'sent') return `<svg class="status-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 12 9 17 20 6"/></svg>`;
+  if (status === 'delivered') return `<svg class="status-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 12 6 17 15 6"/><polyline points="8 12 13 17 23 6"/></svg>`;
+  if (status === 'read') return `<svg class="status-icon read" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 12 6 17 15 6"/><polyline points="8 12 13 17 23 6"/></svg>`;
+  if (status === 'failed') return `<svg class="status-icon failed" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><line x1="12" y1="8" x2="12" y2="13"/><circle cx="12" cy="16.3" r="0.6" fill="currentColor"/></svg>`;
+  return '';
+}
+function updateStatusEl(entry) {
+  if (!entry.statusEl) return;
+  const status = entry.message.status;
+  entry.statusEl.innerHTML = statusIconSvg(status);
+  entry.statusEl.title = status === 'failed' ? 'Failed to send — click to retry'
+    : status === 'read' ? 'Read'
+    : status === 'delivered' ? 'Delivered'
+    : status === 'sent' ? 'Sent'
+    : 'Sending…';
+  entry.statusEl.style.cursor = status === 'failed' ? 'pointer' : 'default';
+}
 
-  const atts = Array.isArray(attachments) ? attachments : (attachments ? [attachments] : []);
+/* ── Reactions ── */
+function buildReactionBar(message, messageId) {
+  const emojis = Object.keys(message.reactions || {});
+  const bar = document.createElement('div');
+  bar.className = 'reaction-bar';
+  if (!emojis.length) { bar.style.display = 'none'; return bar; }
+  emojis.forEach((emoji) => {
+    const voters = message.reactions[emoji] || [];
+    if (!voters.length) return;
+    const mine = currentUser && voters.includes(currentUser.id);
+    const pill = document.createElement('button');
+    pill.type = 'button';
+    pill.className = 'reaction-pill' + (mine ? ' mine' : '');
+    pill.innerHTML = `<span>${emoji}</span><span class="r-count">${voters.length}</span>`;
+    pill.title = voters.map((id) => (id === (currentUser && currentUser.id) ? 'You' : (memberNameById(id) || 'Someone'))).join(', ');
+    pill.addEventListener('click', () => sendReaction(messageId, emoji));
+    bar.appendChild(pill);
+  });
+  return bar;
+}
+function memberNameById(userId) {
+  const el = document.querySelector(`.user-item[data-user-id="${userId}"] .user-name`);
+  return el ? el.textContent : null;
+}
+function sendReaction(messageId, emoji) {
+  if (!ws || ws.readyState !== WebSocket.OPEN) return;
+  if (messageId.startsWith('pending-')) return; // can't react until the server has assigned a real id
+  // Single-active-reaction-per-user: the server (RoomManager.toggleReaction)
+  // clears any other emoji this user had on the message before applying
+  // this one, so a plain toggle send here is all the client needs to do —
+  // picking a different emoji automatically replaces the previous choice.
+  ws.send(JSON.stringify({ type: 'react_message', messageId, emoji }));
+}
+function openReactionPickerFor(messageId) {
+  const entry = messagesById.get(messageId);
+  if (!entry) return;
+  const anchor = entry.row.querySelector('.msg-bubble-wrap') || entry.row.querySelector('.msg-bubble') || entry.row;
+  openMiniEmojiPopover(anchor, (emoji) => sendReaction(messageId, emoji));
+}
+
+/* ── Bubble text / deleted / edited rendering ──
+   PHASE 2: text is now rendered as sanitized Markdown instead of plain
+   text. marked() converts the markdown to HTML, DOMPurify strips
+   anything dangerous (script tags, event handler attributes, javascript:
+   URLs, etc) before it ever touches innerHTML. Raw HTML in the source
+   message is disabled in marked's config below, so someone typing
+   "<img onerror=...>" just sees literal escaped text, not markup. */
+if (window.marked) {
+  marked.setOptions({ breaks: true, gfm: true, headerIds: false, mangle: false });
+}
+function renderMarkdownSafe(text) {
+  if (!text) return '';
+  if (!window.marked || !window.DOMPurify) return escapeHtml(text); // CDN failed to load — fail safe to plain escaped text
+  const rawHtml = marked.parse(text, { silent: true });
+  return DOMPurify.sanitize(rawHtml, {
+    ALLOWED_TAGS: ['p','br','strong','em','del','code','pre','blockquote','ul','ol','li','a'],
+    ALLOWED_ATTR: ['href','target','rel'],
+    ALLOW_DATA_ATTR: false,
+  });
+}
+function renderBubbleText(bubble, message) {
+  bubble.innerHTML = '';
+  if (message.deletedForEveryone) {
+    bubble.classList.add('deleted');
+    bubble.textContent = 'This message was deleted.';
+    return;
+  }
+  bubble.classList.remove('deleted');
+  const content = document.createElement('div');
+  content.className = 'md-content';
+  content.innerHTML = renderMarkdownSafe(message.text || '');
+  // Force every link to open safely in a new tab regardless of what
+  // marked/DOMPurify let through for target/rel.
+  content.querySelectorAll('a[href]').forEach((a) => {
+    a.target = '_blank';
+    a.rel = 'noopener noreferrer nofollow';
+  });
+  bubble.appendChild(content);
+}
+
+/* ── PHASE 2: Link preview card ── */
+function buildLinkPreviewCard(preview) {
+  const a = document.createElement('a');
+  a.className = 'link-preview-card';
+  a.href = preview.url;
+  a.target = '_blank';
+  a.rel = 'noopener noreferrer nofollow';
+  if (preview.image) {
+    const img = document.createElement('img');
+    img.className = 'link-preview-image';
+    img.loading = 'lazy';
+    img.src = preview.image;
+    img.alt = '';
+    img.onerror = () => img.remove();
+    a.appendChild(img);
+  }
+  const body = document.createElement('div');
+  body.className = 'link-preview-body';
+  const siteRow = document.createElement('div');
+  siteRow.className = 'link-preview-site';
+  if (preview.favicon) {
+    const fav = document.createElement('img');
+    fav.className = 'link-preview-favicon';
+    fav.src = preview.favicon;
+    fav.alt = '';
+    fav.onerror = () => fav.remove();
+    siteRow.appendChild(fav);
+  }
+  const siteName = document.createElement('span');
+  siteName.textContent = preview.siteName || new URL(preview.url).hostname;
+  siteRow.appendChild(siteName);
+  body.appendChild(siteRow);
+  if (preview.title) {
+    const t = document.createElement('div');
+    t.className = 'link-preview-title';
+    t.textContent = preview.title;
+    body.appendChild(t);
+  }
+  if (preview.description) {
+    const d = document.createElement('div');
+    d.className = 'link-preview-desc';
+    d.textContent = preview.description;
+    body.appendChild(d);
+  }
+  a.appendChild(body);
+  return a;
+}
+function renderLinkPreviewInto(col, preview) {
+  if (!col || !preview) return;
+  const existing = col.querySelector('.link-preview-card');
+  if (existing) existing.remove();
+  col.appendChild(buildLinkPreviewCard(preview));
+}
+
+/** Small time + edited-tag + (own messages only) status-ticks row, used
+ *  at the bottom-right of a text bubble — matches WhatsApp's inline
+ *  timestamp instead of a separate meta line above the message. */
+function buildBottomRow(message, mine) {
+  const row = document.createElement('div');
+  row.className = 'msg-bottom-row';
+  if (message.edited) {
+    const tag = document.createElement('span');
+    tag.className = 'edited-tag-inline';
+    tag.textContent = 'edited';
+    row.appendChild(tag);
+  }
+  const timeSpan = document.createElement('span');
+  timeSpan.className = 'msg-time-text';
+  timeSpan.textContent = message.timestamp ? new Date(message.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+  row.appendChild(timeSpan);
+  let statusEl = null;
+  if (mine && !message.deletedForEveryone) {
+    statusEl = document.createElement('span');
+    statusEl.className = 'msg-status-wrap';
+    statusEl.style.cssText = 'display:inline-flex;align-items:center;';
+    row.appendChild(statusEl);
+  }
+  return { row, statusEl };
+}
+
+/** Same time/ticks, but overlaid directly on media (image/video) when a
+ *  message has no caption text — matches WhatsApp/Telegram's overlay
+ *  timestamp in the corner of a bare photo/video bubble. */
+function buildMediaTimeOverlay(message, mine) {
+  const overlay = document.createElement('div');
+  overlay.className = 'media-time-overlay';
+  const timeSpan = document.createElement('span');
+  timeSpan.textContent = message.timestamp ? new Date(message.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+  overlay.appendChild(timeSpan);
+  let statusEl = null;
+  if (mine && !message.deletedForEveryone) {
+    statusEl = document.createElement('span');
+    statusEl.style.cssText = 'display:inline-flex;align-items:center;';
+    overlay.appendChild(statusEl);
+  }
+  return { overlay, statusEl };
+}
+
+/**
+ * Builds a reply-quote element for a message (or null if the message
+ * isn't a reply / has been deleted). Shared by every place that needs
+ * to insert the quote — always placed directly below the sender name
+ * (incoming) or, for own messages which show no name line, at the top
+ * of the bubble content, per the required order:
+ *   Display Name -> Reply Preview -> Message Content
+ */
+function buildReplyQuoteEl(message) {
+  if (!message.replyTo || message.deletedForEveryone) return null;
+  const quote = document.createElement('div');
+  quote.className = 'reply-quote';
+  quote.innerHTML = `<span class="reply-quote-from">${escapeHtml(message.replyTo.from)}</span><span class="reply-quote-text">${escapeHtml(message.replyTo.textPreview)}</span>`;
+  quote.addEventListener('click', (e) => { e.stopPropagation(); jumpToMessage(message.replyTo.id); });
+  return quote;
+}
+
+/** Header row shown INSIDE an incoming message's container: the sender's
+ *  name at top-left and a down-arrow menu button at top-right, on the
+ *  same row. The menu button is hidden by default and only revealed on
+ *  hover (see .msg-header-menu-btn CSS). Never used for the current
+ *  user's own messages — those use buildOwnMenuHeader() instead, which
+ *  is a standalone floating button rather than a row (see below).
+ *  Colored per-sender (same hash as the avatar fallback) with black
+ *  text/icon so it reads clearly regardless of the bubble's own (dark)
+ *  background. */
+function buildMsgHeaderRow(username, messageId, mine, showMenu) {
+  const row = document.createElement('div');
+  row.className = 'msg-header-row';
+  row.style.background = colorForName(username);
+
+  const nameEl = document.createElement('span');
+  nameEl.className = 'msg-header-name';
+  nameEl.textContent = username;
+  row.appendChild(nameEl);
+
+  if (showMenu !== false) {
+    const menuBtn = document.createElement('button');
+    menuBtn.type = 'button';
+    menuBtn.className = 'msg-header-menu-btn';
+    menuBtn.title = 'More options';
+    menuBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>`;
+    menuBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const r = menuBtn.getBoundingClientRect();
+      // Anchored open: horizontal + vertical placement both auto-flip to
+      // whichever side has room — see openContextMenu()'s placement logic.
+      openContextMenu(r.left, r.bottom, messageId, mine, { anchorTop: r.top, anchorBottom: r.bottom, anchorLeft: r.left, anchorRight: r.right });
+    });
+    row.appendChild(menuBtn);
+  }
+
+  return row;
+}
+
+/** Menu button for an outgoing (own/sent) message: a small floating
+ *  button overlaid on the TOP-RIGHT corner of the bubble, hidden by
+ *  default and only revealed on hover of the message row (no dedicated
+ *  row/line is reserved for it — see .msg-header-menu-btn.own-floating
+ *  CSS). This mirrors buildMsgHeaderRow()'s menu button for incoming
+ *  messages, just without a name label or the extra line of height. */
+function buildOwnMenuHeader(messageId) {
+  const menuBtn = document.createElement('button');
+  menuBtn.type = 'button';
+  menuBtn.className = 'msg-header-menu-btn own own-floating';
+  menuBtn.title = 'More options';
+  menuBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>`;
+  menuBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const r = menuBtn.getBoundingClientRect();
+    openContextMenu(r.left, r.bottom, messageId, true, { anchorTop: r.top, anchorBottom: r.bottom, anchorLeft: r.left, anchorRight: r.right });
+  });
+  return menuBtn;
+}
+
+/** Builds the text bubble used both for a normal text-only message and
+ *  for a message that has been deleted (tombstone) — same container
+ *  shape (incl. the name/menu header for incoming messages, and the
+ *  floating menu button for own messages) either way, so a message
+ *  that arrives already-deleted from history and one that gets deleted
+ *  live look identical. The reply quote (if any) is inserted directly
+ *  after the header, before the message text, per the required order:
+ *  Display Name -> Reply Preview -> Message Content. Shared by
+ *  renderMessage() and applyDeletedState(). */
+function buildTextOrTombstoneWrap(message, mine) {
+  const wrapEl = document.createElement('div');
+  wrapEl.className = 'msg-bubble-wrap' + (message.deletedForEveryone ? ' deleted' : '');
+  if (!mine) {
+    wrapEl.appendChild(buildMsgHeaderRow(message.from, message.id, mine, !message.deletedForEveryone));
+  } else if (!message.deletedForEveryone) {
+    wrapEl.appendChild(buildOwnMenuHeader(message.id));
+  }
+  const quoteEl = buildReplyQuoteEl(message);
+  if (quoteEl) wrapEl.appendChild(quoteEl);
+  const textBubbleEl = document.createElement('div');
+  textBubbleEl.className = 'msg-text-content';
+  renderBubbleText(textBubbleEl, message);
+  wrapEl.appendChild(textBubbleEl);
+  const bottom = buildBottomRow(message, mine);
+  wrapEl.appendChild(bottom.row);
+  return { wrapEl, textBubbleEl, statusEl: bottom.statusEl };
+}
+
+/** Hover-only action cluster that sits just outside the bubble,
+ *  vertically centered on it, with transparent icons matching the
+ *  composer's emoji button style. This now holds ONLY the quick-react
+ *  trigger for BOTH incoming and own messages — the options/menu
+ *  button lives inside each message's own container instead (see
+ *  buildMsgHeaderRow / buildOwnMenuHeader), so the only things outside
+ *  a message's container are the avatar (incoming) and this single
+ *  reaction affordance. */
+function buildHoverActions(messageId, mine) {
+  const wrap = document.createElement('div');
+  wrap.className = 'msg-hover-actions';
+
+  const emojiBtn = document.createElement('button');
+  emojiBtn.type = 'button';
+  emojiBtn.className = 'msg-hover-btn';
+  emojiBtn.title = 'React';
+  emojiBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M8.5 14.5c1 1.2 2.2 1.8 3.5 1.8s2.5-.6 3.5-1.8"/><line x1="8.5" y1="9.5" x2="8.5" y2="9.51"/><line x1="15.5" y1="9.5" x2="15.5" y2="9.51"/></svg>`;
+  emojiBtn.addEventListener('click', (e) => { e.stopPropagation(); openReactionPickerFor(messageId); });
+  wrap.appendChild(emojiBtn);
+
+  return wrap;
+}
+
+/**
+ * Renders one message row. `opts.prepend` inserts it before `opts.anchor`
+ * (used for infinite-scroll history); otherwise it's appended at the
+ * bottom. Skips rendering entirely if the message was locally
+ * "deleted for me".
+ */
+function renderMessage(message, opts) {
+  opts = opts || {};
+  if (deletedForMeIds.has(message.id)) return null;
+
+  const mine = currentUser && message.fromId === currentUser.id;
+
+  const atts = Array.isArray(message.attachments) ? message.attachments : [];
   const mediaAtts = atts.filter((a) => a.kind === 'image' || a.kind === 'video');
   const docAtts = atts.filter((a) => a.kind === 'document');
+  const isDocOnly = !mediaAtts.length && !message.text && !message.deletedForEveryone && docAtts.length > 0;
 
   const col = document.createElement('div');
   col.className = 'msg-col';
 
-  const meta = document.createElement('div');
-  meta.className = 'msg-meta';
-  meta.textContent = (mine ? 'You' : from) + (time ? ' · ' + time : '');
-  col.appendChild(meta);
+  let textBubbleEl = null;
+  let statusEl = null;
+  let headerAdded = false; // ensures the name/menu header is only added once per message
+  let quoteAdded = false;  // ensures the reply-quote is only inserted once per message
 
-  if (mediaAtts.length) {
-    const bubble = document.createElement('div');
-    bubble.className = 'msg-bubble media-only';
-    bubble.appendChild(buildMediaGrid(mediaAtts));
-    col.appendChild(bubble);
+  // Media (+ optional caption) merged into a single WhatsApp-style bubble.
+  if (!message.deletedForEveryone && mediaAtts.length) {
+    const wrapEl = document.createElement('div');
+    wrapEl.className = 'msg-bubble-wrap';
+
+    if (!mine && !headerAdded) {
+      wrapEl.appendChild(buildMsgHeaderRow(message.from, message.id, mine, true));
+      headerAdded = true;
+    } else if (mine) {
+      wrapEl.appendChild(buildOwnMenuHeader(message.id));
+      headerAdded = true;
+    }
+
+    // Reply preview goes directly after the name/header, before content.
+    const quoteEl = buildReplyQuoteEl(message);
+    if (quoteEl) { wrapEl.appendChild(quoteEl); quoteAdded = true; }
+
+    const mediaWrap = document.createElement('div');
+    mediaWrap.className = 'msg-media';
+    mediaWrap.appendChild(buildMediaGrid(mediaAtts));
+    wrapEl.appendChild(mediaWrap);
+
+    if (message.text) {
+      textBubbleEl = document.createElement('div');
+      textBubbleEl.className = 'msg-text-content with-media';
+      renderBubbleText(textBubbleEl, message);
+      wrapEl.appendChild(textBubbleEl);
+      const bottom = buildBottomRow(message, mine);
+      wrapEl.appendChild(bottom.row);
+      statusEl = bottom.statusEl;
+    } else {
+      const overlay = buildMediaTimeOverlay(message, mine);
+      mediaWrap.appendChild(overlay.overlay);
+      statusEl = overlay.statusEl;
+    }
+    col.appendChild(wrapEl);
   }
 
-  docAtts.forEach((att) => { col.appendChild(buildDocCard(att)); });
-
-  if (text) {
-    const bubble = document.createElement('div');
-    bubble.className = 'msg-bubble';
-    bubble.textContent = text;
-    if (mediaAtts.length || docAtts.length) bubble.style.marginTop = '4px';
-    col.appendChild(bubble);
+  if (!message.deletedForEveryone) {
+    if (!mine && isDocOnly && !headerAdded) {
+      col.appendChild(buildMsgHeaderRow(message.from, message.id, mine, true));
+      headerAdded = true;
+    }
+    if (isDocOnly && !quoteAdded) {
+      const quoteEl = buildReplyQuoteEl(message);
+      if (quoteEl) { col.appendChild(quoteEl); quoteAdded = true; }
+    }
+    docAtts.forEach((att) => { col.appendChild(buildDocCard(att)); });
   }
+
+  // Text-only bubble (no media) — also the tombstone bubble for a
+  // deleted message. buildTextOrTombstoneWrap() takes care of the
+  // in-container header AND the reply-quote placement (directly below
+  // the name / at the top of own bubbles) for both incoming and own
+  // messages either way.
+  if (!mediaAtts.length && (message.deletedForEveryone || message.text)) {
+    if (!headerAdded) headerAdded = true;
+    const built = buildTextOrTombstoneWrap(message, mine);
+    textBubbleEl = built.textBubbleEl;
+    statusEl = built.statusEl;
+    col.appendChild(built.wrapEl);
+  } else if (!mediaAtts.length && !message.text && docAtts.length && !message.deletedForEveryone) {
+    // Document-only message: no bubble to hang a timestamp on, so show
+    // one small standalone time/ticks row underneath the doc card(s).
+    const bottom = buildBottomRow(message, mine);
+    bottom.row.style.marginTop = '2px';
+    col.appendChild(bottom.row);
+    statusEl = bottom.statusEl;
+  }
+
+  if (!message.deletedForEveryone && message.linkPreview) {
+    renderLinkPreviewInto(col, message.linkPreview);
+  }
+
+  const reactionsEl = buildReactionBar(message, message.id);
+  col.appendChild(reactionsEl);
 
   const row = document.createElement('div');
-  row.className = 'msg-row ' + (mine ? 'mine' : 'theirs');
+  // Deleted messages always keep their side based on who originally
+  // sent them (mine -> right, incoming -> left), regardless of whether
+  // they carry attachments/replyTo/text — a deleted incoming message
+  // must never collapse into a "centered" row like a poll would.
+  const shouldSideAlign = message.deletedForEveryone || message.replyTo || mediaAtts.length || docAtts.length || message.text;
+  row.className = 'msg-row ' + (mine ? 'mine' : (shouldSideAlign ? 'theirs' : 'centered'));
+  if (message.timestamp) row.dataset.timestamp = message.timestamp;
+  row.dataset.messageId = message.id;
+  row.dataset.searchText = [
+    message.from || '',
+    message.text || '',
+    ...docAtts.map((a) => a.name || ''),
+  ].join(' ').toLowerCase();
 
   if (mine) {
     row.appendChild(col);
   } else {
     const withAvatar = document.createElement('div');
     withAvatar.className = 'msg-with-avatar';
-    withAvatar.appendChild(avatarNode(from, fromAvatar, 30));
+    const avatar = avatarNode(message.from, message.fromAvatar, 30);
+    avatar.addEventListener('click', () => openProfilePopup(message));
+    withAvatar.appendChild(avatar);
     withAvatar.appendChild(col);
     row.appendChild(withAvatar);
   }
 
-  $('msgs').appendChild(row);
-  scrollToBottom();
+  row.appendChild(buildHoverActions(message.id, mine));
+
+  // Right-click (desktop) and long-press (touch) both open the same
+  // context menu — see openContextMenu(). The header's own menu button
+  // (both incoming and own messages, now that own messages carry their
+  // own floating menu button too) opens the identical menu.
+  row.addEventListener('contextmenu', (e) => {
+    e.preventDefault();
+    openContextMenu(e.clientX, e.clientY, row.dataset.messageId, mine);
+  });
+  let longPressTimer = null;
+  row.addEventListener('touchstart', (e) => {
+    const touch = e.touches[0];
+    longPressTimer = setTimeout(() => openContextMenu(touch.clientX, touch.clientY, row.dataset.messageId, mine), 500);
+  }, { passive: true });
+  row.addEventListener('touchmove', () => clearTimeout(longPressTimer));
+  row.addEventListener('touchend', () => clearTimeout(longPressTimer));
+
+  const entry = { row, message, textBubbleEl, reactionsEl, statusEl, col };
+  messagesById.set(message.id, entry);
+  if (statusEl) updateStatusEl(entry);
+
+  if (opts.prepend) {
+    $('msgs').insertBefore(row, opts.anchor || null);
+  } else {
+    $('msgs').appendChild(row);
+  }
+
+  // Read receipts: watch other people's messages, mark read once
+  // they're actually visible.
+  if (!mine && !message.id.startsWith('pending-')) {
+    readObserver.observe(row);
+  }
+
+  return row;
 }
+
+/* ── Read receipts via IntersectionObserver ── */
+const readObserver = new IntersectionObserver((entries) => {
+  entries.forEach((entry) => {
+    if (!entry.isIntersecting) return;
+    const id = entry.target.dataset.messageId;
+    const data = messagesById.get(id);
+    readObserver.unobserve(entry.target);
+    if (!data || !currentUser) return;
+    if (data.message.fromId === currentUser.id) return;
+    if ((data.message.readBy || []).includes(currentUser.id)) return;
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ type: 'mark_read', messageId: id }));
+    }
+  });
+}, { root: $('msgs'), threshold: 0.6 });
+
+/* ══════════════════════════════════════════════════════
+   Sending messages — optimistic render + ack reconciliation
+   ══════════════════════════════════════════════════════ */
+function dispatchMessage(text, attachments, replyToOverride) {
+  attachments = attachments || [];
+  if (!text && !attachments.length) return;
+
+  const clientId = generateId();
+  const reply = replyToOverride !== undefined ? replyToOverride : replyTarget;
+  const replyTo = reply ? { id: reply.id, from: reply.from, textPreview: reply.textPreview, kind: reply.kind } : null;
+
+  const localId = 'pending-' + clientId;
+  const localMessage = {
+    id: localId,
+    clientId,
+    fromId: currentUser.id,
+    from: currentUser.username,
+    fromAvatar: currentUser.avatarUrl || null,
+    text,
+    attachments,
+    replyTo,
+    reactions: {},
+    edited: false,
+    deletedForEveryone: false,
+    readBy: [currentUser.id],
+    timestamp: new Date().toISOString(),
+    status: 'sending',
+  };
+
+  renderMessage(localMessage);
+  scrollToBottom();
+  pendingByClientId.set(clientId, localId);
+
+  const payload = { type: 'message', text, attachments, clientId, replyToId: replyTo ? replyTo.id : null };
+  pendingPayloads.set(clientId, payload);
+  armAckTimeout(clientId, localId);
+  transmit(clientId, localId, payload);
+
+  if (replyToOverride === undefined) clearReplyTarget();
+}
+function armAckTimeout(clientId, localId) {
+  clearTimeout(pendingTimeouts.get(clientId));
+  const t = setTimeout(() => {
+    if (pendingByClientId.has(clientId)) updateMessageStatus(localId, 'failed');
+  }, 8000);
+  pendingTimeouts.set(clientId, t);
+}
+function transmit(clientId, localId, payload) {
+  try {
+    if (!ws || ws.readyState !== WebSocket.OPEN) throw new Error('not connected');
+    ws.send(JSON.stringify(payload));
+  } catch (e) {
+    clearTimeout(pendingTimeouts.get(clientId));
+    updateMessageStatus(localId, 'failed');
+  }
+}
+function updateMessageStatus(id, status) {
+  const entry = messagesById.get(id);
+  if (!entry) return;
+  entry.message.status = status;
+  updateStatusEl(entry);
+}
+function retryMessage(localId) {
+  const entry = messagesById.get(localId);
+  if (!entry || !entry.message.clientId) return;
+  const clientId = entry.message.clientId;
+  const payload = pendingPayloads.get(clientId);
+  if (!payload) return;
+  updateMessageStatus(localId, 'sending');
+  armAckTimeout(clientId, localId);
+  transmit(clientId, localId, payload);
+}
+// Delegated click so the (re-rendered) status icon always works, even
+// after updateStatusEl() replaces its innerHTML.
+document.addEventListener('click', (e) => {
+  const statusWrap = e.target.closest('.msg-status-wrap');
+  if (!statusWrap) return;
+  const row = statusWrap.closest('.msg-row');
+  if (!row) return;
+  const entry = messagesById.get(row.dataset.messageId);
+  if (entry && entry.message.status === 'failed') retryMessage(row.dataset.messageId);
+});
+
+function reconcileMessage(localId, serverMessage, status) {
+  const entry = messagesById.get(localId);
+  if (!entry) return;
+  messagesById.delete(localId);
+  entry.row.dataset.messageId = serverMessage.id;
+  entry.row.dataset.timestamp = serverMessage.timestamp;
+  entry.message = Object.assign({}, serverMessage, { status });
+  messagesById.set(serverMessage.id, entry);
+  updateStatusEl(entry);
+  rebuildDateSeparators();
+}
+
+/* ══════════════════════════════════════════════════════
+   Reply preview bar
+   ══════════════════════════════════════════════════════ */
+function setReplyTarget(message) {
+  replyTarget = {
+    id: message.id,
+    from: message.fromId === (currentUser && currentUser.id) ? 'yourself' : message.from,
+    textPreview: message.deletedForEveryone ? 'This message was deleted.' : (message.text || attachmentSummaryLabel(message.attachments)).slice(0, 120),
+    kind: (message.attachments && message.attachments.length) ? message.attachments[0].kind : 'text',
+  };
+  $('replyPreviewLabel').textContent = 'Replying to ' + replyTarget.from;
+  $('replyPreviewText').textContent = replyTarget.textPreview;
+  $('replyPreviewBar').style.display = 'flex';
+  $('msgInput').focus();
+}
+function clearReplyTarget() {
+  replyTarget = null;
+  $('replyPreviewBar').style.display = 'none';
+}
+$('replyPreviewClose').addEventListener('click', clearReplyTarget);
+
+/* ══════════════════════════════════════════════════════
+   Jump-to-message (replies + pinned banner + search)
+   ══════════════════════════════════════════════════════ */
+function jumpToMessage(id) {
+  const entry = messagesById.get(id);
+  if (!entry) { appendSystem('That message is no longer loaded — scroll up to load older history.'); return; }
+  entry.row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  entry.row.classList.add('flash-highlight');
+  setTimeout(() => entry.row.classList.remove('flash-highlight'), 1600);
+}
+
+/* ══════════════════════════════════════════════════════
+   Context menu (right-click / long-press on a message, or the
+   in-container header menu button on either side)
+   ══════════════════════════════════════════════════════ */
+function openContextMenu(x, y, messageId, isMine, opts) {
+  const entry = messagesById.get(messageId);
+  if (!entry) return;
+  const message = entry.message;
+  opts = opts || {};
+
+  const items = [];
+  if (!message.deletedForEveryone && !messageId.startsWith('pending-')) {
+    items.push({ label: 'Reply', action: 'reply' });
+  }
+  if (!message.deletedForEveryone) items.push({ label: 'Copy', action: 'copy' });
+  if (!message.deletedForEveryone && !messageId.startsWith('pending-')) items.push({ label: 'React', action: 'react' });
+  if (isMine && message.text && !message.deletedForEveryone) items.push({ label: 'Edit', action: 'edit' });
+  if (!message.deletedForEveryone) items.push({ label: 'Delete for me', action: 'delete_me' });
+  if ((isMine || isOwner) && !message.deletedForEveryone) items.push({ label: 'Delete for everyone', action: 'delete_everyone', danger: true });
+  if (isOwner && !message.deletedForEveryone && !messageId.startsWith('pending-')) {
+    const alreadyPinned = pinnedMessage && pinnedMessage.id === messageId;
+    items.push({ label: alreadyPinned ? 'Unpin message' : 'Pin message', action: alreadyPinned ? 'unpin' : 'pin' });
+  }
+  if (!items.length) return; // nothing actionable (e.g. an already-deleted message) — don't show an empty menu
+
+  contextMenuMessageId = messageId;
+  const menu = $('contextMenu');
+  menu.innerHTML = items.map((it) => `<button type="button" class="${it.danger ? 'danger' : ''}" data-action="${it.action}">${it.label}</button>`).join('');
+
+  const menuWidth = 190, margin = 8;
+  const estHeight = items.length * 38 + 20;
+
+  // Vertical placement: drop down below the anchor by default, flip to
+  // open upward if there isn't enough room beneath it.
+  let top;
+  if (opts.anchorTop !== undefined && opts.anchorBottom !== undefined) {
+    const spaceBelow = window.innerHeight - opts.anchorBottom;
+    if (spaceBelow < estHeight + 10 && opts.anchorTop > estHeight) {
+      top = Math.max(margin, opts.anchorTop - estHeight - 6);
+    } else {
+      top = Math.min(opts.anchorBottom + 6, window.innerHeight - estHeight - margin);
+    }
+  } else {
+    const spaceBelow = window.innerHeight - y;
+    if (spaceBelow < estHeight + 10 && y > estHeight) {
+      top = Math.max(margin, y - estHeight - 6);
+    } else {
+      top = Math.min(y + 4, window.innerHeight - estHeight - margin);
+    }
+  }
+
+  // Horizontal placement: for anchored buttons (header/menu buttons —
+  // used by BOTH incoming and own/sent messages), prefer right-aligning
+  // the menu to the anchor's right edge (so it opens leftward, which is
+  // usually the direction with more room since the button itself sits
+  // near the right side of its bubble). If that would clip off the left
+  // edge of the screen, flip to left-aligning with the anchor instead
+  // (opens rightward). For a raw right-click / long-press point (no
+  // anchor rect), prefer opening to the right of the cursor and flip
+  // to the left of it if there isn't enough room. Either way the final
+  // result is clamped to the viewport as a safety net.
+  let left;
+  if (opts.anchorLeft !== undefined && opts.anchorRight !== undefined) {
+    const preferredLeft = opts.anchorRight - menuWidth;
+    if (preferredLeft >= margin) {
+      left = preferredLeft;
+    } else if (opts.anchorLeft + menuWidth <= window.innerWidth - margin) {
+      left = opts.anchorLeft;
+    } else {
+      left = Math.max(margin, Math.min(preferredLeft, window.innerWidth - menuWidth - margin));
+    }
+  } else {
+    if (x + menuWidth + margin <= window.innerWidth) {
+      left = x;
+    } else {
+      left = x - menuWidth;
+    }
+    left = Math.max(margin, Math.min(left, window.innerWidth - menuWidth - margin));
+  }
+
+  menu.style.left = left + 'px';
+  menu.style.top = top + 'px';
+  menu.classList.add('open');
+}
+function closeContextMenu() { $('contextMenu').classList.remove('open'); contextMenuMessageId = null; }
+$('contextMenu').addEventListener('click', (e) => {
+  const btn = e.target.closest('button[data-action]');
+  if (!btn) return;
+  const id = contextMenuMessageId;
+  const entry = messagesById.get(id);
+  const action = btn.dataset.action;
+  closeContextMenu();
+  if (!entry) return;
+
+  if (action === 'reply') setReplyTarget(entry.message);
+  else if (action === 'copy') copyMessageText(entry.message);
+  else if (action === 'react') openReactionPickerFor(id);
+  else if (action === 'edit') beginEditMessage(id);
+  else if (action === 'delete_me') deleteMessageForMe(id);
+  else if (action === 'delete_everyone') confirmDeleteMessage(id);
+  else if (action === 'pin') sendPinMessage(id);
+  else if (action === 'unpin') sendUnpinMessage();
+});
+document.addEventListener('click', (e) => { if (!$('contextMenu').contains(e.target)) closeContextMenu(); });
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeContextMenu(); });
+
+/**
+ * PHASE 2: Copy Messages — preserves formatting.
+ * Writes both a plain-text and an HTML flavor to the clipboard via the
+ * modern Clipboard API (ClipboardItem), so pasting into a rich text
+ * target (email, Notion, Slack, Google Docs) keeps bold/italic/links,
+ * while pasting into a plain text field just gets the raw text.
+ */
+function copyMessageText(message) {
+  const text = message.text || '';
+  if (!text) return;
+  const html = renderMarkdownSafe(text);
+
+  if (navigator.clipboard && window.ClipboardItem) {
+    const item = new ClipboardItem({
+      'text/plain': new Blob([text], { type: 'text/plain' }),
+      'text/html': new Blob([html], { type: 'text/html' }),
+    });
+    navigator.clipboard.write([item]).catch(() => {
+      if (navigator.clipboard.writeText) navigator.clipboard.writeText(text).catch(() => {});
+    });
+  } else if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).catch(() => {});
+  }
+}
+
+/* ══════════════════════════════════════════════════════
+   Edit / Delete
+   ══════════════════════════════════════════════════════ */
+function beginEditMessage(id) {
+  const entry = messagesById.get(id);
+  if (!entry || !entry.textBubbleEl || !currentUser || entry.message.fromId !== currentUser.id) return;
+
+  const bubble = entry.textBubbleEl;
+  const original = entry.message.text;
+  bubble.innerHTML = '';
+  const input = document.createElement('textarea');
+  input.className = 'edit-input';
+  input.rows = 1;
+  input.value = original;
+  bubble.appendChild(input);
+  input.focus();
+  input.setSelectionRange(input.value.length, input.value.length);
+
+  let settled = false;
+  function commit() {
+    if (settled) return;
+    settled = true;
+    const val = input.value.trim();
+    if (val && val !== original && ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ type: 'edit_message', messageId: id, text: val }));
+    } else {
+      renderBubbleText(bubble, entry.message);
+    }
+  }
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); commit(); }
+    else if (e.key === 'Escape') { settled = true; renderBubbleText(bubble, entry.message); }
+  });
+  input.addEventListener('blur', commit);
+}
+
+function deleteMessageForMe(id) {
+  const entry = messagesById.get(id);
+  if (!entry) return;
+  deletedForMeIds.add(id);
+  persistDeletedForMe();
+  entry.row.remove();
+  messagesById.delete(id);
+  rebuildDateSeparators();
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ type: 'delete_message', messageId: id, scope: 'me' }));
+  }
+}
+
+async function confirmDeleteMessage(id) {
+  const confirmed = await openConfirmModal('Delete this message?', 'This will remove the message for everyone in the room. This action cannot be undone.', 'Delete');
+  if (!confirmed) return;
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ type: 'delete_message', messageId: id, scope: 'everyone' }));
+  }
+}
+
+/** Rebuilds a message's container as a tombstone in place, and makes sure
+ *  the row stays on its ORIGINAL sender's side (right for your own
+ *  deleted messages, left for anyone else's) regardless of who performed
+ *  the delete — deleted incoming messages must never end up centered or
+ *  on the wrong side. */
+function applyDeletedState(entry) {
+  entry.message.deletedForEveryone = true;
+  entry.message.text = '';
+  entry.message.attachments = [];
+  entry.message.reactions = {};
+
+  const mine = currentUser && entry.message.fromId === currentUser.id;
+
+  // Ensure correct side alignment: incoming deleted messages must stay
+  // on the left ('theirs'), own deleted messages stay on the right
+  // ('mine'), even if the row was previously rendered as 'centered'
+  // (e.g. a text-less/attachment-less message).
+  entry.row.classList.remove('centered', 'mine', 'theirs');
+  entry.row.classList.add(mine ? 'mine' : 'theirs');
+
+  const col = entry.row.querySelector('.msg-col');
+  if (col) {
+    Array.from(col.children).forEach((child) => {
+      if (child === entry.reactionsEl) return;
+      child.remove();
+    });
+    const built = buildTextOrTombstoneWrap(entry.message, mine);
+    entry.textBubbleEl = built.textBubbleEl;
+    entry.statusEl = built.statusEl;
+    col.insertBefore(built.wrapEl, entry.reactionsEl);
+    if (entry.statusEl) updateStatusEl(entry);
+  }
+
+  entry.reactionsEl.innerHTML = '';
+  entry.reactionsEl.style.display = 'none';
+}
+
+/* ══════════════════════════════════════════════════════
+   Pinning
+   ══════════════════════════════════════════════════════ */
+function sendPinMessage(id) {
+  if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: 'pin_message', messageId: id }));
+}
+function sendUnpinMessage() {
+  if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: 'unpin_message' }));
+}
+function renderPinnedBanner(message) {
+  pinnedMessage = message;
+  const banner = $('pinnedBanner');
+  if (!message) { banner.style.display = 'none'; return; }
+  banner.style.display = 'flex';
+  $('pinnedText').textContent = `${message.from}: ${message.text || attachmentSummaryLabel(message.attachments) || '…'}`;
+  $('pinnedUnpinBtn').style.display = isOwner ? 'flex' : 'none';
+}
+$('pinnedBanner').addEventListener('click', (e) => {
+  if (e.target.id === 'pinnedUnpinBtn') return;
+  if (pinnedMessage) jumpToMessage(pinnedMessage.id);
+});
+$('pinnedUnpinBtn').addEventListener('click', (e) => { e.stopPropagation(); sendUnpinMessage(); });
+
+/* ══════════════════════════════════════════════════════
+   Search (over currently loaded / rendered messages)
+   ══════════════════════════════════════════════════════ */
+let searchMatches = [];
+let searchIndex = -1;
+function runSearch(query) {
+  document.querySelectorAll('.msg-row.search-active').forEach((el) => el.classList.remove('search-active'));
+  searchMatches = [];
+  searchIndex = -1;
+  if (!query) { $('searchCount').textContent = ''; return; }
+  const q = query.toLowerCase();
+  document.querySelectorAll('#msgs .msg-row[data-search-text]').forEach((row) => {
+    if (row.dataset.searchText.includes(q)) searchMatches.push(row);
+  });
+  if (!searchMatches.length) { $('searchCount').textContent = 'No results'; return; }
+  searchIndex = 0;
+  focusSearchMatch();
+}
+function focusSearchMatch() {
+  document.querySelectorAll('.msg-row.search-active').forEach((el) => el.classList.remove('search-active'));
+  const row = searchMatches[searchIndex];
+  if (!row) return;
+  row.classList.add('search-active');
+  row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  $('searchCount').textContent = `${searchIndex + 1} / ${searchMatches.length}`;
+}
+$('searchToggleBtn').addEventListener('click', () => {
+  const bar = $('searchBar');
+  const open = bar.style.display !== 'flex';
+  bar.style.display = open ? 'flex' : 'none';
+  if (open) { $('searchInput').focus(); } else { $('searchInput').value = ''; runSearch(''); }
+});
+$('searchInput').addEventListener('input', (e) => runSearch(e.target.value.trim()));
+$('searchNextBtn').addEventListener('click', () => { if (!searchMatches.length) return; searchIndex = (searchIndex + 1) % searchMatches.length; focusSearchMatch(); });
+$('searchPrevBtn').addEventListener('click', () => { if (!searchMatches.length) return; searchIndex = (searchIndex - 1 + searchMatches.length) % searchMatches.length; focusSearchMatch(); });
+$('searchCloseBtn').addEventListener('click', () => { $('searchBar').style.display = 'none'; $('searchInput').value = ''; runSearch(''); });
+
+/* ══════════════════════════════════════════════════════
+   Minimal profile popup (future-ready — mutual rooms is a stub
+   for now since there's no cross-room API to call yet)
+   ══════════════════════════════════════════════════════ */
+function openProfilePopup(message) {
+  appendSystem(`${message.from} — member of this room.`);
+}
+
+/* ══════════════════════════════════════════════════════
+   Infinite scroll (load older messages on scroll-up)
+   ══════════════════════════════════════════════════════ */
+$('msgs').addEventListener('scroll', () => {
+  const el = $('msgs');
+  if (el.scrollTop < 80 && hasMoreHistory && !loadingHistory && earliestLoadedId && ws && ws.readyState === WebSocket.OPEN) {
+    loadingHistory = true;
+    ws.send(JSON.stringify({ type: 'request_history', beforeId: earliestLoadedId, limit: 30 }));
+  }
+});
 
 function updateUsersList(users) {
   $('usersHeading').textContent = `Online — ${users.length}`;
@@ -1086,8 +2424,10 @@ function updateUsersList(users) {
   users.forEach((u) => {
     const username = typeof u === 'string' ? u : u.username;
     const avatarUrl = typeof u === 'string' ? null : u.avatarUrl;
+    const userId = typeof u === 'string' ? null : u.userId;
     const row = document.createElement('div');
     row.className = 'user-item';
+    if (userId != null) row.dataset.userId = userId;
     row.appendChild(avatarNode(username, avatarUrl, 24));
     const name = document.createElement('span');
     name.className = 'user-name';
@@ -1153,35 +2493,264 @@ function clearAllTyping() {
 }
 
 /* ══════════════════════════════════════════════════════
-   Lightbox
+   PHASE 2: MEDIA VIEWER — image gallery (prev/next, keyboard,
+   swipe, zoom/pan) + video (fullscreen, PiP, remembered volume)
    ══════════════════════════════════════════════════════ */
-function openLightbox(att) {
-  const lb = $('lightbox');
+let galleryItems = [];
+let galleryIndex = 0;
+const VOLUME_KEY = 'chat_video_volume';
+
+function openLightbox(mediaAtts, startIndex) {
+  galleryItems = (mediaAtts || []).slice();
+  galleryIndex = startIndex || 0;
+  renderLightbox();
+  $('lightbox').classList.add('open');
+  document.addEventListener('keydown', onLightboxKeydown);
+}
+function closeLightboxViewer() {
+  $('lightbox').classList.remove('open');
+  $('lightboxContent').innerHTML = '';
+  document.removeEventListener('keydown', onLightboxKeydown);
+  galleryItems = [];
+}
+function onLightboxKeydown(e) {
+  if (e.key === 'Escape') closeLightboxViewer();
+  else if (e.key === 'ArrowLeft') stepGallery(-1);
+  else if (e.key === 'ArrowRight') stepGallery(1);
+}
+function stepGallery(dir) {
+  if (galleryItems.length < 2) return;
+  galleryIndex = (galleryIndex + dir + galleryItems.length) % galleryItems.length;
+  renderLightbox();
+}
+
+function renderLightbox() {
   const content = $('lightboxContent');
   content.innerHTML = '';
+  const att = galleryItems[galleryIndex];
+  if (!att) return;
+
+  const stage = document.createElement('div');
+  stage.className = 'lightbox-stage';
 
   const spinner = document.createElement('div');
   spinner.className = 'lightbox-spinner';
   spinner.innerHTML = ringSvg(0, true);
-  content.appendChild(spinner);
+  stage.appendChild(spinner);
+
+  if (galleryItems.length > 1) {
+    const counter = document.createElement('div');
+    counter.className = 'lightbox-counter';
+    counter.textContent = `${galleryIndex + 1} / ${galleryItems.length}`;
+    stage.appendChild(counter);
+
+    const prev = document.createElement('button');
+    prev.className = 'lightbox-nav prev'; prev.innerHTML = '‹'; prev.title = 'Previous (←)';
+    prev.addEventListener('click', (e) => { e.stopPropagation(); stepGallery(-1); });
+    stage.appendChild(prev);
+
+    const next = document.createElement('button');
+    next.className = 'lightbox-nav next'; next.innerHTML = '›'; next.title = 'Next (→)';
+    next.addEventListener('click', (e) => { e.stopPropagation(); stepGallery(1); });
+    stage.appendChild(next);
+  }
 
   if (att.kind === 'image') {
     const img = document.createElement('img');
     img.src = att.url;
     img.style.opacity = '0'; img.style.transition = 'opacity .2s ease';
     img.onload = () => { img.style.opacity = '1'; spinner.remove(); };
-    content.appendChild(img);
+    stage.appendChild(img);
+    attachImageZoomPan(img, stage);
+    attachSwipeNav(stage);
   } else {
     const vid = document.createElement('video');
     vid.src = att.url; vid.controls = true; vid.autoplay = true;
+    const savedVolume = parseFloat(localStorage.getItem(VOLUME_KEY));
+    vid.volume = isFinite(savedVolume) ? Math.min(Math.max(savedVolume, 0), 1) : 1;
+    vid.addEventListener('volumechange', () => {
+      try { localStorage.setItem(VOLUME_KEY, String(vid.volume)); } catch (e) { /* ignore */ }
+    });
     vid.oncanplay = () => spinner.remove();
-    content.appendChild(vid);
+    stage.appendChild(vid);
+
+    const controls = document.createElement('div');
+    controls.className = 'lightbox-video-controls';
+
+    const fsBtn = document.createElement('button');
+    fsBtn.className = 'lightbox-video-btn'; fsBtn.title = 'Fullscreen';
+    fsBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M21 8V5a2 2 0 0 0-2-2h-3"/><path d="M3 16v3a2 2 0 0 0 2 2h3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/></svg>`;
+    fsBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (vid.requestFullscreen) vid.requestFullscreen();
+      else if (vid.webkitEnterFullscreen) vid.webkitEnterFullscreen(); // iOS Safari
+    });
+    controls.appendChild(fsBtn);
+
+    if (document.pictureInPictureEnabled) {
+      const pipBtn = document.createElement('button');
+      pipBtn.className = 'lightbox-video-btn'; pipBtn.title = 'Picture-in-Picture';
+      pipBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><rect x="12" y="12" width="8" height="6" rx="1" fill="currentColor"/></svg>`;
+      pipBtn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        try {
+          if (document.pictureInPictureElement) await document.exitPictureInPicture();
+          else await vid.requestPictureInPicture();
+        } catch (err) { /* PiP not available for this video right now — ignore */ }
+      });
+      controls.appendChild(pipBtn);
+    }
+    stage.appendChild(controls);
   }
-  lb.classList.add('open');
+
+  content.appendChild(stage);
 }
-$('lightboxClose').addEventListener('click', () => $('lightbox').classList.remove('open'));
-$('lightbox').addEventListener('click', (e) => { if (e.target.id === 'lightbox') $('lightbox').classList.remove('open'); });
-document.addEventListener('keydown', (e) => { if (e.key === 'Escape') $('lightbox').classList.remove('open'); });
+
+/** Wheel-to-zoom + drag-to-pan on the lightbox image. Double-click/tap
+ *  toggles between 1x and 2.5x centered on the pointer. */
+function attachImageZoomPan(img, stage) {
+  let scale = 1, tx = 0, ty = 0;
+  let dragging = false, startX = 0, startY = 0, startTx = 0, startTy = 0;
+
+  function apply() {
+    img.style.transform = `translate(${tx}px, ${ty}px) scale(${scale})`;
+    img.classList.toggle('zoomed', scale > 1);
+  }
+  function clampPan() {
+    const maxPan = 400 * (scale - 1);
+    tx = Math.min(Math.max(tx, -maxPan), maxPan);
+    ty = Math.min(Math.max(ty, -maxPan), maxPan);
+  }
+
+  img.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    const prevScale = scale;
+    scale = Math.min(Math.max(scale - e.deltaY * 0.0025, 1), 5);
+    if (scale === 1) { tx = 0; ty = 0; }
+    else if (prevScale !== scale) clampPan();
+    apply();
+  }, { passive: false });
+
+  img.addEventListener('dblclick', () => {
+    scale = scale > 1 ? 1 : 2.5;
+    if (scale === 1) { tx = 0; ty = 0; }
+    apply();
+  });
+
+  img.addEventListener('mousedown', (e) => {
+    if (scale <= 1) return;
+    dragging = true; img.classList.add('panning');
+    startX = e.clientX; startY = e.clientY; startTx = tx; startTy = ty;
+    e.preventDefault();
+  });
+  window.addEventListener('mousemove', (e) => {
+    if (!dragging) return;
+    tx = startTx + (e.clientX - startX);
+    ty = startTy + (e.clientY - startY);
+    clampPan();
+    apply();
+  });
+  window.addEventListener('mouseup', () => { dragging = false; img.classList.remove('panning'); });
+}
+
+/** Touch swipe left/right to navigate the gallery on mobile. Only fires
+ *  as navigation if the image isn't currently zoomed in (so a pinch/pan
+ *  gesture on a zoomed image doesn't also flip pages). */
+function attachSwipeNav(stage) {
+  let startX = 0, startY = 0, active = false;
+  stage.addEventListener('touchstart', (e) => {
+    const img = stage.querySelector('img');
+    if (img && img.classList.contains('zoomed')) return;
+    active = true;
+    startX = e.touches[0].clientX; startY = e.touches[0].clientY;
+  }, { passive: true });
+  stage.addEventListener('touchend', (e) => {
+    if (!active) return;
+    active = false;
+    const dx = e.changedTouches[0].clientX - startX;
+    const dy = e.changedTouches[0].clientY - startY;
+    if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.5) stepGallery(dx > 0 ? -1 : 1);
+  }, { passive: true });
+}
+
+$('lightboxClose').addEventListener('click', closeLightboxViewer);
+$('lightbox').addEventListener('click', (e) => { if (e.target.id === 'lightbox') closeLightboxViewer(); });
+
+/* ══════════════════════════════════════════════════════
+   PHASE 2: Drag & Drop / Clipboard Upload
+   Dropping files anywhere over the chat column, or pasting
+   (Ctrl+V) an image/file while the composer isn't already
+   open, opens the same compose overlay used by the attach
+   menu — one single upload pipeline for every entry point.
+   ══════════════════════════════════════════════════════ */
+function classifyFileForCompose(file) {
+  if (file.type.startsWith('image/')) return 'image';
+  if (file.type.startsWith('video/')) return 'video';
+  return 'document';
+}
+function openComposeForFiles(files) {
+  const items = files
+    .filter((f) => f && f.size > 0)
+    .map((f) => {
+      const kind = classifyFileForCompose(f);
+      if (f.size > ATTACH_LIMITS[kind]) {
+        appendSystem(`⚠ "${f.name}" is too large for a ${kind} (max ${(ATTACH_LIMITS[kind] / (1024 * 1024)).toFixed(0)}MB)`);
+        return null;
+      }
+      return { file: f, kind };
+    })
+    .filter(Boolean);
+  if (items.length) openComposeOverlay(items);
+}
+
+(function setupDragAndDrop() {
+  const col = $('chatCol');
+  const overlay = $('dropOverlay');
+  let dragCounter = 0;
+
+  function isFileDrag(e) {
+    return e.dataTransfer && Array.from(e.dataTransfer.types || []).includes('Files');
+  }
+
+  col.addEventListener('dragenter', (e) => {
+    if (!isFileDrag(e) || $('msgInput').disabled) return;
+    e.preventDefault();
+    dragCounter++;
+    overlay.classList.add('active');
+  });
+  col.addEventListener('dragover', (e) => { if (isFileDrag(e)) e.preventDefault(); });
+  col.addEventListener('dragleave', (e) => {
+    if (!isFileDrag(e)) return;
+    dragCounter = Math.max(0, dragCounter - 1);
+    if (dragCounter === 0) overlay.classList.remove('active');
+  });
+  col.addEventListener('drop', (e) => {
+    if (!isFileDrag(e)) return;
+    e.preventDefault();
+    dragCounter = 0;
+    overlay.classList.remove('active');
+    const files = Array.from(e.dataTransfer.files || []);
+    if (files.length) openComposeForFiles(files);
+  });
+})();
+
+document.addEventListener('paste', (e) => {
+  if ($('msgInput').disabled) return;
+  // Don't hijack a normal text paste into a focused text input/textarea
+  // (e.g. pasting text into the edit-message box or the message input).
+  const activeTag = (document.activeElement && document.activeElement.tagName) || '';
+  const items = Array.from(e.clipboardData ? e.clipboardData.items : []);
+  const fileItems = items.filter((it) => it.kind === 'file');
+  if (!fileItems.length) return; // plain text paste — let the browser handle it normally
+
+  if (activeTag === 'INPUT' || activeTag === 'TEXTAREA') {
+    // Still allow pasting an actual screenshot/file even while the
+    // composer input is focused — that's the whole point of Ctrl+V upload.
+  }
+  e.preventDefault();
+  const files = fileItems.map((it) => it.getAsFile()).filter(Boolean);
+  if (files.length) openComposeForFiles(files);
+});
 
 /* ══════════════════════════════════════════════════════
    Connection / lifecycle
@@ -1215,10 +2784,11 @@ function connect() {
     try { msg = JSON.parse(evt.data); } catch (e) { return; }
 
     switch (msg.type) {
-      case 'joined':
+      case 'joined': {
         isOwner = !!msg.room.is_owner;
         $('roomTitle').textContent = msg.room.room_name;
         $('deleteBtn').style.display = isOwner ? 'inline-flex' : 'none';
+        $('searchToggleBtn').style.display = 'inline-flex';
         $('msgInput').disabled = false;
         $('sendBtn').disabled = false;
         $('emojiBtn').disabled = false;
@@ -1226,14 +2796,120 @@ function connect() {
         $('pollBtn').disabled = false;
         updateUsersList(msg.users || []);
         showChatUI();
+
+        (msg.messages || []).forEach((m) => renderMessage(m));
+        hasMoreHistory = !!msg.hasMoreHistory;
+        earliestLoadedId = (msg.messages && msg.messages.length) ? msg.messages[0].id : null;
+        rebuildDateSeparators();
+        scrollToBottom();
+
         // Existing polls (with everyone's stored votes) come back on join —
         // this is what makes a poll survive the user leaving and returning.
         (msg.polls || []).forEach((p) => renderOrUpdatePoll(p));
+
+        renderPinnedBanner(msg.pinned || null);
+
         $('msgInput').focus();
         break;
+      }
       case 'system': appendSystem(msg.text); break;
       case 'user_list': updateUsersList(msg.users || []); break;
-      case 'message': appendMessage(msg.from, msg.fromId, msg.text, msg.timestamp, msg.attachments, msg.fromAvatar); break;
+
+      case 'message': {
+        const wasNearBottom = isNearBottom();
+        renderMessage(msg.message);
+        if (wasNearBottom) scrollToBottom();
+        break;
+      }
+
+      case 'message_ack': {
+        const localId = pendingByClientId.get(msg.clientId);
+        clearTimeout(pendingTimeouts.get(msg.clientId));
+        pendingTimeouts.delete(msg.clientId);
+        pendingPayloads.delete(msg.clientId);
+        pendingByClientId.delete(msg.clientId);
+        if (localId) reconcileMessage(localId, msg.message, msg.status);
+        break;
+      }
+
+      case 'message_edited': {
+        const entry = messagesById.get(msg.message.id);
+        if (entry) {
+          entry.message.text = msg.message.text;
+          entry.message.edited = true;
+          entry.message.editedAt = msg.message.editedAt;
+          if (entry.textBubbleEl) renderBubbleText(entry.textBubbleEl, entry.message);
+          const meta = entry.row.querySelector('.msg-meta');
+          if (meta && !meta.querySelector('.edited-tag')) {
+            const tag = document.createElement('span');
+            tag.className = 'edited-tag';
+            tag.textContent = '(edited)';
+            meta.appendChild(tag);
+          }
+          entry.row.dataset.searchText = [entry.message.from || '', entry.message.text || ''].join(' ').toLowerCase();
+        }
+        break;
+      }
+
+      case 'message_deleted': {
+        if (msg.scope === 'me') break; // this client already hid it locally
+        const entry = messagesById.get(msg.messageId);
+        if (entry) applyDeletedState(entry);
+        if (pinnedMessage && pinnedMessage.id === msg.messageId) renderPinnedBanner(null);
+        break;
+      }
+
+      case 'reaction_update': {
+        const entry = messagesById.get(msg.messageId);
+        if (entry) {
+          entry.message.reactions = msg.reactions;
+          const fresh = buildReactionBar(entry.message, msg.messageId);
+          entry.reactionsEl.replaceWith(fresh);
+          entry.reactionsEl = fresh;
+        }
+        break;
+      }
+
+      case 'read_update': {
+        const entry = messagesById.get(msg.messageId);
+        if (entry) {
+          entry.message.readBy = msg.readBy;
+          if (currentUser && entry.message.fromId === currentUser.id && entry.message.status !== 'sending') {
+            const othersRead = msg.readBy.filter((id) => id !== currentUser.id).length;
+            updateMessageStatus(msg.messageId, othersRead > 0 ? 'read' : entry.message.status);
+          }
+        }
+        break;
+      }
+
+      case 'pin_update': renderPinnedBanner(msg.message || null); break;
+
+      // PHASE 2: server resolved (or failed to resolve) a link preview
+      // for a message asynchronously after it was sent.
+      case 'link_preview_update': {
+        const entry = messagesById.get(msg.messageId);
+        if (entry && entry.col) {
+          entry.message.linkPreview = msg.linkPreview;
+          renderLinkPreviewInto(entry.col, msg.linkPreview);
+        }
+        break;
+      }
+
+      case 'history': {
+        loadingHistory = false;
+        hasMoreHistory = msg.hasMore;
+        if (msg.messages && msg.messages.length) {
+          const container = $('msgs');
+          const anchor = container.firstChild;
+          const prevHeight = container.scrollHeight;
+          msg.messages.forEach((m) => renderMessage(m, { prepend: true, anchor }));
+          earliestLoadedId = msg.messages[0].id;
+          rebuildDateSeparators();
+          container.scrollTop = container.scrollHeight - prevHeight;
+        }
+        break;
+      }
+
       case 'poll_update': renderOrUpdatePoll(msg.poll); break;
       case 'typing': handleTypingEvent(msg); break;
       case 'room_deleted':
@@ -1267,10 +2943,9 @@ function connect() {
 function sendMessage() {
   const input = $('msgInput');
   const text = input.value.trim();
-  if (!ws || ws.readyState !== WebSocket.OPEN) return;
   if (!text) return;
   stopMyTyping();
-  ws.send(JSON.stringify({ type: 'message', text, attachments: [] }));
+  dispatchMessage(text, []);
   input.value = '';
 }
 
@@ -1296,7 +2971,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const menu = $('attachMenu');
     if (menu.classList.contains('open') && !menu.contains(e.target) && e.target !== $('attachBtn')) toggleAttachMenu(false);
     const mini = $('miniEmojiPopover');
-    if (mini.classList.contains('open') && !mini.contains(e.target) && !e.target.closest('.poll-emoji-btn')) closeMiniEmojiPopover();
+    if (mini.classList.contains('open') && !mini.contains(e.target) && !e.target.closest('.poll-emoji-btn') && !e.target.closest('.msg-hover-react')) closeMiniEmojiPopover();
   });
 
   init();

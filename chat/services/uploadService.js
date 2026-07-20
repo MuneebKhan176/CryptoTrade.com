@@ -1,23 +1,23 @@
 /**
  * uploadService.js
  * -----------------------------------------------------------------------
- * Validates and uploads chat attachments — and now profile avatars — to
+ * Validates and uploads chat attachments — and profile avatars — to
  * Cloudflare R2 (S3-compatible).
  *
- * WHAT'S NEW IN THIS REVISION:
  *   - uploadAvatar(buffer, mimetype, userId, version): uploads a resized,
  *     square (512x512) profile photo to R2 under
  *     `avatars/{userId}_v{version}.jpg`. The version is a monotonically
  *     increasing counter (SocialProfile.avatarVersion) bumped on every
  *     upload, so each new photo gets a brand-new URL and can therefore be
  *     cached forever (immutable) on the CDN/browser without ever risking
- *     a stale image after a user updates their photo. This replaces the
- *     old approach of storing the raw base64 image directly in MongoDB,
- *     which was slow to load — R2 + immutable caching loads instantly on
- *     every subsequent view.
+ *     a stale image after a user updates their photo.
  *
- * (Everything below this point — chat image/video/document uploads,
- * LQIP placeholders, room cleanup — is unchanged.)
+ * ── PHASE 2 ──────────────────────────────────────────────────────────
+ * `uploadOne` is now exported (it was previously a private helper).
+ * chunkedUploadService.js reuses it as-is to finalize a resumable/
+ * chunked upload through the exact same validation, thumbnailing, and
+ * R2-upload pipeline as the classic single-shot upload — no duplicated
+ * logic between the two upload paths. Nothing else in this file changed.
  * -----------------------------------------------------------------------
  * Requires: npm install sharp
  * -----------------------------------------------------------------------
@@ -278,4 +278,5 @@ module.exports = {
   deleteRoomAttachments,
   LIMITS,
   ALLOWED_MIME,
+  uploadOne, // PHASE 2 — reused by chunkedUploadService.js
 };
