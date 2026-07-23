@@ -34,6 +34,7 @@ const RoomManager = require('./chat/managers/RoomManager');
 // ---------------- WebSocket Manager ----------------
 
 const attachWebSocketManager = require('./Web_Sockets/ws_manager');
+const { bootstrap: bootstrapFutures } = require('./Futures_Engine/futuresBootstrap');
 
 const app = express();
 const port_num = 7070;
@@ -82,6 +83,14 @@ const server = http.createServer(app);
 
 // Attach ALL websocket gateways
 attachWebSocketManager(server);
+
+
+// Wire up the futures engine's live-state + persistence listeners.
+// Must happen before the server starts accepting traffic, since a
+// client could open /ws/futures-data (or the C++ engine could push a
+// MARK_PRICE_UPDATE-triggered event) the instant listen() resolves.
+bootstrapFutures();
+
 
 // ---------------- Start Server ----------------
 

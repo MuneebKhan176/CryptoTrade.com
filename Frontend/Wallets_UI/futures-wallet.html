@@ -153,7 +153,7 @@
     .main { flex: 1; overflow-x: hidden; }
     .panel { padding: 28px 32px; }
     .page-title { font-size: 1.4rem; font-weight: 700; letter-spacing: -.5px; color: #fff; margin-bottom: 4px; }
-    .page-sub { font-size: .83rem; color: var(--text-2); margin-bottom: 22px; }
+    .page-sub { font-size: .83rem; color: var(--text-2); margin-bottom: 22px; display:flex; align-items:center; gap:8px; }
 
     /* ── Wallet sub-tabs ── */
     .wallet-tabs { display: flex; gap: 8px; margin-bottom: 24px; border-bottom: 1px solid var(--border); }
@@ -202,6 +202,12 @@
     .btn-sm.ghost:hover { color:#fff; border-color:#444; }
     .badge-active { background:rgba(34,197,94,.12); color:var(--green); font-size:.7rem; font-weight:700; padding:2px 8px; border-radius:100px; border:1px solid rgba(34,197,94,.2); }
 
+    /* Live/stale indicator — same pattern as futures_trade.html, so the
+       two pages read consistently: a live-ticked number vs. the DB-only
+       fallback getMergedFuturesWallet() returns before the first tick. */
+    .live-dot { display:inline-block; width:6px; height:6px; border-radius:50%; background:var(--green); animation: pdot 2s infinite; }
+    .live-dot.stale { background:var(--text-3); animation:none; }
+
     /* ── Section head ── */
     .sec-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
     .sec-head h3 { font-size: .95rem; font-weight: 700; }
@@ -229,6 +235,20 @@
     .coin-icon.default { background:rgba(136,136,136,.15); color:#aaaaaa; }
     .coin-name { font-weight:600; font-size:.88rem; }
     .coin-sym  { font-size:.72rem; color:var(--text-3); }
+
+    .side-pill { font-size:.68rem; font-weight:700; padding:2px 7px; border-radius:5px; display:inline-block; }
+    .side-pill.buy { background:rgba(34,197,94,.12); color:var(--green); }
+    .side-pill.sell { background:rgba(239,68,68,.12); color:var(--red); }
+    .mode-pill {
+      font-size:.62rem; font-weight:700; padding:1px 6px; border-radius:5px; display:inline-block;
+      background:var(--surface3); color:var(--text-2); border:1px solid var(--border2); margin-left:4px;
+    }
+    .up { color: var(--green); } .down { color: var(--red); }
+    .cancel-btn {
+      font-size:.7rem; font-weight:600; color:var(--text-2); background:var(--surface2);
+      border:1px solid var(--border2); border-radius:5px; padding:4px 10px; cursor:pointer; transition:.15s;
+    }
+    .cancel-btn:hover { color:var(--red); border-color:rgba(239,68,68,.4); }
 
     .empty-state { text-align:center; padding: 46px 20px; color: var(--text-3); }
     .empty-state .icon { font-size: 1.8rem; margin-bottom: 10px; }
@@ -390,7 +410,11 @@
   <main class="main">
     <div class="panel fade-in">
       <div class="page-title">Futures Wallet</div>
-      <div class="page-sub" id="pageSub">Manage the Futures Positions(LONG/SHORT) through your Futures wallet.</div>
+      <div class="page-sub">
+        <span id="pageSub">Manage the Futures Positions(LONG/SHORT) through your Futures wallet.</span>
+        <span class="live-dot stale" id="liveDot" title="Live account feed"></span>
+        <span id="liveLabel" style="font-size:.72rem;color:var(--text-3);">connecting…</span>
+      </div>
 
       <div class="wallet-tabs">
         <a href="/funding-wallet" class="wallet-tab">💰 Funding</a>
@@ -423,6 +447,10 @@
           <div style="font-size:.7rem;color:var(--text-3);text-transform:uppercase;letter-spacing:.07em;margin-bottom:6px;">Used Margin</div>
           <div style="font-size:1.1rem;font-weight:700;color:#fff;" id="stat-usedMargin">—</div>
         </div>
+        <div class="stat-chip" style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px 18px;">
+          <div style="font-size:.7rem;color:var(--text-3);text-transform:uppercase;letter-spacing:.07em;margin-bottom:6px;">Margin Ratio</div>
+          <div style="font-size:1.1rem;font-weight:700;color:#fff;" id="stat-marginRatio">—</div>
+        </div>
       </div>
 
       <div class="sec-head">
@@ -432,11 +460,11 @@
         <table>
           <thead>
             <tr>
-              <th>Symbol</th><th>Side</th><th>Quantity</th><th>Entry Price</th><th>Leverage</th><th>PnL</th>
+              <th>Symbol</th><th>Side</th><th>Quantity</th><th>Entry Price</th><th>Mark Price</th><th>Liq. Price</th><th>Margin</th><th>PnL</th><th></th>
             </tr>
           </thead>
           <tbody id="positionsTable">
-            <tr><td colspan="6"><div class="empty-state"><div class="icon">📉</div><p>Position tracking is coming soon — this wallet currently shows your available margin only.</p></div></td></tr>
+            <tr><td colspan="9"><div class="empty-state"><span class="spinner-inline"></span>Loading positions…</div></td></tr>
           </tbody>
         </table>
       </div>
@@ -515,6 +543,17 @@ function fmtQty(n) {
   n = parseFloat(n) || 0;
   return n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 8 });
 }
+function fmtPrice(n) {
+  if (n === null || n === undefined || isNaN(n)) return '—';
+  n = Number(n);
+  if (n >= 1000) return n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  if (n >= 1) return n.toFixed(4);
+  return n.toFixed(6);
+}
+function fmtPct(n) {
+  if (n === null || n === undefined || isNaN(n)) return '—';
+  return (n * 100).toFixed(2) + '%';
+}
 
 /* Topnav avatar + username, reusing the same /api/dashboard payload the
    main dashboard uses (contains user, account, socialProfile). */
@@ -531,35 +570,202 @@ async function loadIdentity() {
   } catch (e) { console.error('loadIdentity error:', e); }
 }
 
-/* Futures wallet = margin balances straight from the futures_wallet table (one row per user). */
+/* ═══════════════════════════════════════════════════════
+   STATIC (REST) + LIVE (WebSocket) DATA
+   ═══════════════════════════════════════════════════════
+   Static: GET /api/wallets/futures (wallet_balance — DB-authoritative)
+           GET /api/futures/positions (quantity, entry_price, leverage,
+             margin_mode, initial_margin, take_profit, stop_loss — DB)
+   Live:   /ws/futures-data (Web_Sockets/futuresLive_ws.js) — the exact
+           same gateway futures_trade.html uses. Carries used_margin/
+           available_margin/margin_ratio (never persisted — see
+           futuresWalletMerge.js) and mark_price/unrealized_pnl/
+           maintenance_margin/liquidation_price per position.
+   Until the socket's first tick lands, the REST endpoints already
+   return a DB-only approximation (see futuresWalletMerge.js's fallback
+   branch), so the page never shows a hard zero — it just upgrades to
+   the exact figure the moment the first tick arrives.
+   ═══════════════════════════════════════════════════════ */
+let futuresWallet = null;   // static REST snapshot
+let positions = [];         // static REST rows from /api/futures/positions
+let liveMargin = null;      // from /ws/futures-data MARGIN_UPDATE ticks
+let liveMap = new Map();    // `${symbol}:${position_side}` -> live position snapshot
+
 async function loadFuturesWallet() {
   try {
     const r = await fetch('/api/wallets/futures');
     const d = await r.json();
-
     if (!d.success) {
       document.getElementById('balanceDisplay').textContent = '—';
       document.getElementById('pageSub').textContent = d.message || 'Could not load futures wallet.';
       return;
     }
-
-    const { walletId, status, walletBalance, availableMargin, usedMargin } = d.data;
-
-    document.getElementById('balanceDisplay').textContent = fmtUsd(availableMargin);
-    document.getElementById('accountNum').textContent = 'Wallet ID: ' + (walletId != null ? walletId : '—');
-    document.getElementById('stat-walletBalance').textContent = fmtUsd(walletBalance);
-    document.getElementById('stat-availableMargin').textContent = fmtUsd(availableMargin);
-    document.getElementById('stat-usedMargin').textContent = fmtUsd(usedMargin);
-
-    const badge = document.getElementById('statusBadge');
-    badge.textContent = status || 'ACTIVE';
-    badge.style.color = status === 'BLOCKED' ? 'var(--red)' : 'var(--green)';
-    badge.style.background = status === 'BLOCKED' ? 'rgba(239,68,68,.12)' : 'rgba(34,197,94,.12)';
-    badge.style.borderColor = status === 'BLOCKED' ? 'rgba(239,68,68,.2)' : 'rgba(34,197,94,.2)';
+    futuresWallet = d.data; // { walletId, status, walletBalance, availableMargin, usedMargin }
+    renderWalletStats();
   } catch (e) {
     console.error('loadFuturesWallet error:', e);
     document.getElementById('pageSub').textContent = 'Network error loading wallet.';
   }
+}
+
+async function loadPositions() {
+  try {
+    const r = await fetch('/api/futures/positions');
+    const d = await r.json();
+    if (d.success) { positions = d.data || []; renderPositions(); }
+    else { renderPositionsError(d.message); }
+  } catch (e) { renderPositionsError(); }
+}
+
+function renderPositionsError(msg) {
+  document.getElementById('positionsTable').innerHTML =
+    `<tr><td colspan="9"><div class="empty-state"><div class="icon">⚠</div><p>${msg || 'Could not load positions.'}</p></div></td></tr>`;
+}
+
+// Live (liveMargin) takes priority over the REST snapshot (futuresWallet)
+// the moment the first MARGIN_UPDATE tick lands — same pattern as
+// futures_trade.html's updateBalanceLabels().
+function renderWalletStats() {
+  if (liveMargin) {
+    document.getElementById('balanceDisplay').textContent = fmtUsd(liveMargin.available_margin);
+    document.getElementById('stat-walletBalance').textContent = fmtUsd(liveMargin.wallet_balance);
+    document.getElementById('stat-availableMargin').textContent = fmtUsd(liveMargin.available_margin);
+    document.getElementById('stat-usedMargin').textContent = fmtUsd(liveMargin.used_margin);
+    document.getElementById('stat-marginRatio').textContent = fmtPct(liveMargin.margin_ratio);
+  } else if (futuresWallet) {
+    document.getElementById('balanceDisplay').textContent = fmtUsd(futuresWallet.availableMargin);
+    document.getElementById('stat-walletBalance').textContent = fmtUsd(futuresWallet.walletBalance);
+    document.getElementById('stat-availableMargin').textContent = fmtUsd(futuresWallet.availableMargin);
+    document.getElementById('stat-usedMargin').textContent = fmtUsd(futuresWallet.usedMargin);
+    document.getElementById('stat-marginRatio').textContent = '—';
+  }
+
+  if (futuresWallet) {
+    document.getElementById('accountNum').textContent = 'Wallet ID: ' + (futuresWallet.walletId != null ? futuresWallet.walletId : '—');
+    const badge = document.getElementById('statusBadge');
+    badge.textContent = futuresWallet.status || 'ACTIVE';
+    badge.style.color = futuresWallet.status === 'BLOCKED' ? 'var(--red)' : 'var(--green)';
+    badge.style.background = futuresWallet.status === 'BLOCKED' ? 'rgba(239,68,68,.12)' : 'rgba(34,197,94,.12)';
+    badge.style.borderColor = futuresWallet.status === 'BLOCKED' ? 'rgba(239,68,68,.2)' : 'rgba(34,197,94,.2)';
+  }
+}
+
+function renderPositions() {
+  if (!positions.length) {
+    document.getElementById('positionsTable').innerHTML =
+      `<tr><td colspan="9"><div class="empty-state"><div class="icon">📉</div><p>No open positions.</p></div></td></tr>`;
+    return;
+  }
+  document.getElementById('positionsTable').innerHTML = positions.map(p => {
+    const liveKey = `${p.symbol}:${p.position_side}`;
+    const live = liveMap.get(liveKey);
+    const meta = assetMeta((p.symbol || '').replace('USDT', ''));
+
+    const entry = parseFloat(p.entry_price);
+    const qty = parseFloat(p.quantity);
+    const margin = p.initial_margin != null ? parseFloat(p.initial_margin) : 0;
+    const mark = live && live.mark_price != null ? parseFloat(live.mark_price) : entry;
+    const pnl = live && live.unrealized_pnl != null
+      ? parseFloat(live.unrealized_pnl)
+      : (p.position_side === 'LONG' ? (mark - entry) * qty : (entry - mark) * qty);
+    const liq = live && live.liquidation_price != null ? parseFloat(live.liquidation_price) : null;
+    const sideCls = p.position_side === 'LONG' ? 'buy' : 'sell';
+    const pnlCls = pnl >= 0 ? 'up' : 'down';
+
+    return `<tr>
+      <td>
+        <div class="coin-cell">
+          <div class="coin-icon ${meta.cls}">${meta.icon}</div>
+          <div><div class="coin-name">${p.symbol}/USDT</div><span class="mode-pill">${p.margin_mode}</span></div>
+        </div>
+      </td>
+      <td><span class="side-pill ${sideCls}">${p.position_side} ${p.leverage}x</span></td>
+      <td>${qty.toFixed(6)}</td>
+      <td>${fmtPrice(entry)}</td>
+      <td>${fmtPrice(mark)}</td>
+      <td>${liq != null ? fmtPrice(liq) : '—'}</td>
+      <td>${fmtUsd(margin)}</td>
+      <td class="${pnlCls}">${pnl >= 0 ? '+' : ''}${fmtUsd(pnl)}</td>
+      <td><button class="cancel-btn" onclick="closePosition('${p.position_id}')">Close</button></td>
+    </tr>`;
+  }).join('');
+}
+
+async function closePosition(positionId) {
+  try {
+    const r = await fetch(`/api/futures/position/${positionId}/close`, { method: 'POST' });
+    const d = await r.json();
+    if (d.success) { loadPositions(); loadFuturesWallet(); }
+    else alert(d.message || 'Could not close position.');
+  } catch (e) { alert('Network error while closing position.'); }
+}
+
+/* ═══════════════════════════════════════════════════════
+   LIVE SOCKET — /ws/futures-data (Web_Sockets/futuresLive_ws.js).
+   Same gateway futures_trade.html connects to; this page just consumes
+   fewer of its fields (no order book / chart concerns here).
+   ═══════════════════════════════════════════════════════ */
+let futuresSocket = null;
+let futWsReconnectTimer = null;
+
+function connectFuturesSocket() {
+  const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+  const url = `${proto}://${location.host}/ws/futures-data`;
+  futuresSocket = new WebSocket(url);
+
+  futuresSocket.onopen = () => setLiveStatus('Live');
+  futuresSocket.onerror = () => setLiveStatus('Reconnecting…');
+  futuresSocket.onclose = () => {
+    setLiveStatus('Reconnecting…');
+    clearTimeout(futWsReconnectTimer);
+    futWsReconnectTimer = setTimeout(connectFuturesSocket, 3000);
+  };
+
+  futuresSocket.onmessage = (event) => {
+    let msg;
+    try { msg = JSON.parse(event.data); } catch (e) { return; }
+
+    switch (msg.type) {
+      case 'snapshot': {
+        liveMap = new Map();
+        (msg.positions || []).forEach(snap => {
+          if (!snap || !snap.symbol || !snap.position_side) return;
+          liveMap.set(`${snap.symbol}:${snap.position_side}`, snap);
+        });
+        liveMargin = msg.margin || null;
+        renderWalletStats();
+        renderPositions();
+        break;
+      }
+      case 'liveTick': {
+        if (msg.kind === 'position' && msg.snapshot) {
+          const snap = msg.snapshot;
+          const parts = (snap.position_key || '').split(':');
+          const key = parts.length === 3 ? `${parts[1]}:${parts[2]}` : `${snap.symbol}:${snap.position_side}`;
+          if (snap.status === 'CLOSED') liveMap.delete(key);
+          else liveMap.set(key, snap);
+          renderPositions();
+        } else if (msg.kind === 'margin' && msg.snapshot) {
+          liveMargin = msg.snapshot;
+          renderWalletStats();
+        }
+        break;
+      }
+      case 'trade_update': {
+        // Fill / liquidation / funding happened — re-pull the DB rows.
+        loadPositions();
+        loadFuturesWallet();
+        break;
+      }
+    }
+  };
+}
+
+function setLiveStatus(text) {
+  const dot = document.getElementById('liveDot');
+  const label = document.getElementById('liveLabel');
+  if (dot) dot.classList.toggle('stale', text !== 'Live');
+  if (label) label.textContent = text === 'Live' ? 'Live account feed' : text;
 }
 
 /* ═══════════════════════════════════════════════════════
@@ -591,7 +797,11 @@ async function updateFromBalanceHint() {
     const r = await fetch(WALLET_ENDPOINTS[type]);
     const d = await r.json();
     if (!d.success) return;
-    const bal = type === 'futures' ? d.data.availableMargin : d.data.totalValue;
+    // Prefer the live figure for futures (matches what's on-screen);
+    // funding/spot have no live component, so their REST value is exact.
+    const bal = type === 'futures'
+      ? (liveMargin ? liveMargin.available_margin : d.data.availableMargin)
+      : d.data.totalValue;
     hint.textContent = 'Available: ' + fmtUsd(bal);
   } catch (e) { /* leave the dash */ }
 }
@@ -641,11 +851,18 @@ async function submitTransfer() {
 }
 
 /* This page shows the Futures wallet, so refresh that after a transfer. */
-function refreshCurrentWallet() { loadFuturesWallet(); }
+function refreshCurrentWallet() { loadFuturesWallet(); loadPositions(); }
 
 document.addEventListener('DOMContentLoaded', () => {
   loadIdentity();
+  connectFuturesSocket();
   loadFuturesWallet();
+  loadPositions();
+  // Slow fallback poll, same rationale as futures_trade.html — the live
+  // socket carries the tick-frequency load, this just guards against it
+  // being down.
+  setInterval(loadFuturesWallet, 20000);
+  setInterval(loadPositions, 20000);
 });
 </script>
 </body>

@@ -15,6 +15,14 @@ const { transferBetweenWallets } = require("../Wallets_Config/walletTransfer");
 // market_data.js lives somewhere else.
 const { getLivePrice } = require("../Web_Sockets/marketData_ws");
 
+// Single source of truth for "futures wallet right now" — merges the
+// DB-authoritative wallet_balance with the RAM-only used/available
+// margin from LiveStateStore.js (falling back to a DB-derived
+// approximation if no MARGIN_UPDATE tick has landed yet). Also used by
+// futuresPanel_Route.js's GET /api/futures/wallet, so both pages read
+// from one place and can never disagree.
+const { getMergedFuturesWallet } = require("../Futures_Engine/futuresWalletMerge");
+
 function sendResponse(res, statusCode, success, message, data = null) {
     return res.status(statusCode).json({ success, message, data });
 }
@@ -133,31 +141,29 @@ router.get("/api/wallets/spot", verifyToken, (req, res) => {
 // ═══════════════════════════════════════════════════════
 // FUTURES WALLET DATA
 // ═══════════════════════════════════════════════════════
-// futures_wallet is already a flat one-row-per-user table, so this is a
-// straight read — this is what futures-wallet.html's loadFuturesWallet()
-// expects.
-router.get("/api/wallets/futures", verifyToken, (req, res) => {
-    const userId = req.user.id;
+// wallet_balance is the only static column left on futures_wallet —
+// available_margin/used_margin were dropped from MySQL entirely in the
+// v2 schema, since they change on every mark-price tick. getMergedFuturesWallet
+// handles reading the DB row + merging in the live RAM cache (or falling
+// back to a DB-only approximation before the first tick lands) — see
+// futuresWalletMerge.js for that logic. This is what
+// futures-wallet.html's loadFuturesWallet() expects.
+router.get("/api/wallets/futures", verifyToken, async (req, res) => {
+    try {
+        const wallet = await getMergedFuturesWallet(req.user.id);
+        if (!wallet) return sendResponse(res, 404, false, "Futures wallet not found");
 
-    conn.query(
-        `SELECT wallet_id, status, wallet_balance, available_margin, used_margin
-         FROM futures_wallet WHERE user_id = ?`,
-        [userId],
-        (err, result) => {
-            if (err) return sendResponse(res, 500, false, "Database error");
-            if (!result.length) return sendResponse(res, 404, false, "Futures wallet not found");
-
-            const w = result[0];
-
-            return sendResponse(res, 200, true, "Futures wallet loaded", {
-                walletId: w.wallet_id,
-                status: w.status,
-                walletBalance: parseFloat(w.wallet_balance || 0),
-                availableMargin: parseFloat(w.available_margin || 0),
-                usedMargin: parseFloat(w.used_margin || 0),
-            });
-        }
-    );
+        return sendResponse(res, 200, true, "Futures wallet loaded", {
+            walletId: wallet.walletId,
+            status: wallet.status,
+            walletBalance: wallet.walletBalance,
+            availableMargin: wallet.availableMargin,
+            usedMargin: wallet.usedMargin,
+        });
+    } catch (err) {
+        console.error("GET /api/wallets/futures error:", err);
+        return sendResponse(res, 500, false, "Could not load futures wallet.");
+    }
 });
 
 // ═══════════════════════════════════════════════════════
@@ -165,11 +171,10 @@ router.get("/api/wallets/futures", verifyToken, (req, res) => {
 // ═══════════════════════════════════════════════════════
 // body: { fromWallet: 'funding'|'spot'|'futures', toWallet: same, amount }
 // All validation, locking, and the debit/credit transaction live in
-// walletTransfer.js — this route just wires it up. No changes needed
-// here: walletTransfer.js already reads available_quantity (not
-// available_quantity + locked_quantity) via getSpotBalance, FOR UPDATE
-// inside a transaction, so once orders correctly move funds into
-// locked_quantity, transfers already respect the lock automatically.
+// walletTransfer.js — this route just wires it up. walletTransfer.js has
+// been updated for the v2 futures_wallet schema: it locks wallet_balance
+// via FOR UPDATE and reads availableMargin from the same liveStateStore
+// cache used above, since available_margin no longer exists as a column.
 router.post("/api/wallets/transfer", verifyToken, transferBetweenWallets);
 
 module.exports = router;

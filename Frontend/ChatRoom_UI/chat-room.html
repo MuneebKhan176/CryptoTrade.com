@@ -72,10 +72,20 @@
   .msg-bubble-wrap.deleted{background:var(--surface2)!important;border:1px dashed var(--border2)!important;}
   .msg-bubble-wrap.deleted .msg-text-content{font-style:italic;color:var(--text-2)!important;}
   .msg-media{position:relative;display:block;line-height:0;}
-  .msg-text-content{padding:9px 13px;font-size:.86rem;line-height:1.5;word-wrap:break-word;overflow-wrap:anywhere;white-space:pre-wrap;}
+  .msg-text-content{padding:9px 13px 0 13px;font-size:.86rem;line-height:1.45;word-wrap:break-word;overflow-wrap:anywhere;white-space:pre-wrap;}
   .msg-text-content.with-media{padding-top:6px;}
-  .msg-bottom-row{display:flex;align-items:center;justify-content:flex-end;gap:4px;padding:0 13px 7px;margin-top:-2px;}
-  .msg-bottom-row.no-text{padding-top:7px;}
+  .msg-bottom-row{display:flex;align-items:center;justify-content:flex-end;gap:4px;padding:0 13px 6px;margin-top:-15px;pointer-events:none;}
+  .msg-bottom-row.no-text{padding-top:6px;margin-top:0;}
+  /* NEW — "This message was deleted." is a single line that fills the
+     whole bubble width (bubble is width:fit-content), so there is zero
+     horizontal room for the timestamp to sit next to it. Pulling the
+     row up by the shared -15px in that case drags it straight into the
+     text. Rather than touching the shared value (which is tuned for
+     normal wrapped text and works fine there), this higher-specificity
+     rule (two classes) neutralizes the negative margin ONLY inside a
+     deleted bubble, regardless of what -15px gets tuned to later. */
+  .msg-bubble-wrap.deleted .msg-bottom-row{margin-top:0;padding-top:2px;}
+  .msg-bottom-row .msg-status-wrap{pointer-events:auto;}
   .msg-time-text{font-size:.68rem;color:rgba(255,255,255,.7);white-space:nowrap;}
   .msg-row.theirs .msg-time-text{color:var(--text-3);}
   .edited-tag-inline{font-size:.68rem;font-style:italic;opacity:.75;white-space:nowrap;}
@@ -273,8 +283,7 @@
    was built for the case where nothing sits under it, but now that
    .msg-bottom-row always sits directly underneath, that bottom padding
    is redundant and stacks with the row's own spacing. */
-   .msg-text-content{padding-bottom:0px;}
-   .msg-bottom-row{margin-top:0;}
+
    .msg-text-content .md-content p:empty{display:none;}
 
   .emoji-btn{
@@ -386,6 +395,32 @@
   .user-item .avatar-fallback{font-size:.65rem;}
   .user-item .user-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
   .user-dot{width:6px;height:6px;border-radius:50%;background:var(--green);flex-shrink:0;margin-left:auto;}
+
+  /* ── Admin badge — sidebar ONLY (per requirement), next to the room
+     owner's name in the online-users list. Not rendered in message
+     headers. Sits between the name and the presence dot; if it's
+     showing, the presence dot naturally moves further right, which is
+     fine since both are flex-shrink:0. */
+     
+  .admin-badge{
+    display: inline-flex;
+    align-items: center;
+    flex-shrink: 0;
+
+    padding: 0px 5px;      /* Smaller padding */
+    border-radius: 100px;
+
+    background: transparent;
+    border: 1px solid #07e655;
+
+    color: #07e655;
+    font-size: .5rem;      /* Smaller text */
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: .02em; /* Slightly tighter spacing */
+    margin-left: 4px;      /* Less gap from the username */
+    line-height: 1.2;
+  }
 
   /* ── Typing indicator ── */
   .typing-indicator{display:none;align-items:center;gap:8px;padding:6px 20px;font-size:.78rem;color:var(--text-2);border-top:1px solid var(--border);background:var(--surface);flex-shrink:0;}
@@ -725,6 +760,10 @@ let ws = null;
 let currentUser = null;
 let isOwner = false;
 let manualLeave = false;
+// NEW — the room owner's username, used ONLY to render the sidebar
+// "Admin" badge next to their entry in the online-users list. Set on
+// 'joined' from room.owner_username (already sent by the server).
+let roomOwnerUsername = null;
 
 function $(id) { return document.getElementById(id); }
 function escapeHtml(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
@@ -1703,7 +1742,9 @@ function buildReplyQuoteEl(message) {
  *  is a standalone floating button rather than a row (see below).
  *  Colored per-sender (same hash as the avatar fallback) with black
  *  text/icon so it reads clearly regardless of the bubble's own (dark)
- *  background. */
+ *  background.
+ *  NOTE: no admin badge here by design — the "Admin" pill is rendered
+ *  ONLY in the sidebar online-users list (see updateUsersList). */
 function buildMsgHeaderRow(username, messageId, mine, showMenu) {
   const row = document.createElement('div');
   row.className = 'msg-header-row';
@@ -1720,12 +1761,20 @@ function buildMsgHeaderRow(username, messageId, mine, showMenu) {
     menuBtn.className = 'msg-header-menu-btn';
     menuBtn.title = 'More options';
     menuBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>`;
+    // FIX: resolve the message id LIVE from the row's dataset at click
+    // time instead of trusting the `messageId` captured in this
+    // closure. Own (optimistic) messages render first under a
+    // temporary "pending-xxxx" id and get silently swapped to the real
+    // server id by reconcileMessage() — the closure would still point
+    // at the dead pending id, so a click would look up nothing and the
+    // menu would silently fail to open until a refresh.
     menuBtn.addEventListener('click', (e) => {
       e.stopPropagation();
+      const liveId = menuBtn.closest('.msg-row')?.dataset.messageId || messageId;
       const r = menuBtn.getBoundingClientRect();
       // Anchored open: horizontal + vertical placement both auto-flip to
       // whichever side has room — see openContextMenu()'s placement logic.
-      openContextMenu(r.left, r.bottom, messageId, mine, { anchorTop: r.top, anchorBottom: r.bottom, anchorLeft: r.left, anchorRight: r.right });
+      openContextMenu(r.left, r.bottom, liveId, mine, { anchorTop: r.top, anchorBottom: r.bottom, anchorLeft: r.left, anchorRight: r.right });
     });
     row.appendChild(menuBtn);
   }
@@ -1745,10 +1794,15 @@ function buildOwnMenuHeader(messageId) {
   menuBtn.className = 'msg-header-menu-btn own own-floating';
   menuBtn.title = 'More options';
   menuBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>`;
+  // Same live-id fix as buildMsgHeaderRow() above — this is the button
+  // that was actually reported broken (it's the one on YOUR OWN
+  // messages, which are exactly the ones that go through the
+  // pending-id -> real-id swap).
   menuBtn.addEventListener('click', (e) => {
     e.stopPropagation();
+    const liveId = menuBtn.closest('.msg-row')?.dataset.messageId || messageId;
     const r = menuBtn.getBoundingClientRect();
-    openContextMenu(r.left, r.bottom, messageId, true, { anchorTop: r.top, anchorBottom: r.bottom, anchorLeft: r.left, anchorRight: r.right });
+    openContextMenu(r.left, r.bottom, liveId, true, { anchorTop: r.top, anchorBottom: r.bottom, anchorLeft: r.left, anchorRight: r.right });
   });
   return menuBtn;
 }
@@ -1798,7 +1852,13 @@ function buildHoverActions(messageId, mine) {
   emojiBtn.className = 'msg-hover-btn';
   emojiBtn.title = 'React';
   emojiBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M8.5 14.5c1 1.2 2.2 1.8 3.5 1.8s2.5-.6 3.5-1.8"/><line x1="8.5" y1="9.5" x2="8.5" y2="9.51"/><line x1="15.5" y1="9.5" x2="15.5" y2="9.51"/></svg>`;
-  emojiBtn.addEventListener('click', (e) => { e.stopPropagation(); openReactionPickerFor(messageId); });
+  // FIX: same stale-closure issue as the menu buttons — resolve the id
+  // live off the row's dataset rather than the captured `messageId`.
+  emojiBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const liveId = emojiBtn.closest('.msg-row')?.dataset.messageId || messageId;
+    openReactionPickerFor(liveId);
+  });
   wrap.appendChild(emojiBtn);
 
   return wrap;
@@ -2087,7 +2147,7 @@ function reconcileMessage(localId, serverMessage, status) {
 function setReplyTarget(message) {
   replyTarget = {
     id: message.id,
-    from: message.fromId === (currentUser && currentUser.id) ? 'yourself' : message.from,
+    from: message.fromId === (currentUser && currentUser.id) ? 'Me(You)' : message.from,
     textPreview: message.deletedForEveryone ? 'This message was deleted.' : (message.text || attachmentSummaryLabel(message.attachments)).slice(0, 120),
     kind: (message.attachments && message.attachments.length) ? message.attachments[0].kind : 'text',
   };
@@ -2417,6 +2477,9 @@ $('msgs').addEventListener('scroll', () => {
   }
 });
 
+/** NEW — Admin badge is rendered ONLY here, in the sidebar online-users
+ *  list, next to the room owner's entry. `roomOwnerUsername` is set
+ *  from `msg.room.owner_username` when the 'joined' payload arrives. */
 function updateUsersList(users) {
   $('usersHeading').textContent = `Online — ${users.length}`;
   const container = $('usersList');
@@ -2433,6 +2496,12 @@ function updateUsersList(users) {
     name.className = 'user-name';
     name.textContent = username;
     row.appendChild(name);
+    if (roomOwnerUsername && username === roomOwnerUsername) {
+      const badge = document.createElement('span');
+      badge.className = 'admin-badge';
+      badge.textContent = 'Admin';
+      row.appendChild(badge);
+    }
     const dot = document.createElement('span');
     dot.className = 'user-dot';
     row.appendChild(dot);
@@ -2786,6 +2855,10 @@ function connect() {
     switch (msg.type) {
       case 'joined': {
         isOwner = !!msg.room.is_owner;
+        // NEW — capture the owner's username so the sidebar can render
+        // the "Admin" badge next to them. Must happen before
+        // updateUsersList() runs a few lines down.
+        roomOwnerUsername = msg.room.owner_username || null;
         $('roomTitle').textContent = msg.room.room_name;
         $('deleteBtn').style.display = isOwner ? 'inline-flex' : 'none';
         $('searchToggleBtn').style.display = 'inline-flex';
