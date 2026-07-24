@@ -73,7 +73,6 @@ function bootstrap() {
         console.warn("Futures engine TCP connection lost:", reason);
     });
 
-    console.log("Futures live-state + persistence layers attached.");
 }
 
 module.exports = { bootstrap };

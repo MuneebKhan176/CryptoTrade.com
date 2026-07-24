@@ -79,7 +79,6 @@ function startFuturesPriceFeed() {
         }
     }, MARK_TICK_MS);
 
-    console.log(`Futures price feed started for [${SYMBOLS.join(', ')}] (PRICE_UPDATE every ${PRICE_TICK_MS}ms, MARK_PRICE_UPDATE every ${MARK_TICK_MS}ms).`);
 }
 
 function stopFuturesPriceFeed() {

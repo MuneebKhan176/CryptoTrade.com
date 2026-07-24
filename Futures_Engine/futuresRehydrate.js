@@ -77,9 +77,6 @@ async function rehydrateEngineState() {
             }
         }
 
-        console.log(
-            `futuresRehydrate: re-synced ${wallets.length} wallet(s) and ${openPositions.length} open position(s) into the engine.`
-        );
     } catch (err) {
         console.error('futuresRehydrate: failed to rehydrate engine state from MySQL:', err.message);
     }

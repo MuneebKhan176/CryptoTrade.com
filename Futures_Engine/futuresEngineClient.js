@@ -148,7 +148,6 @@ function connect() {
 
     socket.connect(ENGINE_PORT, ENGINE_HOST, () => {
         connected = true;
-        console.log(`Connected to futures engine at ${ENGINE_HOST}:${ENGINE_PORT} (shared connection)`);
         engineEvents.emit("connected");
         flushWriteQueue();
         flushFireAndForgetQueue();

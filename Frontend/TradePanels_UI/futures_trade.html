@@ -226,12 +226,23 @@
   .side-tabs { display:flex; gap:8px; margin-bottom:12px; }
   .side-tab {
     flex:1; padding:10px; border-radius:7px; font-size:.85rem; font-weight:700;
-    border:1.5px solid #ffffff; background:transparent; cursor:pointer; transition:.15s;
+    border:1.5px solid #ffffff; background:transparent; color:#ffffff; /* White text & border by default */
+    cursor:pointer; transition:.15s;
   }
-  .side-tab.buy { color: var(--green); }
-  .side-tab.sell { color: var(--red); }
-  .side-tab.buy.active { border-color: var(--green); }
-  .side-tab.sell.active { border-color: var(--red); }
+  
+  /* Remove the default resting colors */
+  .side-tab.buy { /* no color defined here anymore */ }
+  .side-tab.sell { /* no color defined here anymore */ }
+
+  /* Apply green/red ONLY when the active class is present */
+  .side-tab.buy.active { 
+    color: var(--green); 
+    border-color: var(--green); 
+  }
+  .side-tab.sell.active { 
+    color: var(--red); 
+    border-color: var(--red); 
+  }
 
   .type-tabs { display:flex; gap:16px; margin-bottom:12px; }
   .type-tab { font-size:.8rem; font-weight:600; color:var(--text-2); background:none; border:none; cursor:pointer; padding:2px 0; border-bottom:2px solid transparent; }
@@ -486,7 +497,16 @@
 
   <!-- ═══ RIGHT: TRADE EXECUTION ═══ -->
   <div class="col">
-    <div class="col-head"><span>Open Position</span></div>
+    <div class="col-head">
+      <span>Open Position</span>
+      <a href="/futures-wallet" id="walletLinkIcon" title="Go to Futures Wallet" aria-label="Go to Futures Wallet" style="color:#ffffff;opacity:.55;background:transparent;display:flex;align-items:center;justify-content:center;transition:opacity .15s;">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 7H5a2 2 0 0 1 0-4h13v4"/>
+          <path d="M3 7v11a2 2 0 0 0 2 2h15a1 1 0 0 0 1-1v-4"/>
+          <path d="M18 12a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3z"/>
+        </svg>
+      </a>
+    </div>
     <div class="trade-panel">
 
       <div class="panel-ctrl-row">
@@ -677,6 +697,7 @@ function bindTimeframeButtons() {
     });
   });
 }
+
 
 async function fetchUserAvatar() {
   try {
@@ -1335,6 +1356,7 @@ function selectTradeSide(side) {
   const btn = document.getElementById('tradeSubmitBtn');
   btn.textContent = side === 'LONG' ? 'Open Long' : 'Open Short';
   btn.className = 'submit-btn ' + (side === 'LONG' ? 'buy' : 'sell');
+  recalcFutures();
 }
 
 /* ── Margin-mode chip + popover ─────────────────────────────────── */
@@ -1391,6 +1413,9 @@ function clampLeverage(v) {
 function onLevSliderInput(v) {
   document.getElementById('levPopoverValue').textContent = v + '×';
   document.getElementById('levTextInput').value = v;
+  leverage = parseInt(v, 10);
+  syncLeverageChip();
+  recalcFutures();
 }
 
 // Typed (or spun via the number input's up/down arrows) — mirror into
@@ -1398,12 +1423,16 @@ function onLevSliderInput(v) {
 // other direction. Left un-clamped while typing (e.g. a stray "1" on
 // the way to "125" shouldn't get force-rounded mid-keystroke); clamping
 // happens once, on Confirm.
+
 function onLevTextInput(v) {
   const n = parseFloat(v);
   if (isNaN(n)) return;
   const forSlider = Math.min(125, Math.max(1, Math.round(n)));
   document.getElementById('levSlider').value = forSlider;
   document.getElementById('levPopoverValue').textContent = forSlider + '×';
+  leverage = forSlider;
+  syncLeverageChip();
+  recalcFutures();
 }
 
 function applyLeverage() {
@@ -1475,6 +1504,38 @@ function applyPercent(pct) {
   recalcFutures();
 }
 
+// ── Est. Liquidation Price ───────────────────────────────────────────
+// Solves the simplified isolated-margin liquidation condition for the
+// price at which equity == maintenance margin, given the *complete*
+// configured trade (side, entry price, quantity, margin, leverage) —
+// not leverage alone. MMR is the same simplified maintenance-margin-rate
+// constant used before; this only changes what the price is solved from.
+//
+//   LONG:  margin + (liq - entry) * qty = MMR * liq * qty
+//          => liq = (entry * qty - margin) / (qty * (1 - MMR))
+//   SHORT: margin + (entry - liq) * qty = MMR * liq * qty
+//          => liq = (entry * qty + margin) / (qty * (1 + MMR))
+//
+// Both reduce to the old `price * (1 - 1/leverage + MMR)` /
+// `price * (1 + 1/leverage - MMR)` shape whenever margin = (entry*qty)/leverage,
+// but expressed this way the result also tracks qty/margin directly,
+// so it recalculates correctly if those are ever adjusted independent
+// of leverage (e.g. partial margin top-ups) rather than being frozen to
+// whatever leverage alone implies.
+function calcLiquidationPrice(side, entryPrice, qty, margin) {
+  if (!(entryPrice > 0) || !(qty > 0) || !(margin > 0)) return null;
+  if (side === 'LONG') {
+    const denom = qty * (1 - MMR);
+    if (denom <= 0) return null;
+    const liq = (entryPrice * qty - margin) / denom;
+    return liq > 0 ? liq : 0;
+  } else {
+    const denom = qty * (1 + MMR);
+    if (denom <= 0) return null;
+    return (entryPrice * qty + margin) / denom;
+  }
+}
+
 function recalcFutures() {
   const price = getEffectivePrice();
   const qty = parseFloat(document.getElementById('amountInput').value) || 0;
@@ -1486,9 +1547,10 @@ function recalcFutures() {
   document.getElementById('calcMargin').textContent = fmtUsd(requiredMargin);
   document.getElementById('calcFee').textContent = fmtUsd(fee);
 
-  if (price > 0 && leverage > 0) {
-    const liqLong = price * (1 - (1 / leverage) + MMR);
-    document.getElementById('calcLiq').textContent = fmtPrice(liqLong) + ' (Long)';
+  const liq = calcLiquidationPrice(selectedSide, price, qty, requiredMargin);
+  if (liq !== null) {
+    const sideLabel = selectedSide === 'LONG' ? 'Long' : 'Short';
+    document.getElementById('calcLiq').textContent = fmtPrice(liq) + ' (' + sideLabel + ')';
   } else {
     document.getElementById('calcLiq').textContent = '—';
   }

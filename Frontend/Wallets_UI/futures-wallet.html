@@ -20,7 +20,9 @@
       --blue:      #3b82f6;
       --blue-dim:  rgba(59,130,246,0.12);
       --green:     #22c55e;
+      --green-dim: rgba(34,197,94,0.12);
       --red:       #ef4444;
+      --red-dim:   rgba(239,68,68,0.12);
       --sidebar-w: 220px;
     }
 
@@ -209,46 +211,37 @@
     .live-dot.stale { background:var(--text-3); animation:none; }
 
     /* ── Section head ── */
-    .sec-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+    .sec-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; margin-top: 28px; }
     .sec-head h3 { font-size: .95rem; font-weight: 700; }
 
-    /* ── Tables ── */
-    .table-wrap { border: 1px solid var(--border); border-radius: 10px; overflow: hidden; background: var(--surface); }
-    table { width:100%; border-collapse: collapse; }
-    thead { background: var(--surface2); }
-    th { padding: 11px 16px; font-size: .7rem; font-weight: 700; text-transform: uppercase; letter-spacing: .07em; color: var(--text-3); text-align: left; }
-    th:not(:first-child) { text-align: right; }
-    td { padding: 13px 16px; font-size: .86rem; border-bottom: 1px solid var(--border); vertical-align: middle; }
-    td:not(:first-child) { text-align: right; }
-    tbody tr:last-child td { border-bottom: none; }
-    tbody tr:hover td { background: rgba(255,255,255,.015); }
-
-    .coin-cell { display:flex; align-items:center; gap:10px; }
-    .coin-icon { width:32px; height:32px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:.85rem; font-weight:700; flex-shrink:0; }
-    .coin-icon.btc  { background:rgba(247,147,26,.15); color:#f7931a; }
-    .coin-icon.eth  { background:rgba(98,126,234,.15); color:#627eea; }
-    .coin-icon.sol  { background:rgba(153,69,255,.15); color:#9945ff; }
-    .coin-icon.xrp  { background:rgba(0,170,228,.15); color:#00aae4; }
-    .coin-icon.bnb  { background:rgba(240,185,11,.15); color:#f0b90b; }
-    .coin-icon.usdt { background:rgba(38,161,123,.15); color:#26a17b; }
-    .coin-icon.usdc { background:rgba(39,117,202,.15); color:#2775ca; }
-    .coin-icon.default { background:rgba(136,136,136,.15); color:#aaaaaa; }
-    .coin-name { font-weight:600; font-size:.88rem; }
-    .coin-sym  { font-size:.72rem; color:var(--text-3); }
-
-    .side-pill { font-size:.68rem; font-weight:700; padding:2px 7px; border-radius:5px; display:inline-block; }
-    .side-pill.buy { background:rgba(34,197,94,.12); color:var(--green); }
-    .side-pill.sell { background:rgba(239,68,68,.12); color:var(--red); }
-    .mode-pill {
-      font-size:.62rem; font-weight:700; padding:1px 6px; border-radius:5px; display:inline-block;
-      background:var(--surface3); color:var(--text-2); border:1px solid var(--border2); margin-left:4px;
+    /* ── Content tabs (Positions / History) ── */
+    .content-tabs {
+      display: flex; gap: 6px; margin-top: 28px; margin-bottom: 16px;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 10px; padding: 4px;
     }
+    .content-tab {
+      flex: 1; padding: 9px 14px; border-radius: 7px;
+      font-size: .82rem; font-weight: 600; color: var(--text-2);
+      background: transparent; border: none; cursor: pointer;
+      transition: all .15s; display: flex; align-items: center; justify-content: center; gap: 6px;
+    }
+    .content-tab:hover { color: #fff; background: var(--surface2); }
+    .content-tab.active { background: var(--surface3); color: var(--blue); }
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; }
+    .history-scroll { max-height: 640px; overflow-y: auto; }
+    .hist-load-more { text-align:center; padding: 16px; color: var(--text-3); font-size:.78rem; }
+
+    /* ── Card containers (Positions / History) ──────────────────────
+       Replaces the old <table> rendering with the same stacked-card
+       format used on futures_trade.html, so the two pages match. */
+    .cards-wrap {
+      border: 1px solid var(--border); border-radius: 10px; overflow: hidden;
+      background: var(--surface); padding: 4px 0;
+    }
+
     .up { color: var(--green); } .down { color: var(--red); }
-    .cancel-btn {
-      font-size:.7rem; font-weight:600; color:var(--text-2); background:var(--surface2);
-      border:1px solid var(--border2); border-radius:5px; padding:4px 10px; cursor:pointer; transition:.15s;
-    }
-    .cancel-btn:hover { color:var(--red); border-color:rgba(239,68,68,.4); }
 
     .empty-state { text-align:center; padding: 46px 20px; color: var(--text-3); }
     .empty-state .icon { font-size: 1.8rem; margin-bottom: 10px; }
@@ -261,6 +254,59 @@
       vertical-align:middle; margin-right:6px;
     }
     @keyframes spin { to { transform:rotate(360deg); } }
+
+    /* ── Position cards (same format as futures_trade.html) ─────────── */
+    .pos-card {
+      border: 1px solid var(--border2);
+      border-radius: 10px;
+      background: var(--surface2);
+      padding: 14px 16px;
+      margin: 10px 12px;
+    }
+    .pos-card-head { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
+    .pos-card-symbol { font-size: .92rem; font-weight: 700; }
+    .pos-card-badge {
+      font-size: .66rem; font-weight: 700; padding: 2px 7px; border-radius: 5px;
+      background: var(--surface3); border: 1px solid var(--border2); color: var(--text-2);
+    }
+    .pos-card-badge.long { color: var(--green); border-color: rgba(34,197,94,.35); }
+    .pos-card-badge.short { color: var(--red); border-color: rgba(239,68,68,.35); }
+
+    .pos-card-pnl-row { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 14px; }
+    .pos-card-pnl-label { font-size: .68rem; color: var(--text-3); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 4px; }
+    .pos-card-pnl-value { font-size: 1.4rem; font-weight: 800; font-variant-numeric: tabular-nums; }
+    .pos-card-roe { text-align: right; }
+    .pos-card-roe-value { font-size: 1.1rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+
+    .pos-card-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 14px; }
+    .pos-card-cell label { display: block; font-size: .64rem; color: var(--text-3); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 3px; }
+    .pos-card-cell span { font-size: .82rem; font-weight: 600; font-variant-numeric: tabular-nums; color: #fff; }
+
+    .pos-card-btns { display: flex; gap: 8px; }
+    .pos-card-btn {
+      flex: 1; padding: 8px 6px; font-size: .74rem; font-weight: 700; border-radius: 7px; cursor: pointer;
+      border: 1px solid var(--border2); background: var(--surface3); color: var(--text-2); transition: .15s;
+    }
+    .pos-card-btn:hover { color: #fff; border-color: #444; }
+    .pos-card-btn.danger { background: var(--red-dim); border-color: rgba(239,68,68,.35); color: var(--red); }
+    .pos-card-btn.danger:hover { background: rgba(239,68,68,.18); }
+
+    /* ── History cards (same format as futures_trade.html) ──────────── */
+    .hist-card { border:1px solid var(--border2); border-radius:10px; background:var(--surface2); padding:14px 16px; margin:10px 12px; }
+    .hist-card-head { display:flex; align-items:center; gap:7px; margin-bottom:12px; flex-wrap:wrap; }
+    .hist-card-icon { width:20px; height:20px; border-radius:5px; display:flex; align-items:center; justify-content:center; font-size:.68rem; font-weight:800; color:#fff; flex-shrink:0; }
+    .hist-card-icon.long { background:var(--green); }
+    .hist-card-icon.short { background:var(--red); }
+    .hist-card-symbol { font-size:.86rem; font-weight:700; }
+    .hist-card-badge { font-size:.64rem; font-weight:700; padding:2px 7px; border-radius:5px; background:var(--surface3); border:1px solid var(--border2); color:var(--text-2); }
+    .hist-card-badge.liq { color:#f59e0b; border-color:rgba(245,158,11,.35); background:rgba(245,158,11,.1); }
+    .hist-card-status { margin-left:auto; font-size:.72rem; color:var(--text-3); }
+    .hist-card-grid { display:grid; grid-template-columns: repeat(3,1fr); gap:12px 14px; margin-bottom:12px; }
+    .hist-card-cell label { display:block; font-size:.62rem; color:var(--text-3); text-transform:uppercase; letter-spacing:.05em; margin-bottom:3px; }
+    .hist-card-cell span { font-size:.8rem; font-weight:600; font-variant-numeric:tabular-nums; color:#fff; }
+    .hist-card-cell span.up { color:var(--green); }
+    .hist-card-cell span.down { color:var(--red); }
+    .hist-card-foot { display:flex; justify-content:space-between; gap:12px; font-size:.7rem; color:var(--text-3); padding-top:10px; border-top:1px solid var(--border); flex-wrap:wrap; }
 
     /* ── Modal (Internal Transfer) ── */
     .modal-overlay {
@@ -422,26 +468,33 @@
         <a href="/futures-wallet" class="wallet-tab active">📉 Futures</a>
       </div>
 
+      <!-- Main balance card now surfaces Total Balance (wallet_balance)
+           as the headline figure — previously this showed Available
+           Margin here, while Wallet Balance only appeared in the small
+           stat chip below. -->
       <div class="balance-card">
         <div class="balance-main">
-          <div class="balance-label">Futures Wallet — Available Margin</div>
+          <div class="balance-label">Futures Wallet — Total Balance</div>
           <div class="balance-value" id="balanceDisplay">$0.00</div>
           <div class="balance-account" id="accountNum">Wallet ID: —</div>
         </div>
         <div class="balance-actions">
+          <a href="/futures-trade" class="btn-sm primary">Trade</a>
           <button class="btn-sm ghost" onclick="openTransferModal()">Transfer</button>
           <span class="badge-active" id="statusBadge">ACTIVE</span>
         </div>
       </div>
 
+      <!-- Stat chips — order swapped so Available Margin now comes
+           before Wallet Balance (previously Wallet Balance was first). -->
       <div class="quick-stats" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:28px;">
-        <div class="stat-chip" style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px 18px;">
-          <div style="font-size:.7rem;color:var(--text-3);text-transform:uppercase;letter-spacing:.07em;margin-bottom:6px;">Wallet Balance</div>
-          <div style="font-size:1.1rem;font-weight:700;color:#fff;" id="stat-walletBalance">—</div>
-        </div>
         <div class="stat-chip" style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px 18px;">
           <div style="font-size:.7rem;color:var(--text-3);text-transform:uppercase;letter-spacing:.07em;margin-bottom:6px;">Available Margin</div>
           <div style="font-size:1.1rem;font-weight:700;color:var(--green);" id="stat-availableMargin">—</div>
+        </div>
+        <div class="stat-chip" style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px 18px;">
+          <div style="font-size:.7rem;color:var(--text-3);text-transform:uppercase;letter-spacing:.07em;margin-bottom:6px;">Wallet Balance</div>
+          <div style="font-size:1.1rem;font-weight:700;color:#fff;" id="stat-walletBalance">—</div>
         </div>
         <div class="stat-chip" style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px 18px;">
           <div style="font-size:.7rem;color:var(--text-3);text-transform:uppercase;letter-spacing:.07em;margin-bottom:6px;">Used Margin</div>
@@ -453,20 +506,23 @@
         </div>
       </div>
 
-      <div class="sec-head">
-        <h3>Open Positions</h3>
+      <!-- Positions / History — now presented as two switchable tabs
+           instead of two always-visible stacked sections. -->
+      <div class="content-tabs">
+        <button class="content-tab active" id="tabBtn-positions" onclick="switchContentTab('positions')">📉 Open Positions</button>
+        <button class="content-tab" id="tabBtn-history" onclick="switchContentTab('history')">🗂 Position History</button>
       </div>
-      <div class="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>Symbol</th><th>Side</th><th>Quantity</th><th>Entry Price</th><th>Mark Price</th><th>Liq. Price</th><th>Margin</th><th>PnL</th><th></th>
-            </tr>
-          </thead>
-          <tbody id="positionsTable">
-            <tr><td colspan="9"><div class="empty-state"><span class="spinner-inline"></span>Loading positions…</div></td></tr>
-          </tbody>
-        </table>
+
+      <div class="tab-panel active" id="tabPanel-positions">
+        <div class="cards-wrap" id="positionsCards">
+          <div class="empty-state"><span class="spinner-inline"></span>Loading positions…</div>
+        </div>
+      </div>
+
+      <div class="tab-panel" id="tabPanel-history">
+        <div class="cards-wrap history-scroll" id="historyCards" onscroll="onHistoryScroll()">
+          <div class="empty-state"><span class="spinner-inline"></span>Loading history…</div>
+        </div>
       </div>
     </div>
   </main>
@@ -555,6 +611,15 @@ function fmtPct(n) {
   return (n * 100).toFixed(2) + '%';
 }
 
+// Same normalization used on futures_trade.html: `symbol` is already
+// stored as the full pair (e.g. "BTCUSDT"), so only append "USDT" if
+// it's somehow missing — never double-append.
+function displaySymbol(sym) {
+  if (!sym) return '—';
+  const s = sym.toUpperCase();
+  return s.endsWith('USDT') ? s : s + 'USDT';
+}
+
 /* Topnav avatar + username, reusing the same /api/dashboard payload the
    main dashboard uses (contains user, account, socialProfile). */
 async function loadIdentity() {
@@ -571,11 +636,23 @@ async function loadIdentity() {
 }
 
 /* ═══════════════════════════════════════════════════════
+   CONTENT TABS — Positions / History
+   ═══════════════════════════════════════════════════════ */
+function switchContentTab(tab) {
+  ['positions', 'history'].forEach(t => {
+    const isActive = t === tab;
+    document.getElementById(`tabBtn-${t}`).classList.toggle('active', isActive);
+    document.getElementById(`tabPanel-${t}`).classList.toggle('active', isActive);
+  });
+}
+
+/* ═══════════════════════════════════════════════════════
    STATIC (REST) + LIVE (WebSocket) DATA
    ═══════════════════════════════════════════════════════
    Static: GET /api/wallets/futures (wallet_balance — DB-authoritative)
            GET /api/futures/positions (quantity, entry_price, leverage,
              margin_mode, initial_margin, take_profit, stop_loss — DB)
+           GET /api/futures/history (closed positions — DB)
    Live:   /ws/futures-data (Web_Sockets/futuresLive_ws.js) — the exact
            same gateway futures_trade.html uses. Carries used_margin/
            available_margin/margin_ratio (never persisted — see
@@ -588,8 +665,14 @@ async function loadIdentity() {
    ═══════════════════════════════════════════════════════ */
 let futuresWallet = null;   // static REST snapshot
 let positions = [];         // static REST rows from /api/futures/positions
+let history = [];           // static REST rows from /api/futures/history
 let liveMargin = null;      // from /ws/futures-data MARGIN_UPDATE ticks
 let liveMap = new Map();    // `${symbol}:${position_side}` -> live position snapshot
+
+// Infinite scroll state for the History tab — renders 10 at a time and
+// grows as the user scrolls the history card list to the bottom.
+const HISTORY_PAGE_SIZE = 10;
+let historyRenderedCount = HISTORY_PAGE_SIZE;
 
 async function loadFuturesWallet() {
   try {
@@ -618,22 +701,41 @@ async function loadPositions() {
 }
 
 function renderPositionsError(msg) {
-  document.getElementById('positionsTable').innerHTML =
-    `<tr><td colspan="9"><div class="empty-state"><div class="icon">⚠</div><p>${msg || 'Could not load positions.'}</p></div></td></tr>`;
+  document.getElementById('positionsCards').innerHTML =
+    `<div class="empty-state"><div class="icon">⚠</div><p>${msg || 'Could not load positions.'}</p></div>`;
+}
+
+async function loadHistory() {
+  try {
+    const r = await fetch('/api/futures/history');
+    const d = await r.json();
+    if (d.success) {
+      history = d.data || [];
+      historyRenderedCount = HISTORY_PAGE_SIZE; // reset paging on a fresh load
+      renderHistory();
+    }
+    else { renderHistoryError(d.message); }
+  } catch (e) { renderHistoryError(); }
+}
+
+function renderHistoryError(msg) {
+  document.getElementById('historyCards').innerHTML =
+    `<div class="empty-state"><div class="icon">⚠</div><p>${msg || 'Could not load history.'}</p></div>`;
 }
 
 // Live (liveMargin) takes priority over the REST snapshot (futuresWallet)
 // the moment the first MARGIN_UPDATE tick lands — same pattern as
-// futures_trade.html's updateBalanceLabels().
+// futures_trade.html's updateBalanceLabels(). The headline balance-value
+// now shows Total Balance (wallet_balance) instead of Available Margin.
 function renderWalletStats() {
   if (liveMargin) {
-    document.getElementById('balanceDisplay').textContent = fmtUsd(liveMargin.available_margin);
+    document.getElementById('balanceDisplay').textContent = fmtUsd(liveMargin.wallet_balance);
     document.getElementById('stat-walletBalance').textContent = fmtUsd(liveMargin.wallet_balance);
     document.getElementById('stat-availableMargin').textContent = fmtUsd(liveMargin.available_margin);
     document.getElementById('stat-usedMargin').textContent = fmtUsd(liveMargin.used_margin);
     document.getElementById('stat-marginRatio').textContent = fmtPct(liveMargin.margin_ratio);
   } else if (futuresWallet) {
-    document.getElementById('balanceDisplay').textContent = fmtUsd(futuresWallet.availableMargin);
+    document.getElementById('balanceDisplay').textContent = fmtUsd(futuresWallet.walletBalance);
     document.getElementById('stat-walletBalance').textContent = fmtUsd(futuresWallet.walletBalance);
     document.getElementById('stat-availableMargin').textContent = fmtUsd(futuresWallet.availableMargin);
     document.getElementById('stat-usedMargin').textContent = fmtUsd(futuresWallet.usedMargin);
@@ -650,52 +752,190 @@ function renderWalletStats() {
   }
 }
 
+// Positions — stacked pos-cards, identical layout/logic to
+// futures_trade.html's renderPositions() (symbol/badges header, PNL+ROE
+// row, 3-col stat grid, action buttons).
 function renderPositions() {
   if (!positions.length) {
-    document.getElementById('positionsTable').innerHTML =
-      `<tr><td colspan="9"><div class="empty-state"><div class="icon">📉</div><p>No open positions.</p></div></td></tr>`;
+    document.getElementById('positionsCards').innerHTML =
+      `<div class="empty-state"><div class="icon">📉</div><p>No open positions.</p></div>`;
     return;
   }
-  document.getElementById('positionsTable').innerHTML = positions.map(p => {
+
+  const cards = positions.map(p => {
     const liveKey = `${p.symbol}:${p.position_side}`;
     const live = liveMap.get(liveKey);
-    const meta = assetMeta((p.symbol || '').replace('USDT', ''));
 
     const entry = parseFloat(p.entry_price);
     const qty = parseFloat(p.quantity);
-    const margin = p.initial_margin != null ? parseFloat(p.initial_margin) : 0;
+    const lev = parseFloat(p.leverage) || 1;
+    const margin = p.initial_margin != null ? parseFloat(p.initial_margin) : (entry * qty) / lev;
+
     const mark = live && live.mark_price != null ? parseFloat(live.mark_price) : entry;
+
     const pnl = live && live.unrealized_pnl != null
       ? parseFloat(live.unrealized_pnl)
       : (p.position_side === 'LONG' ? (mark - entry) * qty : (entry - mark) * qty);
-    const liq = live && live.liquidation_price != null ? parseFloat(live.liquidation_price) : null;
-    const sideCls = p.position_side === 'LONG' ? 'buy' : 'sell';
-    const pnlCls = pnl >= 0 ? 'up' : 'down';
 
-    return `<tr>
-      <td>
-        <div class="coin-cell">
-          <div class="coin-icon ${meta.cls}">${meta.icon}</div>
-          <div><div class="coin-name">${p.symbol}/USDT</div><span class="mode-pill">${p.margin_mode}</span></div>
+    const maint = live && live.maintenance_margin != null ? parseFloat(live.maintenance_margin) : null;
+
+    const liq = live && live.liquidation_price != null
+      ? parseFloat(live.liquidation_price)
+      : (p.liquidation_price != null ? parseFloat(p.liquidation_price) : null);
+
+    const roe = margin > 0 ? (pnl / margin) * 100 : 0;
+    const risk = (maint != null && margin > 0) ? (maint / margin) * 100 : null;
+    const pnlCls = pnl >= 0 ? 'up' : 'down';
+    const sideCls = p.position_side === 'LONG' ? 'long' : 'short';
+    const marginModeLabel = p.margin_mode === 'ISOLATED' ? 'Isolated' : 'Cross';
+
+    return `<div class="pos-card">
+      <div class="pos-card-head">
+        <span class="pos-card-symbol">${displaySymbol(p.symbol)} Perpetual</span>
+        <span class="pos-card-badge">${marginModeLabel} ${lev}x</span>
+        <span class="pos-card-badge ${sideCls}">${p.position_side}</span>
+      </div>
+
+      <div class="pos-card-pnl-row">
+        <div>
+          <div class="pos-card-pnl-label">Unrealized PNL (USDT)</div>
+          <div class="pos-card-pnl-value ${pnlCls}">${pnl >= 0 ? '+' : ''}${fmtUsd(pnl).replace('$','')}</div>
         </div>
-      </td>
-      <td><span class="side-pill ${sideCls}">${p.position_side} ${p.leverage}x</span></td>
-      <td>${qty.toFixed(6)}</td>
-      <td>${fmtPrice(entry)}</td>
-      <td>${fmtPrice(mark)}</td>
-      <td>${liq != null ? fmtPrice(liq) : '—'}</td>
-      <td>${fmtUsd(margin)}</td>
-      <td class="${pnlCls}">${pnl >= 0 ? '+' : ''}${fmtUsd(pnl)}</td>
-      <td><button class="cancel-btn" onclick="closePosition('${p.position_id}')">Close</button></td>
-    </tr>`;
+        <div class="pos-card-roe">
+          <div class="pos-card-pnl-label">ROE</div>
+          <div class="pos-card-roe-value ${pnlCls}">${roe >= 0 ? '+' : ''}${roe.toFixed(2)}%</div>
+        </div>
+      </div>
+
+      <div class="pos-card-grid">
+        <div class="pos-card-cell"><label>Size (${p.symbol})</label><span>${qty.toFixed(6)}</span></div>
+        <div class="pos-card-cell"><label>Margin (USDT)</label><span>${fmtUsd(margin).replace('$','')}</span></div>
+        <div class="pos-card-cell"><label>Risk</label><span>${risk != null ? risk.toFixed(2) + '%' : '—'}</span></div>
+        <div class="pos-card-cell"><label>Entry Price</label><span>${fmtPrice(entry)}</span></div>
+        <div class="pos-card-cell"><label>Mark Price</label><span>${fmtPrice(mark)}</span></div>
+        <div class="pos-card-cell"><label>Liq. Price</label><span>${liq != null ? fmtPrice(liq) : '—'}</span></div>
+      </div>
+
+      <div class="pos-card-btns">
+        <button class="pos-card-btn" onclick="notAvailableYet('Adjust Leverage')">Adjust Leverage</button>
+        <button class="pos-card-btn" onclick="notAvailableYet('Stop Profit / Loss')">Stop Profit / Loss</button>
+        <button class="pos-card-btn danger" onclick="closePosition('${p.position_id}')">Close Position</button>
+      </div>
+    </div>`;
   }).join('');
+
+  document.getElementById('positionsCards').innerHTML = cards;
+}
+
+// History — stacked hist-cards, identical layout/logic to
+// futures_trade.html's renderHistory() (symbol/side icon + badges +
+// status header, 3x2 stat grid, Opened/Closed footer). Avg. Close
+// Price is solved algebraically from realized_pnl (same approach as
+// the trade page), since a close price isn't persisted directly.
+//
+// Infinite scroll: only the first `historyRenderedCount` rows are
+// rendered (10 at a time); onHistoryScroll() grows that count as the
+// user nears the bottom of the scrollable card list.
+function renderHistory() {
+  if (!history.length) {
+    document.getElementById('historyCards').innerHTML =
+      `<div class="empty-state"><div class="icon">🗂</div><p>No closed positions yet.</p></div>`;
+    return;
+  }
+
+  const visible = history.slice(0, historyRenderedCount);
+
+  const cards = visible.map(p => {
+    const qty = parseFloat(p.quantity) || 0;
+    const entry = parseFloat(p.entry_price) || 0;
+    const lev = parseFloat(p.leverage) || 1;
+    const pnl = parseFloat(p.realized_pnl) || 0;
+
+    let closePrice = entry;
+    if (qty > 0) {
+      closePrice = p.position_side === 'LONG' ? entry + (pnl / qty) : entry - (pnl / qty);
+    }
+
+    const margin = lev > 0 ? (entry * qty) / lev : 0;
+    const roi = margin > 0 ? (pnl / margin) * 100 : 0;
+    const pnlCls = pnl >= 0 ? 'up' : 'down';
+    const sideCls = p.position_side === 'LONG' ? 'long' : 'short';
+    const sideLetter = p.position_side === 'LONG' ? 'B' : 'S';
+    const marginModeLabel = p.margin_mode === 'ISOLATED' ? 'Isolated' : 'Cross';
+    const isLiq = p.status === 'LIQUIDATED';
+    const qtyStr = qty < 1 ? qty.toFixed(6) : qty.toFixed(2);
+
+    const opened = p.opened_at ? new Date(p.opened_at) : null;
+    const closed = p.closed_at ? new Date(p.closed_at) : null;
+    let durationLabel = '';
+    if (opened && closed) {
+      const ms = Math.max(0, closed - opened);
+      const days = Math.floor(ms / 86400000);
+      const hrs = Math.floor((ms % 86400000) / 3600000);
+      const mins = Math.floor((ms % 3600000) / 60000);
+      durationLabel = ` (Lasting ${days > 0 ? days + 'd ' : ''}${hrs}h ${mins}m)`;
+    }
+    const fmtDate = (d) => d
+      ? d.toLocaleString('en-US', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })
+      : '—';
+
+    return `<div class="hist-card">
+      <div class="hist-card-head">
+        <span class="hist-card-icon ${sideCls}">${sideLetter}</span>
+        <span class="hist-card-symbol">${displaySymbol(p.symbol)}</span>
+        <span class="hist-card-badge">Perp</span>
+        <span class="hist-card-badge">${marginModeLabel} ${lev}x</span>
+        ${isLiq ? `<span class="hist-card-badge liq">Liquidated</span>` : ''}
+        <span class="hist-card-status">${p.status === 'CLOSED' ? 'Closed' : p.status}</span>
+      </div>
+
+      <div class="hist-card-grid">
+        <div class="hist-card-cell"><label>Realized PNL (USDT)</label><span class="${pnlCls}">${pnl >= 0 ? '+' : ''}${pnl.toFixed(2)}</span></div>
+        <div class="hist-card-cell"><label>ROI</label><span class="${pnlCls}">${roi >= 0 ? '+' : ''}${roi.toFixed(2)}%</span></div>
+        <div class="hist-card-cell"><label>Closed Vol (${p.symbol})</label><span>${qtyStr}</span></div>
+        <div class="hist-card-cell"><label>Avg. Entry Price</label><span>${fmtPrice(entry)}</span></div>
+        <div class="hist-card-cell"><label>Avg. Close Price</label><span>${fmtPrice(closePrice)}</span></div>
+        <div class="hist-card-cell"><label>Max OI (${p.symbol})</label><span>${qtyStr}</span></div>
+      </div>
+
+      <div class="hist-card-foot">
+        <span>Opened: ${fmtDate(opened)}</span>
+        <span>Closed${durationLabel}: ${fmtDate(closed)}</span>
+      </div>
+    </div>`;
+  }).join('');
+
+  const hasMore = historyRenderedCount < history.length;
+  const footer = hasMore
+    ? `<div class="hist-load-more"><span class="spinner-inline"></span>Loading more…</div>`
+    : (history.length > HISTORY_PAGE_SIZE ? `<div class="hist-load-more">You've reached the end.</div>` : '');
+
+  document.getElementById('historyCards').innerHTML = cards + footer;
+}
+
+// Triggered on scroll of the History card list — grows the rendered
+// window by HISTORY_PAGE_SIZE once the user nears the bottom.
+function onHistoryScroll() {
+  const el = document.getElementById('historyCards');
+  if (!el) return;
+  const nearBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - 60;
+  if (nearBottom && historyRenderedCount < history.length) {
+    historyRenderedCount += HISTORY_PAGE_SIZE;
+    renderHistory();
+  }
+}
+
+function notAvailableYet(label) {
+  // No dedicated toast on this page; a lightweight inline alert keeps
+  // behavior consistent with futures_trade.html without adding new UI.
+  alert(`${label} isn't available yet.`);
 }
 
 async function closePosition(positionId) {
   try {
     const r = await fetch(`/api/futures/position/${positionId}/close`, { method: 'POST' });
     const d = await r.json();
-    if (d.success) { loadPositions(); loadFuturesWallet(); }
+    if (d.success) { loadPositions(); loadFuturesWallet(); loadHistory(); }
     else alert(d.message || 'Could not close position.');
   } catch (e) { alert('Network error while closing position.'); }
 }
@@ -755,6 +995,7 @@ function connectFuturesSocket() {
         // Fill / liquidation / funding happened — re-pull the DB rows.
         loadPositions();
         loadFuturesWallet();
+        loadHistory();
         break;
       }
     }
@@ -851,18 +1092,20 @@ async function submitTransfer() {
 }
 
 /* This page shows the Futures wallet, so refresh that after a transfer. */
-function refreshCurrentWallet() { loadFuturesWallet(); loadPositions(); }
+function refreshCurrentWallet() { loadFuturesWallet(); loadPositions(); loadHistory(); }
 
 document.addEventListener('DOMContentLoaded', () => {
   loadIdentity();
   connectFuturesSocket();
   loadFuturesWallet();
   loadPositions();
+  loadHistory();
   // Slow fallback poll, same rationale as futures_trade.html — the live
   // socket carries the tick-frequency load, this just guards against it
   // being down.
   setInterval(loadFuturesWallet, 20000);
   setInterval(loadPositions, 20000);
+  setInterval(loadHistory, 20000);
 });
 </script>
 </body>
